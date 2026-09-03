@@ -1,0 +1,7 @@
+node_modules
+dist
+.smoke.mjs
+.boot.mjs
+.survival.mjs
+.levelcurve.mjs
+.standalone/

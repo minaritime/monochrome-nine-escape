@@ -1,0 +1,60 @@
+# main 에 밀어 넣을 때마다 빌드해서 GitHub Pages 에 올립니다.
+#
+# 이 게임은 서버가 할 일이 없습니다. 전부 브라우저 안에서 도는 Canvas 게임이라
+# 빌드 결과물이 HTML·JS·CSS 뿐이고, 저장도 localStorage 라 로그인이 필요 없습니다.
+# 그래서 정적 호스팅 하나로 끝납니다.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  # 저장소 Actions 탭에서 손으로도 돌릴 수 있게 열어 둡니다
+  workflow_dispatch:
+
+# 올리는 데 필요한 최소 권한만 줍니다
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 배포가 겹치면 나중 것 하나만 남깁니다.
+# cancel-in-progress 를 켜지 않는 이유는, 올리는 도중에 끊기면
+# 페이지가 반쯤 갱신된 상태로 남을 수 있어서입니다
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # **빌드 전에 점검부터 돌립니다.** 타입 검사 · 로직 점검 · 부팅 점검이
+      # 전부 통과해야 올라갑니다. 깨진 판이 주소에 그대로 걸리면
+      # 그걸 열어본 사람에게는 그것이 이 게임의 전부가 됩니다
+      - run: npm run check
+
+      - run: npm run build
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
