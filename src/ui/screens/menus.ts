@@ -32,7 +32,7 @@ export function showMainMenu(save: SaveData, actions: MainActions): () => void {
     h('div', { class: 'coins' }, [`보유 코인 ${save.coins}`]),
   ]);
 
-  const el = screen('피하기게임', '', [top, items], 'narrow');
+  const el = screen('Monochrome Nine Escape', '', [top, items], 'narrow');
   // 설정은 카드 목록이 아니라 머리말 우측에 톱니바퀴로 답니다
   el.querySelector('.screen-head')?.append(gearButton(actions.settings));
   overlayEl().append(el);

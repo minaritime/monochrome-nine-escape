@@ -28,7 +28,7 @@ const html = `<!doctype html>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>피하기게임</title>
+    <title>모노크롬 나인 이스케이프</title>
     <style>
 ${css}
     </style>
