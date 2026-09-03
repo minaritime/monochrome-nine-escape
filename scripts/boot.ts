@@ -174,13 +174,9 @@ Object.assign(globalThis, {
     },
     createElement,
     body: bodyEl,
-    documentElement: createElement('html'),
     // 자동 일시정지가 여기에 붙습니다 (`watchFocus`)
     addEventListener: () => {},
     hidden: false,
-    // 전체화면. 브라우저 없는 점검에서는 늘 꺼진 상태입니다
-    fullscreenElement: null,
-    exitFullscreen: () => Promise.resolve(),
   },
   localStorage: {
     getItem: (k: string) => store.get(k) ?? null,
@@ -330,7 +326,6 @@ async function main(): Promise<void> {
   check('Esc 로 겨눈 것이 풀린다', !overlayText().includes('한 번 더 누르면'));
 
   // 설정 항목들
-  check('전체화면 항목이 있다', overlayText().includes('전체화면'));
   check('화면 흔들림은 절반에서 시작한다', overlayText().includes('화면 흔들림') && overlayText().includes('절반'));
   check('파티클은 전체에서 시작한다', overlayText().includes('파티클') && overlayText().includes('전체'));
   check('창을 벗어나면 정지는 켜져 있다', overlayText().includes('창을 벗어나면 정지'));

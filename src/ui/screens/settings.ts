@@ -19,9 +19,6 @@ import { bindKeys, card, clearOverlay, h, overlayEl, screen } from './dom';
  */
 
 export interface SettingsActions {
-  /** 전체화면 켜고 끄기. 지금 상태는 `isFullscreen` 으로 읽습니다 */
-  toggleFullscreen: () => void;
-  isFullscreen: () => boolean;
   /** 단계형 설정을 한 칸 넘깁니다 (끝에 닿으면 처음으로) */
   cycleShake: () => void;
   cycleParticles: () => void;
@@ -117,7 +114,6 @@ export function showSettings(save: SaveData, notice: string, actions: SettingsAc
 
     body.push(
       h('div', { class: 'rowlist' }, [
-        toggle('전체화면', actions.isFullscreen() ? '켬' : '끔', actions.toggleFullscreen),
         toggle('화면 흔들림', SETTINGS.shake.levels[save.shakeLevel].name, actions.cycleShake),
         toggle('파티클', SETTINGS.particles.levels[save.particleLevel].name, actions.cycleParticles),
         toggle('창을 벗어나면 정지', save.autoPause ? '켬' : '끔', actions.toggleAutoPause),

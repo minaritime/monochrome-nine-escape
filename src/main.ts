@@ -253,27 +253,6 @@ function goAchievements(): void {
  * 볼 자리가 없고, 연달아 지울 때 매번 들어와야 합니다.
  * 지운 직후 `save` 를 갈아끼우므로 다시 여는 시점에는 새 저장이 들어갑니다.
  */
-/**
- * 전체화면.
- *
- * **저장에 안 남깁니다.** 브라우저는 사용자가 직접 누른 동작에서만 전체화면을
- * 허용해서, 페이지를 열자마자 되돌릴 방법이 없습니다. 켜져 있다고 적어두고 실제로는
- * 안 켜지면 화면이 거짓말을 합니다.
- *
- * **나가는 것은 Esc 로도 됩니다.** 그건 브라우저가 잡아먹는 키라 게임이 막을 수
- * 없습니다. 판 중이면 그 Esc 에 일시정지도 같이 걸리는데, 화면이 갑자기 작아지는데
- * 게임만 계속 도는 것보다 낫습니다.
- */
-function isFullscreen(): boolean {
-  return document.fullscreenElement !== null;
-}
-
-function toggleFullscreen(): void {
-  // 실패해도(브라우저가 막거나 지원하지 않으면) 게임은 그대로 돕니다
-  if (isFullscreen()) void document.exitFullscreen().catch(() => {});
-  else void document.documentElement.requestFullscreen().catch(() => {});
-}
-
 /** 단계형 설정을 한 칸 넘깁니다. 끝에 닿으면 처음으로 돌아옵니다 */
 function cycle(value: number, count: number): number {
   return (value + 1) % count;
@@ -282,13 +261,6 @@ function cycle(value: number, count: number): number {
 function goSettings(notice = ''): void {
   open('settings', () =>
     showSettings(save, notice, {
-      isFullscreen,
-      toggleFullscreen: () => {
-        toggleFullscreen();
-        // 브라우저가 실제로 바꾸는 데 한 프레임이 걸립니다. 바로 다시 그리면
-        // 방금 누른 값이 아니라 이전 값이 보입니다
-        setTimeout(() => goSettings(), 60);
-      },
       cycleShake: () => {
         save.shakeLevel = cycle(save.shakeLevel, SETTINGS.shake.levels.length);
         saveGame(save);
