@@ -463,9 +463,10 @@ async function main(): Promise<void> {
     press('Digit6');
     check('업적 초기화가 보인다', overlayText().includes('업적 초기화'));
     check('개발자 모드 끄기가 보인다', overlayText().includes('개발자 모드 끄기'));
-    press('Digit2');
+    // 설정은 마우스로 씁니다 (숫자 단축키 없음)
+    clickCard('업적 초기화');
     check('한 번 누르면 겨누기만 한다', overlayText().includes('한 번 더 누르면'));
-    press('Digit2');
+    clickCard('업적 초기화');
     check('두 번 누르면 실행된다', overlayText().includes('업적을 지웠습니다'));
     // 껐다가 다시 켜야 아래 7번에서 디버그 키를 쓸 수 있으므로 여기서는 끄지 않습니다
     press('Escape');
