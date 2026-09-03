@@ -11,6 +11,7 @@ import {
   BASE_STATS,
   BASE_WEIGHT,
   BOSS,
+  SETTINGS,
   SKIP_UPGRADE,
   BOSS_SWARM,
   CANVAS,
@@ -3033,6 +3034,40 @@ console.log('16) 저장 데이터가 낡거나 망가졌을 때');
   check('새 저장은 개발자 모드가 꺼져 있다', emptySave().devMode === false);
   check('켜둔 값은 유지된다', fromJSON({ devMode: true }).devMode === true);
   check('boolean 이 아니면 꺼짐으로 본다', fromJSON({ devMode: 'yes' }).devMode === false);
+
+  // 설정 기본값. **화면 흔들림은 절반에서 시작합니다.** 예전에 상수 하나로 쓰던
+  // 세기와 같은 값이고, 더 원하는 사람만 전체로 올립니다
+  const fresh = emptySave();
+  check('흔들림 기본은 절반', SETTINGS.shake.levels[fresh.shakeLevel].name === '절반');
+  check('파티클 기본은 전체', SETTINGS.particles.levels[fresh.particleLevel].name === '전체');
+  check('자동 일시정지는 기본으로 켬', fresh.autoPause === true);
+
+  // 단계 표가 줄어든 뒤에 옛 저장을 열어도 없는 자리를 가리키면 안 됩니다
+  const bad = fromJSON({ shakeLevel: 99, particleLevel: -3, autoPause: false });
+  check('범위를 벗어난 단계는 잘립니다', bad.shakeLevel === SETTINGS.shake.levels.length - 1 && bad.particleLevel === 0);
+  check('자동 일시정지는 끈 값이 유지된다', bad.autoPause === false);
+
+  // **파티클 설정이 판의 난수를 건드리면 안 됩니다.** 건드리면 시드를 고정해도
+  // 설정마다 다른 판이 됩니다
+  {
+    const a = emptySave();
+    a.particleLevel = 0;
+    const b = emptySave();
+    b.particleLevel = SETTINGS.particles.levels.length - 1;
+    const wa = new World(a, input, 4242, 0);
+    const wb = new World(b, input, 4242, 0);
+    for (let i = 0; i < 600; i++) {
+      wa.update(FIXED_DT);
+      wb.update(FIXED_DT);
+    }
+    check(
+      '파티클 설정이 달라도 같은 판이 나온다',
+      wa.enemies.length === wb.enemies.length && wa.stats.kills === wb.stats.kills,
+      `적 ${wa.enemies.length}/${wb.enemies.length} · 처치 ${wa.stats.kills}/${wb.stats.kills}`,
+    );
+    check('파티클을 끄면 실제로 안 뿌린다', wa.effects.particles.length === 0, `${wa.effects.particles.length}`);
+    check('전체면 뿌린다', wb.effects.particles.length > 0);
+  }
 
   // 배열이 아니거나 문자열이 아닌 것이 섞여 있어도 버팁니다
   const junk = fromJSON({ unlockedStartSkills: 'orbit', equippedStartSkills: [7, null, 'aura'] });

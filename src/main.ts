@@ -1,6 +1,6 @@
 import './style.css';
 
-import { ACHIEVEMENT, DIFFICULTY } from './data/balance';
+import { ACHIEVEMENT, DIFFICULTY, SETTINGS } from './data/balance';
 import { GameLoop } from './core/loop';
 import { Input } from './core/input';
 import { Debug } from './game/debug';
@@ -65,6 +65,29 @@ let achieveTimer = 0;
 
 watchMouse();
 watchKonami();
+watchFocus();
+
+/**
+ * 창을 벗어나면 자동으로 일시정지합니다 (설정에서 끌 수 있습니다).
+ *
+ * 30분짜리 판을 하는 게임이라 중간에 다른 창을 볼 일이 반드시 생깁니다. 없으면
+ * 돌아와서 죽어 있는 것을 봅니다.
+ *
+ * **`blur` 와 `visibilitychange` 를 둘 다 봅니다.** 다른 창을 클릭하면 `blur` 만 오고,
+ * 탭을 바꾸거나 최소화하면 `visibilitychange` 만 오는 경우가 있습니다.
+ * `pauseRun` 은 판이 도는 중일 때만 동작하므로 두 번 불려도 문제가 없습니다.
+ */
+function watchFocus(): void {
+  const pause = () => {
+    if (!save.autoPause) return;
+    if (screen !== 'playing') return;
+    pauseRun();
+  };
+  window.addEventListener('blur', pause);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) pause();
+  });
+}
 
 /** 화면(오버레이)을 마지막으로 닫은 시각. 그 직후의 클릭은 안 셉니다 */
 let overlayClosedAt = 0;
@@ -230,9 +253,61 @@ function goAchievements(): void {
  * 볼 자리가 없고, 연달아 지울 때 매번 들어와야 합니다.
  * 지운 직후 `save` 를 갈아끼우므로 다시 여는 시점에는 새 저장이 들어갑니다.
  */
+/**
+ * 전체화면.
+ *
+ * **저장에 안 남깁니다.** 브라우저는 사용자가 직접 누른 동작에서만 전체화면을
+ * 허용해서, 페이지를 열자마자 되돌릴 방법이 없습니다. 켜져 있다고 적어두고 실제로는
+ * 안 켜지면 화면이 거짓말을 합니다.
+ *
+ * **나가는 것은 Esc 로도 됩니다.** 그건 브라우저가 잡아먹는 키라 게임이 막을 수
+ * 없습니다. 판 중이면 그 Esc 에 일시정지도 같이 걸리는데, 화면이 갑자기 작아지는데
+ * 게임만 계속 도는 것보다 낫습니다.
+ */
+function isFullscreen(): boolean {
+  return document.fullscreenElement !== null;
+}
+
+function toggleFullscreen(): void {
+  // 실패해도(브라우저가 막거나 지원하지 않으면) 게임은 그대로 돕니다
+  if (isFullscreen()) void document.exitFullscreen().catch(() => {});
+  else void document.documentElement.requestFullscreen().catch(() => {});
+}
+
+/** 단계형 설정을 한 칸 넘깁니다. 끝에 닿으면 처음으로 돌아옵니다 */
+function cycle(value: number, count: number): number {
+  return (value + 1) % count;
+}
+
 function goSettings(notice = ''): void {
   open('settings', () =>
     showSettings(save, notice, {
+      isFullscreen,
+      toggleFullscreen: () => {
+        toggleFullscreen();
+        // 브라우저가 실제로 바꾸는 데 한 프레임이 걸립니다. 바로 다시 그리면
+        // 방금 누른 값이 아니라 이전 값이 보입니다
+        setTimeout(() => goSettings(), 60);
+      },
+      cycleShake: () => {
+        save.shakeLevel = cycle(save.shakeLevel, SETTINGS.shake.levels.length);
+        saveGame(save);
+        // 판이 돌고 있는 중이면 그 판에도 바로 먹여야 합니다. 다음 판부터 적용되면
+        // 무엇이 바뀌었는지 확인할 방법이 없습니다
+        if (world) world.effects.shakeScale = SETTINGS.shake.levels[save.shakeLevel].mul;
+        goSettings();
+      },
+      cycleParticles: () => {
+        save.particleLevel = cycle(save.particleLevel, SETTINGS.particles.levels.length);
+        saveGame(save);
+        if (world) world.effects.particleScale = SETTINGS.particles.levels[save.particleLevel].mul;
+        goSettings();
+      },
+      toggleAutoPause: () => {
+        save.autoPause = !save.autoPause;
+        saveGame(save);
+        goSettings();
+      },
       resetAll: () => {
         save = resetSave();
         // 난이도 해금이 0 으로 돌아갔는데 마지막에 고른 값이 남아 있으면 어긋납니다

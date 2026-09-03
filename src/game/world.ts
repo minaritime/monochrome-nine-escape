@@ -16,6 +16,7 @@ import {
   LEVEL,
   LEVEL_NOTICE,
   REVIVE_UPGRADE,
+  SETTINGS,
   STATUS,
   TIME_SCALING,
   type BossId,
@@ -167,7 +168,12 @@ export class World {
     this.difficulty = clampDifficulty(difficulty);
     this.diff = difficultyMods(this.difficulty);
     this.rng = new Rng(seed);
-    this.effects = new Effects(this.rng);
+    // **파티클은 판의 난수기를 쓰면 안 됩니다.** 설정에서 파티클을 줄이면 난수를 덜
+    // 뽑게 되어 그 뒤의 스폰과 추첨이 통째로 밀립니다. 시드를 고정해도 설정마다 다른
+    // 판이 되므로, 눈에 보이는 것과 게임의 결과를 갈라 놓습니다
+    this.effects = new Effects(new Rng(this.rng.seed ^ 0x9e3779b9));
+    this.effects.shakeScale = SETTINGS.shake.levels[save.shakeLevel].mul;
+    this.effects.particleScale = SETTINGS.particles.levels[save.particleLevel].mul;
     this.player = createPlayer(save);
     this.spawner = new Spawner();
     this.skillsTaken = ownedSlots(this.player).length;

@@ -160,7 +160,10 @@ const store = new Map<string, string>();
 
 Object.assign(globalThis, {
   window: stubWindow,
-  // 시드를 고정해야 매번 같은 흐름으로 재현됩니다
+  // 시드를 고정해야 매번 같은 흐름으로 재현됩니다.
+  // **다만 `?seed` 는 개발자 모드에서만 듣습니다.** 5번에서 잠금을 풀기 전까지는
+  // 안 걸리므로 첫 판은 시드가 안 잡힙니다. 그 구간의 점검은 시드와 무관한
+  // 것들뿐이라(강제 레벨업 · 즉사 키) 결과가 흔들리지 않습니다
   location: { search: '?seed=20260804' },
   document: {
     getElementById: (id: string) => {
@@ -171,6 +174,13 @@ Object.assign(globalThis, {
     },
     createElement,
     body: bodyEl,
+    documentElement: createElement('html'),
+    // 자동 일시정지가 여기에 붙습니다 (`watchFocus`)
+    addEventListener: () => {},
+    hidden: false,
+    // 전체화면. 브라우저 없는 점검에서는 늘 꺼진 상태입니다
+    fullscreenElement: null,
+    exitFullscreen: () => Promise.resolve(),
   },
   localStorage: {
     getItem: (k: string) => store.get(k) ?? null,
@@ -215,6 +225,29 @@ function frames(count: number, msPerFrame = 16.7): void {
 }
 
 let now = 0;
+
+/** class 이름으로 화면 안을 뒤집니다 (문구가 아니라 표식으로 찾을 때) */
+function findByClass(el: StubElement, name: string): StubElement | null {
+  if (el.className.split(' ').includes(name)) return el;
+  for (const c of el.children) {
+    const hit = findByClass(c, name);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/** 제목에 그 글자가 들어간 카드를 마우스로 누릅니다 */
+function clickCard(title: string): void {
+  const walk = (el: StubElement): StubElement | null => {
+    if (el.className.split(' ').includes('card') && overlayText(el).includes(title)) return el;
+    for (const c of el.children) {
+      const hit = walk(c);
+      if (hit) return hit;
+    }
+    return null;
+  };
+  walk(overlay)?.click();
+}
 
 /** 화면 안의 모든 텍스트를 모읍니다 */
 function overlayText(el: StubElement = overlay): string {
@@ -288,12 +321,34 @@ async function main(): Promise<void> {
   // 개발자 모드를 켜기 전에는 그 항목들이 아예 없어야 합니다
   check('업적 초기화는 잠겨 있으면 안 보인다', !overlayText().includes('업적 초기화'));
   check('개발자 모드 끄기도 안 보인다', !overlayText().includes('개발자 모드'));
+  // 설정은 마우스로 쓰는 화면입니다. 숫자키가 남아 있으면 안 됩니다
   press('Digit1');
+  check('숫자키로는 아무 일도 안 일어난다', !overlayText().includes('한 번 더 누르면'));
+  clickCard('모든 데이터 초기화');
   check('한 번 누르면 겨누기만 한다', overlayText().includes('한 번 더 누르면'));
   press('Escape');
   check('Esc 로 겨눈 것이 풀린다', !overlayText().includes('한 번 더 누르면'));
+
+  // 설정 항목들
+  check('전체화면 항목이 있다', overlayText().includes('전체화면'));
+  check('화면 흔들림은 절반에서 시작한다', overlayText().includes('화면 흔들림') && overlayText().includes('절반'));
+  check('파티클은 전체에서 시작한다', overlayText().includes('파티클') && overlayText().includes('전체'));
+  check('창을 벗어나면 정지는 켜져 있다', overlayText().includes('창을 벗어나면 정지'));
+  clickCard('화면 흔들림');
+  check('흔들림을 누르면 다음 값으로 넘어간다', overlayText().includes('전체'), overlayText().trim().slice(0, 80));
+
   press('Escape');
   check('설정에서 메인으로 돌아온다', overlayText().includes('게임 시작'));
+
+  // **톱니를 마우스로 눌러도 알림 줄이 생기면 안 됩니다.**
+  // onclick 에 함수를 그대로 넘기면 클릭 이벤트가 첫 인자로 들어가는데,
+  // 그 자리가 알림 문구라 화면에 `[object MouseEvent]` 가 찍혔습니다
+  const gear = findByClass(overlay, 'gear-btn');
+  check('톱니 버튼이 있다', gear !== null);
+  gear?.click();
+  check('톱니를 클릭해도 알림 줄이 없다', findByClass(overlay, 'settings-notice') === null);
+  press('Escape');
+  check('다시 메인으로 돌아온다', overlayText().includes('게임 시작'));
 
   console.log('3) 난이도 선택 후 게임 시작');
   press('Digit1');

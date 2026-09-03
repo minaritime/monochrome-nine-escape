@@ -34,7 +34,10 @@ export function showMainMenu(save: SaveData, actions: MainActions): () => void {
 
   const el = screen('Monochrome Nine Escape', '', [top, items], 'narrow');
   // 설정은 카드 목록이 아니라 머리말 우측에 톱니바퀴로 답니다
-  el.querySelector('.screen-head')?.append(gearButton(actions.settings));
+  // **함수를 그대로 넘기면 안 됩니다.** onclick 은 클릭 이벤트를 첫 인자로 넣어
+  // 부르는데, `goSettings` 의 첫 인자는 "방금 무엇을 했는지" 적는 알림 줄입니다.
+  // 그대로 넘기면 그 자리에 MouseEvent 가 들어가 `[object MouseEvent]` 가 찍혔습니다
+  el.querySelector('.screen-head')?.append(gearButton(() => actions.settings()));
   overlayEl().append(el);
 
   return bindKeys((code) => {

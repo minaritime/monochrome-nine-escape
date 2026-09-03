@@ -1,4 +1,4 @@
-import { DIFFICULTY, PASSIVE, SKILLS, STAT_DEFS, type StatKey } from '../data/balance';
+import { DIFFICULTY, PASSIVE, SETTINGS, SKILLS, STAT_DEFS, type StatKey } from '../data/balance';
 import type { SkillId } from '../skills/types';
 
 const STORAGE_KEY = 'dodge-game-save';
@@ -96,6 +96,17 @@ export interface SaveData {
    * 설정의 업적 초기화. **끄는 것도 설정 화면에서 합니다.**
    */
   devMode: boolean;
+  /** 화면 흔들림 단계 (`SETTINGS.shake.levels` 의 자리). 기본은 절반 */
+  shakeLevel: number;
+  /** 파티클 양 단계 (`SETTINGS.particles.levels` 의 자리). 기본은 전체 */
+  particleLevel: number;
+  /**
+   * 창을 벗어나면 자동으로 일시정지.
+   *
+   * 30분짜리 판을 하는 게임이라 중간에 다른 창을 볼 일이 반드시 생깁니다.
+   * 없으면 돌아와서 죽어 있는 것을 봅니다.
+   */
+  autoPause: boolean;
 }
 
 export function emptySave(): SaveData {
@@ -125,6 +136,9 @@ export function emptySave(): SaveData {
     lastDifficulty: 0,
     shopHelpSeen: false,
     devMode: false,
+    shakeLevel: SETTINGS.shake.default,
+    particleLevel: SETTINGS.particles.default,
+    autoPause: SETTINGS.autoPauseDefault,
   };
 }
 
@@ -259,6 +273,14 @@ function migrate(data: Partial<SaveData>): SaveData {
     ),
     shopHelpSeen: data.shopHelpSeen === true,
     devMode: data.devMode === true,
+    // 단계 표가 줄어든 뒤에 옛 저장을 열어도 없는 자리를 가리키면 안 됩니다
+    shakeLevel: clampInt(numberOr(data.shakeLevel, SETTINGS.shake.default), 0, SETTINGS.shake.levels.length - 1),
+    particleLevel: clampInt(
+      numberOr(data.particleLevel, SETTINGS.particles.default),
+      0,
+      SETTINGS.particles.levels.length - 1,
+    ),
+    autoPause: data.autoPause !== false,
   };
 }
 

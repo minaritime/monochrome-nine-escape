@@ -34,10 +34,32 @@ export class Effects {
   /** 피격 시 화면 가장자리 붉은 섬광 */
   hurtFlash = 0;
 
+  /**
+   * 설정의 화면 흔들림 배율 (`SETTINGS.shake`). `SHAKE.mul` 위에 곱합니다.
+   * 기본은 절반(0.5)이라 실제로 걸리는 값은 0.3 입니다.
+   */
+  shakeScale = 1;
+  /** 설정의 파티클 양 배율 (`SETTINGS.particles`) */
+  particleScale = 1;
+
+  /**
+   * **월드와 다른 난수기를 받습니다** (`world.ts` 에서 따로 만들어 넘깁니다).
+   *
+   * 같은 것을 쓰면 파티클을 적게 뿌리는 사람은 난수를 덜 뽑게 되어, 그 뒤의 스폰과
+   * 추첨이 통째로 밀립니다. **설정을 바꾸면 시드를 고정해도 다른 판이 됩니다.**
+   * 눈에 보이는 것과 게임의 결과는 서로를 건드리면 안 됩니다.
+   */
   constructor(private rng: Rng) {}
+
+  /** 설정 배율을 반영한 실제 개수. 0 이 되어도 1 로 올리지 않습니다 ("끔"이 있어야 합니다) */
+  private scaled(count: number): number {
+    if (this.particleScale >= 1) return count;
+    return Math.round(count * this.particleScale);
+  }
 
   burst(x: number, y: number, count: number, color: string, speed = 130, size = 3, life = 0.45): void {
     if (this.particles.length > 1400) return;
+    count = this.scaled(count);
     for (let i = 0; i < count; i++) {
       const a = this.rng.angle();
       const s = speed * this.rng.range(0.35, 1);
@@ -56,6 +78,7 @@ export class Effects {
   }
 
   spray(x: number, y: number, angle: number, spread: number, count: number, color: string, speed = 200, size = 2.4): void {
+    count = this.scaled(count);
     if (this.particles.length > 1400) return;
     for (let i = 0; i < count; i++) {
       const a = angle + this.rng.range(-spread, spread);
@@ -80,6 +103,7 @@ export class Effects {
    * 발사구에서만 뿜으면 실제 사거리보다 짧아 보여서 어디까지 닿는지 알 수 없습니다.
    */
   coneJet(x: number, y: number, angle: number, spread: number, range: number, count: number): void {
+    count = this.scaled(count);
     if (this.particles.length > 1400) return;
     const colors = ['#ffd166', '#ff9a3c', '#ff7a3d', '#ff5a2d'];
     for (let i = 0; i < count; i++) {
@@ -108,6 +132,7 @@ export class Effects {
    * 흩어지는 입자로만 보여줄 때 씁니다. 가장자리를 일부러 흐리게 둡니다.
    */
   auraMotes(x: number, y: number, radius: number, count: number, color: string): void {
+    count = this.scaled(count);
     if (this.particles.length > 1400) return;
     for (let i = 0; i < count; i++) {
       const a = this.rng.angle();
@@ -140,7 +165,7 @@ export class Effects {
    * 전체 배율과 상한을 겁니다 (`SHAKE`). 세기의 비율은 그대로 유지됩니다.
    */
   addShake(amount: number): void {
-    this.shake = Math.min(this.shake + amount * SHAKE.mul, SHAKE.max);
+    this.shake = Math.min(this.shake + amount * SHAKE.mul * this.shakeScale, SHAKE.max);
   }
 
   /**
