@@ -3028,6 +3028,12 @@ console.log('16) 저장 데이터가 낡거나 망가졌을 때');
   }
   check('그 저장으로도 판이 시작된다', started);
 
+  // 개발자 모드는 기본이 꺼짐이어야 합니다. 켜져 있으면 디버그 · ?unlock · ?seed 가
+  // 통째로 열린 채로 시작합니다
+  check('새 저장은 개발자 모드가 꺼져 있다', emptySave().devMode === false);
+  check('켜둔 값은 유지된다', fromJSON({ devMode: true }).devMode === true);
+  check('boolean 이 아니면 꺼짐으로 본다', fromJSON({ devMode: 'yes' }).devMode === false);
+
   // 배열이 아니거나 문자열이 아닌 것이 섞여 있어도 버팁니다
   const junk = fromJSON({ unlockedStartSkills: 'orbit', equippedStartSkills: [7, null, 'aura'] });
   check('배열이 아니면 빈 목록', junk.unlockedStartSkills.length === 0);

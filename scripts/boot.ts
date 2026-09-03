@@ -281,16 +281,17 @@ async function main(): Promise<void> {
   check('일반 업적은 이름이 보인다', overlayText().includes('학살자'));
   press('Escape');
 
-  // 설정의 초기화는 한 번에 실행되면 안 됩니다 (되돌릴 방법이 없습니다)
+  // 설정의 초기화는 한 번에 실행되면 안 됩니다 (되돌릴 방법이 없습니다).
+  // 겨누기 동작 자체는 개발자 항목으로 6-2 번에서 봅니다
   press('Digit6');
   check('설정이 열렸다', overlayText().includes('모든 데이터 초기화'));
-  press('Digit2');
+  // 개발자 모드를 켜기 전에는 그 항목들이 아예 없어야 합니다
+  check('업적 초기화는 잠겨 있으면 안 보인다', !overlayText().includes('업적 초기화'));
+  check('개발자 모드 끄기도 안 보인다', !overlayText().includes('개발자 모드'));
+  press('Digit1');
   check('한 번 누르면 겨누기만 한다', overlayText().includes('한 번 더 누르면'));
   press('Escape');
-  check('Esc 로 겨눈 것이 풀린다', !overlayText().includes('한 번 더 누르면') && overlayText().includes('업적 초기화'));
-  press('Digit2');
-  press('Digit2');
-  check('두 번 누르면 실행된다', overlayText().includes('업적을 지웠습니다'));
+  check('Esc 로 겨눈 것이 풀린다', !overlayText().includes('한 번 더 누르면'));
   press('Escape');
   check('설정에서 메인으로 돌아온다', overlayText().includes('게임 시작'));
 
@@ -400,6 +401,20 @@ async function main(): Promise<void> {
     press('Escape');
     frames(2);
     check('메인 화면으로 돌아왔다', overlayText().includes('게임 시작'));
+  }
+
+  if (over) {
+    console.log('6-2) 개발자 모드가 켜진 뒤의 설정');
+    press('Digit6');
+    check('업적 초기화가 보인다', overlayText().includes('업적 초기화'));
+    check('개발자 모드 끄기가 보인다', overlayText().includes('개발자 모드 끄기'));
+    press('Digit2');
+    check('한 번 누르면 겨누기만 한다', overlayText().includes('한 번 더 누르면'));
+    press('Digit2');
+    check('두 번 누르면 실행된다', overlayText().includes('업적을 지웠습니다'));
+    // 껐다가 다시 켜야 아래 7번에서 디버그 키를 쓸 수 있으므로 여기서는 끄지 않습니다
+    press('Escape');
+    check('설정에서 메인으로 돌아온다', overlayText().includes('게임 시작'));
   }
 
   console.log('7) 6레벨 강화 갈래 선택');

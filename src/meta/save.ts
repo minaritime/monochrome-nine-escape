@@ -85,6 +85,17 @@ export interface SaveData {
    * 첫 방문에만 띄웁니다. 그 뒤로는 탭 줄 오른쪽 `?` 로 언제든 다시 볼 수 있습니다.
    */
   shopHelpSeen: boolean;
+  /**
+   * 개발자 모드. 디버그 잠금을 푼 적이 있는가.
+   *
+   * **탭이 아니라 브라우저 단위로 남습니다.** `?unlock` 은 페이지가 열릴 때,
+   * `?seed` 는 판이 시작될 때 읽히는데, 그 시점에는 아직 디버그를 켤 기회가 없습니다.
+   * 잠금을 탭 안에만 두면 주소 파라미터는 영영 안 듣습니다.
+   *
+   * 이 하나가 셋을 다 덮습니다. 디버그 오버레이(F1) · `?unlock` · `?seed` ·
+   * 설정의 업적 초기화. **끄는 것도 설정 화면에서 합니다.**
+   */
+  devMode: boolean;
 }
 
 export function emptySave(): SaveData {
@@ -113,6 +124,7 @@ export function emptySave(): SaveData {
     maxDifficulty: 0,
     lastDifficulty: 0,
     shopHelpSeen: false,
+    devMode: false,
   };
 }
 
@@ -246,6 +258,7 @@ function migrate(data: Partial<SaveData>): SaveData {
       Math.max(DIFFICULTY.min, Math.floor(numberOr(data.lastDifficulty, 0))),
     ),
     shopHelpSeen: data.shopHelpSeen === true,
+    devMode: data.devMode === true,
   };
 }
 

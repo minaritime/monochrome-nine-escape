@@ -17,10 +17,12 @@ export interface SettingsActions {
   resetAll: () => void;
   /** TEST_ONLY: 업적만 지웁니다. 정식판에서는 이 항목째로 뺍니다 */
   resetAchievements: () => void;
+  /** 개발자 모드를 끕니다 (디버그 · `?unlock` · `?seed` 가 같이 잠깁니다) */
+  devModeOff: () => void;
   back: () => void;
 }
 
-type DangerId = 'all' | 'achievements';
+type DangerId = 'all' | 'achievements' | 'devoff';
 
 interface DangerItem {
   id: DangerId;
@@ -41,15 +43,31 @@ export function showSettings(save: SaveData, notice: string, actions: SettingsAc
       desc: `코인 ${save.coins} · 영구 강화 · 기록 · 도감 · 업적 · 난이도 해금을 전부 지웁니다`,
       run: actions.resetAll,
     },
-    {
+  ];
+
+  // **개발자 항목은 개발자 모드에서만 보입니다.**
+  //
+  // 업적 초기화는 누를 때마다 코인이 8,100 씩 다시 들어옵니다. 기록으로 판정되는
+  // 업적이 곧바로 다시 열리기 때문인데, 알림을 다시 보려고 만든 버튼이라 그 동작
+  // 자체는 맞습니다. 다만 **링크를 받아 들어온 사람에게 두 번 클릭으로 열려 있으면
+  // 상점이라는 것이 없어집니다.** 21번 누르면 영구 강화가 전부 채워집니다.
+  if (save.devMode) {
+    items.push({
       // TEST_ONLY: 알림과 판정을 다시 보려고 둔 통로입니다
       id: 'achievements',
       key: '2',
       title: '업적 초기화',
       desc: `업적 ${done} / ${total} 와 업적 누적값만 지웁니다. 받은 코인은 남고, 기록으로 판정되는 업적은 다시 열립니다`,
       run: actions.resetAchievements,
-    },
-  ];
+    });
+    items.push({
+      id: 'devoff',
+      key: '3',
+      title: '개발자 모드 끄기',
+      desc: '디버그 오버레이와 주소 파라미터가 같이 잠깁니다. 다시 켜려면 비밀번호를 쳐야 합니다',
+      run: actions.devModeOff,
+    });
+  }
 
   /** 한 번 눌러 겨눈 항목. 같은 것을 또 누르면 실행됩니다 */
   let armed: DangerId | null = null;
@@ -89,7 +107,7 @@ export function showSettings(save: SaveData, notice: string, actions: SettingsAc
     if (notice) body.push(h('div', { class: 'settings-notice' }, [notice]));
     body.push(h('div', { class: 'rowlist' }, rows));
 
-    overlayEl().append(screen('설정', '테스트용입니다', body, 'narrow', actions.back));
+    overlayEl().append(screen('설정', '', body, 'narrow', actions.back));
 
     unbindKeys = bindKeys((code) => {
       if (code === 'Escape' || code === 'Backspace') {

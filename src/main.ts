@@ -58,6 +58,8 @@ let unbind: () => void = () => {};
  * 저장에도 남아서 브라우저를 껐다 켜도 그 자리에서 시작합니다.
  */
 let difficulty = save.lastDifficulty;
+// 개발자 모드는 브라우저에 남습니다. 켜져 있으면 F1 이 바로 열립니다
+debug.unlocked = save.devMode;
 /** 업적 판정까지 남은 시간 */
 let achieveTimer = 0;
 
@@ -132,8 +134,12 @@ unlockAllFromUrl();
  * `?unlock` 을 붙여 한 번 열면 최고 난이도까지 열린 채로 저장됩니다.
  * 그 뒤로는 파라미터를 떼고 열어도 계속 열려 있습니다.
  * 밸런스를 볼 때 15단계까지 차례로 깨고 올라갈 수는 없어서 둔 통로입니다.
+ *
+ * **개발자 모드에서만 듣습니다.** 난이도 해금은 이 게임의 유일한 장기 목표인데,
+ * 주소에 한 줄 붙여 건너뛸 수 있으면 그 목표가 없는 것과 같습니다.
  */
 function unlockAllFromUrl(): void {
+  if (!save.devMode) return;
   if (!new URLSearchParams(location.search).has('unlock')) return;
   if (save.maxDifficulty >= DIFFICULTY.max) return;
   save.maxDifficulty = DIFFICULTY.max;
@@ -239,6 +245,13 @@ function goSettings(notice = ''): void {
         clearToasts();
         goSettings('업적을 지웠습니다');
       },
+      devModeOff: () => {
+        save.devMode = false;
+        saveGame(save);
+        debug.unlocked = false;
+        debug.enabled = false;
+        goSettings('개발자 모드를 껐습니다');
+      },
       back: goMain,
     }),
   );
@@ -263,8 +276,12 @@ function sweepAchievements(w: World | null, runEnded = false): void {
 /**
  * 시드 고정 모드 (기획.md 10장).
  * ?seed=12345 로 열면 같은 상황이 그대로 재현됩니다. 밸런싱 전후 비교에 씁니다.
+ *
+ * **개발자 모드에서만 듣습니다.** 유리해지는 파라미터는 아니지만, 개발용 통로는
+ * 한 자리에 모아두는 편이 무엇이 열려 있는지 알기 쉽습니다.
  */
 function seedFromUrl(): number | undefined {
+  if (!save.devMode) return undefined;
   const raw = new URLSearchParams(location.search).get('seed');
   if (!raw) return undefined;
   const n = Number(raw);
@@ -334,6 +351,11 @@ function openDebugGate(): void {
       () => {
         debug.unlocked = true;
         debug.enabled = true;
+        // **저장에 남깁니다.** `?unlock` 은 페이지가 열릴 때, `?seed` 는 판이 시작될 때
+        // 읽히는데 그 시점에는 아직 디버그를 켤 기회가 없습니다. 탭 안에만 두면
+        // 주소 파라미터는 영영 안 듣습니다. 끄는 것은 설정 화면에서 합니다
+        save.devMode = true;
+        saveGame(save);
         closeOverlay('playing');
       },
       () => closeOverlay('playing'),
