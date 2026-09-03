@@ -1036,3 +1036,29 @@ body {
 .good {
   color: var(--ok);
 }
+
+/* 디버그 잠금 화면. 무엇을 여는 자리인지 드러나면 안 되므로 점만 놓습니다 */
+.gate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.gate-dots {
+  display: flex;
+  gap: 10px;
+}
+
+.gate-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1px solid #3a4256;
+  background: transparent;
+}
+
+.gate-dot.on {
+  background: #8d99b0;
+  border-color: #8d99b0;
+}

@@ -18,6 +18,7 @@ import { showMainMenu, showRecords } from './ui/screens/menus';
 import { showAchievements } from './ui/screens/achievements';
 import { showSettings } from './ui/screens/settings';
 import { showBranchChoice, showGameOver, showPause, showSkillChoice } from './ui/screens/ingame';
+import { showDebugGate } from './ui/screens/debugGate';
 import type { SkillId } from './skills/types';
 import { checkAchievements, commitAchieveStats, resetAchievements, unlockDirect } from './meta/achievements';
 import { clearToasts, pushToasts, updateToasts } from './ui/toast';
@@ -37,6 +38,8 @@ type Screen =
   | 'dying'
   | 'achievements'
   | 'settings'
+  /** 디버그 잠금. 무엇을 여는 화면인지 적지 않습니다 (`debugGate.ts`) */
+  | 'debugauth'
   | 'gameover';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement | null;
@@ -319,6 +322,25 @@ function finishRun(w: World): void {
  * `open` 을 거치는 이유는 이전 화면이 걸어둔 키 처리를 확실히 걷기 위해서입니다.
  * 연출 중에 남은 핸들러가 살아 있으면 건너뛰기 키가 두 번 먹습니다.
  */
+/**
+ * 디버그 잠금 화면을 엽니다.
+ *
+ * `open` 을 거치므로 판이 멈춥니다. 비밀번호를 치는 동안 가만히 서 있으면
+ * 그대로 맞아 죽기 때문입니다.
+ */
+function openDebugGate(): void {
+  open('debugauth', () =>
+    showDebugGate(
+      () => {
+        debug.unlocked = true;
+        debug.enabled = true;
+        closeOverlay('playing');
+      },
+      () => closeOverlay('playing'),
+    ),
+  );
+}
+
 function startDying(): void {
   open('dying', () => () => {});
 }
@@ -355,6 +377,14 @@ const loop = new GameLoop({
     if (screen !== 'playing') {
       // 메뉴가 떠 있어도 파티클과 화면 흔들림은 정리되게 둡니다
       world.effects.update(dt);
+      return;
+    }
+
+    // 잠겨 있는 동안의 F1 은 디버그를 켜지 않고 잠금 화면을 엽니다.
+    // **여는 순간 판이 멈춥니다.** `screen` 이 'playing' 이 아니게 되어 world.update 가
+    // 안 도는데, 그래야 비밀번호를 치는 동안 가만히 서서 맞아 죽지 않습니다
+    if (!debug.unlocked && input.wasPressed('F1')) {
+      openDebugGate();
       return;
     }
 

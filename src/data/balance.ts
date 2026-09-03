@@ -1873,4 +1873,16 @@ export const ACHIEVEMENT = {
 
 export const DEBUG = {
   stressSpawnCount: 200,
+  /**
+   * 디버그 잠금 해제 순서. `KeyboardEvent.code` 로 적습니다.
+   *
+   * **글자가 아니라 자판의 자리입니다.** 한글 입력 상태에서 누르면 화면에 들어가는
+   * 글자가 통째로 달라지는데, `code` 는 자판 배열과 입력기와 무관하게 같은 값이라
+   * 어느 상태에서 눌러도 똑같이 동작합니다. 대소문자도 상관없습니다.
+   *
+   * **이건 자물쇠가 아니라 문턱입니다.** 소스가 공개돼 있으므로 코드를 읽는 사람은
+   * 이 줄을 그대로 봅니다. 막으려는 것은 "링크를 받아 들어온 사람이 F1 을 눌러보다
+   * 디버그를 켜는 일"이지 작정하고 뜯어보는 사람이 아닙니다.
+   */
+  unlockSequence: ['KeyR', 'KeyH', 'KeyD', 'KeyQ', 'KeyN', 'KeyG', 'KeyO', 'KeyF', 'KeyK'],
 } as const;

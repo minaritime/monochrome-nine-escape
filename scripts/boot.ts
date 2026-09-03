@@ -9,6 +9,7 @@
 
 // main.ts 는 불러오는 순간 document 를 만지므로 아래에서 동적으로 불러옵니다.
 // 이 둘은 모듈을 읽는 것만으로는 DOM 을 건드리지 않아 정적으로 가져와도 안전합니다
+import { DEBUG } from '../src/data/balance';
 import { emptySave } from '../src/meta/save';
 
 interface StubElement {
@@ -338,8 +339,18 @@ async function main(): Promise<void> {
 
   console.log('5) 레벨업 스킬 선택');
   // 레벨이 오를 때까지 돌립니다 (디버그 키로 강제 레벨업)
+  //
+  // **F1 만으로는 안 열립니다.** 잠금 화면이 먼저 뜨고 비밀번호를 쳐야 들어갑니다.
+  // 그 순서를 여기서 그대로 밟으므로, 잠금이 깨지면 이 점검이 통째로 걸립니다
   press('F1');
   frames(2);
+  check('디버그는 F1 만으로는 안 열린다 (잠금 화면)', overlay.querySelector('.gate') !== null);
+  press('KeyZ');
+  frames(1);
+  check('틀린 키로는 안 열린다', overlay.querySelector('.gate') !== null);
+  for (const code of DEBUG.unlockSequence) press(code);
+  frames(2);
+  check('비밀번호를 치면 열린다', overlayText().trim() === '', overlayText().trim().slice(0, 40));
   // 화면 판별은 문구가 아니라 **표식(class)** 으로 합니다.
   // 예전에는 부제 문구를 봤는데, 그 문구를 지우자 갈래 창과 구분이 안 됐습니다
   const skillChoiceOpen = () => overlay.querySelector('.skill-choice') !== null;
@@ -403,7 +414,8 @@ async function main(): Promise<void> {
     frames(4);
     check('새 판이 시작됐다', overlayText().trim() === '', overlayText().trim().slice(0, 40));
 
-    // F1 은 토글입니다. 5번에서 이미 켰고 그 상태가 판을 넘어 유지되므로 다시 누르면 꺼집니다
+    // F1 은 토글입니다. 5번에서 잠금을 풀었고 그 상태가 판을 넘어 유지되므로
+    // 여기서는 비밀번호를 다시 칠 필요가 없습니다
     let branchOpened = false;
     for (let i = 0; i < 400 && !branchOpened; i++) {
       if (branchChoiceOpen()) {

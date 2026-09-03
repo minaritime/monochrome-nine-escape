@@ -19,6 +19,14 @@ export class Debug {
   enabled = false;
   godMode = false;
   soloIndex = 0;
+  /**
+   * 잠금이 풀렸는가. 이 판이 아니라 **이 탭이 살아 있는 동안** 유지됩니다.
+   *
+   * 한 번 풀면 그 뒤로는 F1 이 그냥 켜고 끕니다. 매번 다시 치게 하면 디버그를 쓰는
+   * 일 자체가 성가셔져서, 정작 필요할 때 안 쓰게 됩니다. 새로고침하면 다시 잠깁니다.
+   * **푸는 것은 `main.ts` 의 잠금 화면이고 여기서는 결과만 받습니다.**
+   */
+  unlocked = false;
 
   get selected(): EnemyId {
     return ALL_ENEMY_IDS[this.soloIndex % ALL_ENEMY_IDS.length];
@@ -27,7 +35,8 @@ export class Debug {
   handleKeys(w: World): void {
     const input = w.input;
 
-    if (input.wasPressed('F1')) {
+    // 잠겨 있으면 F1 을 여기서 안 봅니다. 그 키는 `main.ts` 가 잠금 화면으로 돌립니다
+    if (this.unlocked && input.wasPressed('F1')) {
       this.enabled = !this.enabled;
       return;
     }
