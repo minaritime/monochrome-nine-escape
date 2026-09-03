@@ -34,9 +34,16 @@ export interface TouchUi {
   update(w: World | null): void;
 }
 
-/** 터치가 되는 기기인가. 마우스만 있는 PC 에서는 아무것도 안 붙입니다 */
+/**
+ * 터치가 되는 기기인가. 마우스만 있는 PC 에서는 아무것도 안 붙입니다.
+ *
+ * **브라우저 전역이 있다고 가정하면 안 됩니다.** 부팅 점검은 Node 에서 도는데
+ * `navigator` 는 Node 20 에 없고 21 부터 생겼습니다. 그대로 읽으면 로컬(24)에서는
+ * 통과하고 CI(20)에서만 터집니다. 실제로 한 번 그렇게 걸렸습니다.
+ */
 export function isTouchDevice(): boolean {
-  return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  if (typeof window !== 'undefined' && 'ontouchstart' in window) return true;
+  return typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
 }
 
 export function createTouchUi(input: Input, onTogglePanels: () => void): TouchUi {

@@ -184,6 +184,9 @@ Object.assign(globalThis, {
     addEventListener: () => {},
     hidden: false,
   },
+  // **`navigator` 는 여기에 못 넣습니다.** Node 24 에서는 읽기 전용이라 Object.assign 이
+  // 터집니다. 터치 판별(`isTouchDevice`)이 없는 전역도 견디게 만들어져 있어서
+  // 안 넣어도 PC 경로로 돕니다
   localStorage: {
     getItem: (k: string) => store.get(k) ?? null,
     setItem: (k: string, v: string) => void store.set(k, v),
