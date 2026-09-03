@@ -1,6 +1,6 @@
 import './style.css';
 
-import { ACHIEVEMENT, DIFFICULTY, SETTINGS } from './data/balance';
+import { ACHIEVEMENT, DIFFICULTY, HARD, SETTINGS, VIEW } from './data/balance';
 import { GameLoop } from './core/loop';
 import { Input } from './core/input';
 import { Debug } from './game/debug';
@@ -66,6 +66,18 @@ let achieveTimer = 0;
 watchMouse();
 watchKonami();
 watchFocus();
+applyHardTheme();
+
+/**
+ * 하드모드의 겉모습을 화면에 반영합니다.
+ *
+ * **캔버스와 메뉴가 따로 놉니다.** 캔버스는 매 프레임 덧칠(`HARD.tint`)로 덮고,
+ * 메뉴(DOM)는 `body.hard` 가 CSS 변수를 붉은 쪽으로 옮깁니다. 둘 다 걸어야 화면
+ * 전체가 하나로 붉어집니다. **켜고 끌 때마다 이걸 부르십시오.**
+ */
+function applyHardTheme(): void {
+  document.body.classList.toggle('hard', save.hardMode);
+}
 
 /**
  * 창을 벗어나면 자동으로 일시정지합니다 (설정에서 끌 수 있습니다).
@@ -284,10 +296,13 @@ function goSettings(notice = ''): void {
       toggleHardMode: () => {
         save.hardMode = !save.hardMode;
         saveGame(save);
+        applyHardTheme();
         goSettings(save.hardMode ? '하드모드' : '');
       },
       resetAll: () => {
         save = resetSave();
+        // 저장이 비면 하드모드도 꺼집니다. 색만 붉게 남으면 화면이 거짓말을 합니다
+        applyHardTheme();
         // 난이도 해금이 0 으로 돌아갔는데 마지막에 고른 값이 남아 있으면 어긋납니다
         difficulty = 0;
         clearToasts();
@@ -518,6 +533,9 @@ const loop = new GameLoop({
     } else {
       drawIdleBackground(renderer);
     }
+    // **맨 위에 덮습니다.** 디버그 오버레이까지 같이 붉어져야 화면 전체가 하나로
+    // 보입니다. 판이 없을 때(메인 화면 배경)도 걸립니다
+    if (save.hardMode) renderer.rect(0, 0, VIEW.w, VIEW.h, HARD.tint);
   },
 });
 

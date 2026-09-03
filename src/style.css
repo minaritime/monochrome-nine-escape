@@ -1083,3 +1083,33 @@ body {
 .card.toggle .body {
   flex: 1;
 }
+
+/*
+ * 하드모드.
+ *
+ * **색을 새로 만들지 않고 있던 변수만 붉은 쪽으로 옮깁니다.** 화면마다 색을 따로
+ * 적기 시작하면 하드모드를 만질 때 모든 화면을 다시 훑어야 합니다. 여기 한 곳이
+ * 바뀌면 메뉴 · 상점 · 도감 · 업적이 한꺼번에 따라옵니다.
+ *
+ * **`--danger` 와 `--ok` 는 그대로 둡니다.** 그 둘은 멋이 아니라 뜻을 나르는 색이라
+ * (위험 / 성공), 배경이 붉어졌다고 같이 옮기면 구분이 사라집니다.
+ */
+body.hard {
+  --bg: #150d10;
+  --panel: #1f141a;
+  --panel-2: #2a1820;
+  --line: #46242e;
+  --text: #f5e7e9;
+  --muted: #b08d94;
+  --accent: #ff9a5c;
+  --accent-2: #ff8fa3;
+}
+
+/* 화면 가장자리에 옅은 붉은 기운. 캔버스 위의 덧칠(HARD.tint)과 짝입니다 */
+body.hard #app::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(255, 40, 40, 0) 45%, rgba(140, 10, 20, 0.28) 100%);
+}

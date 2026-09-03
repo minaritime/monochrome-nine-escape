@@ -23,6 +23,7 @@ import {
   ENEMY_BULLET,
   ENEMY_PARAMS,
   ENEMY_TABLE,
+  HARD,
   FIXED_DT,
   MAX_UTILITY_CHOICES_PER_ROLL,
   SKILLS,
@@ -3059,6 +3060,18 @@ console.log('16) 저장 데이터가 낡거나 망가졌을 때');
     check('1초라도 모자라면 안 열린다', !clearedAllFrom(short, 0));
 
     check('하드모드 값은 저장에 남는다', fromJSON({ hardMode: true }).hardMode === true);
+  }
+
+  // 하드모드 덧칠은 **은은해야 합니다.** 진하면 적탄(빨강)이 배경에 묻혀서
+  // 날아오는 것을 못 봅니다. 색이라 눈으로 볼 수밖에 없지만, 투명도만은 잽니다
+  {
+    const m = /rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)/.exec(HARD.tint);
+    check('덧칠이 rgba 형식이다', m !== null, HARD.tint);
+    if (m) {
+      const alpha = Number(m[4]);
+      check('덧칠이 옅다 (0 초과 0.15 이하)', alpha > 0 && alpha <= 0.15, `${alpha}`);
+      check('덧칠은 붉은색이다', Number(m[1]) > Number(m[2]) && Number(m[1]) > Number(m[3]), HARD.tint);
+    }
   }
 
   // 설정 기본값. **화면 흔들림은 절반에서 시작합니다.** 예전에 상수 하나로 쓰던

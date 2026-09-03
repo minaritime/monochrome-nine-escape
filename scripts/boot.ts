@@ -21,7 +21,7 @@ interface StubElement {
   attrs: Record<string, string>;
   listeners: Record<string, ((e: unknown) => void)[]>;
   style: Record<string, string> & { setProperty(k: string, v: string): void };
-  classList: { add(...names: string[]): void };
+  classList: { add(...names: string[]): void; toggle(name: string, on: boolean): void };
   width: number;
   height: number;
   /** 업적 알림은 append 가 아니라 textContent 로 글자를 넣습니다 */
@@ -66,6 +66,12 @@ function createElement(tagName: string): StubElement {
     classList: {
       add(...names: string[]) {
         el.className = [el.className, ...names].filter(Boolean).join(' ');
+      },
+      // 하드모드가 `body` 에 이걸 겁니다 (`applyHardTheme`)
+      toggle(name: string, on: boolean) {
+        const kept = el.className.split(' ').filter((c) => c && c !== name);
+        if (on) kept.push(name);
+        el.className = kept.join(' ');
       },
     },
     width: 0,
