@@ -1113,3 +1113,128 @@ body.hard #app::after {
   pointer-events: none;
   background: radial-gradient(ellipse at center, rgba(255, 40, 40, 0) 45%, rgba(140, 10, 20, 0.28) 100%);
 }
+
+/* ---------------------------------------------------------------------------
+ * 터치 조작 (모바일). PC 에서는 아예 안 붙습니다 (`ui/touch.ts`).
+ *
+ * 오버레이 밖에 달기 때문에 여기서 직접 화면 위에 띄웁니다.
+ * ------------------------------------------------------------------------- */
+#touch {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  /* 빈 자리는 게임이 받아야 합니다. 버튼만 손가락을 받습니다 */
+  pointer-events: none;
+  /* 두 번 눌러 확대되거나 길게 눌러 선택되는 것을 막습니다 */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#touch[hidden] {
+  display: none;
+}
+
+.tc-stick,
+.tc-skill,
+.tc-panel {
+  position: absolute;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+/* 이동 조이스틱. 왼손 엄지가 닿는 자리입니다 */
+.tc-stick {
+  left: 20px;
+  bottom: 20px;
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  border: 2px solid rgba(230, 235, 245, 0.22);
+  background: rgba(13, 16, 23, 0.35);
+  display: grid;
+  place-items: center;
+}
+
+.tc-knob {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(230, 235, 245, 0.5);
+  /* 손가락을 따라 움직이는 값이라 전환을 넣지 않습니다. 넣으면 조작이 밀립니다 */
+}
+
+/* Q 버튼. 오른손 엄지 자리 */
+.tc-skill {
+  right: 22px;
+  bottom: 22px;
+  width: 108px;
+  height: 108px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 204, 77, 0.4);
+  background: rgba(255, 204, 77, 0.12);
+  color: var(--text);
+  font: inherit;
+  display: grid;
+  place-items: center;
+  gap: 2px;
+}
+
+.tc-skill.ready {
+  border-color: var(--accent);
+  background: rgba(255, 204, 77, 0.24);
+}
+
+.tc-skill:disabled {
+  opacity: 0.35;
+}
+
+.tc-skill-name {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+/* 남은 쿨다운. 준비되면 빈 칸이 됩니다 */
+.tc-skill-cool {
+  font-size: 13px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 좌우 정보 패널 펴기 / 접기 */
+.tc-panel {
+  right: 18px;
+  top: 18px;
+  width: 52px;
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(13, 16, 23, 0.6);
+  color: var(--text);
+  font-size: 22px;
+  line-height: 1;
+}
+
+/*
+ * 세로로 들면 경기장이 우표만 해집니다. 돌려달라고만 합니다.
+ * **게임을 멈추지는 않습니다.** 잠깐 세로가 되는 일이 있는데 그때마다 판이
+ * 끊기면 그게 더 나쁩니다
+ */
+.rotate-hint {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: none;
+  place-items: center;
+  background: rgba(5, 7, 11, 0.94);
+  color: var(--text);
+  font-size: 18px;
+  text-align: center;
+  padding: 24px;
+}
+
+@media (hover: none) and (orientation: portrait) {
+  .rotate-hint {
+    display: grid;
+  }
+}

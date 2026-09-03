@@ -47,7 +47,7 @@ import { chargerTelegraphTime } from '../src/enemies/behaviors/advanced';
 import { bossIdForSpawn } from '../src/enemies/boss';
 import { eliteMul, rollElite } from '../src/enemies/elite';
 import { killerOf } from '../src/game/killer';
-import type { Input } from '../src/core/input';
+import { Input } from '../src/core/input';
 import { World, isSkillLevel } from '../src/game/world';
 import { ownedSlots } from '../src/game/player';
 import { rollStatGains } from '../src/progression/levelup';
@@ -3080,6 +3080,37 @@ console.log('16) 저장 데이터가 낡거나 망가졌을 때');
     save.achieveStats.coinsEarned = 6000;
     const got = checkAchievements(save, null, false).filter((g) => g.id === 'rich');
     check('2단계를 따면 알림이 집주인이라고 말한다', got.length === 1 && got[0].name === '집주인', got.map((g) => g.name).join(','));
+  }
+
+  // 터치 입력. **조이스틱이 키보드를 갈아끼웁니다.** 더하면 둘을 같이 쥐었을 때
+  // 속도가 두 배가 되는 자리가 생깁니다
+  {
+    const fake = { addEventListener: () => {} } as unknown as Window;
+    const ti = new Input(fake);
+    check('아무것도 안 하면 안 움직인다', ti.moveVector().x === 0 && ti.moveVector().y === 0);
+
+    ti.setTouchVector({ x: 1, y: 0 });
+    check('조이스틱 방향이 그대로 나온다', ti.moveVector().x === 1 && ti.moveVector().y === 0);
+
+    // 잡은 채로 가만히 있는 것과 놓은 것은 다릅니다
+    ti.setTouchVector({ x: 0, y: 0 });
+    check('잡고 가만히 있으면 안 움직인다', ti.moveVector().x === 0);
+    ti.setTouchVector(null);
+    check('놓으면 키보드로 돌아온다', ti.moveVector().x === 0 && ti.moveVector().y === 0);
+
+    // Q 버튼은 실제 키와 같은 길로 들어가야 `wasPressed` 한 곳만 보면 됩니다
+    ti.pressVirtual('KeyQ');
+    ti.beginStep();
+    check('Q 버튼이 눌림으로 잡힌다', ti.wasPressed('KeyQ') && ti.isDown('KeyQ'));
+    ti.beginStep();
+    check('누른 것은 한 스텝만 새 눌림이다', !ti.wasPressed('KeyQ') && ti.isDown('KeyQ'));
+    ti.releaseVirtual('KeyQ');
+    check('떼면 풀린다', !ti.isDown('KeyQ'));
+
+    // 판을 새로 시작하면 잡고 있던 것도 풀려야 합니다
+    ti.setTouchVector({ x: 1, y: 1 });
+    ti.clear();
+    check('clear 하면 조이스틱도 놓입니다', ti.moveVector().x === 0 && ti.moveVector().y === 0);
   }
 
   // 하드모드 덧칠은 **은은해야 합니다.** 진하면 적탄(빨강)이 배경에 묻혀서

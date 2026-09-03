@@ -1,4 +1,4 @@
-import { VIEW } from '../data/balance';
+import { ARENA_X, CANVAS, VIEW } from '../data/balance';
 
 export interface TextOptions {
   size?: number;
@@ -46,13 +46,39 @@ export class Canvas2DRenderer implements Renderer {
     window.addEventListener('resize', () => this.resize());
   }
 
+  /**
+   * 좌우 정보 패널을 화면에서 뺍니다 (모바일).
+   *
+   * **패널을 빼면 경기장만 남아 1280 x 720, 즉 16:9 가 됩니다.** 폰 가로 화면과
+   * 거의 같은 비율이라 검은 여백이 사라지고 경기장이 훨씬 커집니다. 그래서 폰에서는
+   * 이쪽이 기본이고, 스탯과 스킬은 버튼으로 잠깐 펴 봅니다.
+   *
+   * **그리는 코드는 아무것도 안 바뀝니다.** HUD 는 지금처럼 패널 자리에 그리고,
+   * 여기서 보이는 창만 경기장으로 좁힙니다. 안 보이는 것은 캔버스 밖으로 잘립니다.
+   */
+  setPanelsVisible(visible: boolean): void {
+    if (this.panels === visible) return;
+    this.panels = visible;
+    this.resize();
+  }
+
+  private panels = true;
+  /** 패널을 숨겼을 때 왼쪽 패널 폭만큼 밀어내는 값 */
+  private get shiftX(): number {
+    return this.panels ? 0 : -ARENA_X;
+  }
+  private get visibleW(): number {
+    return this.panels ? VIEW.w : CANVAS.w;
+  }
+
   /** 화면 크기에 맞춰 캔버스를 확대하되 게임 좌표는 항상 1280x720 을 유지합니다 */
-  private resize(): void {
+  resize(): void {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    this.canvas.width = VIEW.w * dpr;
+    const vw = this.visibleW;
+    this.canvas.width = vw * dpr;
     this.canvas.height = VIEW.h * dpr;
-    const scale = Math.min(window.innerWidth / VIEW.w, window.innerHeight / VIEW.h);
-    this.canvas.style.width = `${VIEW.w * scale}px`;
+    const scale = Math.min(window.innerWidth / vw, window.innerHeight / VIEW.h);
+    this.canvas.style.width = `${vw * scale}px`;
     this.canvas.style.height = `${VIEW.h * scale}px`;
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.baseTransform = dpr;
@@ -61,17 +87,19 @@ export class Canvas2DRenderer implements Renderer {
   private baseTransform = 1;
 
   begin(offsetX: number, offsetY: number): void {
-    this.ctx.setTransform(this.baseTransform, 0, 0, this.baseTransform, offsetX * this.baseTransform, offsetY * this.baseTransform);
+    const b = this.baseTransform;
+    this.ctx.setTransform(b, 0, 0, b, (offsetX + this.shiftX) * b, offsetY * b);
   }
 
   end(): void {
-    this.ctx.setTransform(this.baseTransform, 0, 0, this.baseTransform, 0, 0);
+    const b = this.baseTransform;
+    this.ctx.setTransform(b, 0, 0, b, this.shiftX * b, 0);
   }
 
   clear(color: string): void {
     const c = this.ctx;
     c.save();
-    c.setTransform(this.baseTransform, 0, 0, this.baseTransform, 0, 0);
+    c.setTransform(this.baseTransform, 0, 0, this.baseTransform, this.shiftX * this.baseTransform, 0);
     c.fillStyle = color;
     c.fillRect(0, 0, VIEW.w, VIEW.h);
     c.restore();
@@ -208,7 +236,8 @@ export class Canvas2DRenderer implements Renderer {
     if (alpha <= 0) return;
     const c = this.ctx;
     c.save();
-    c.setTransform(this.baseTransform, 0, 0, this.baseTransform, 0, 0);
+    // 패널을 숨겼으면 보이는 자리(경기장)에 맞춰 덮어야 합니다
+    c.setTransform(this.baseTransform, 0, 0, this.baseTransform, this.shiftX * this.baseTransform, 0);
     c.globalAlpha = alpha;
     c.fillStyle = color;
     c.fillRect(0, 0, VIEW.w, VIEW.h);

@@ -8,6 +8,7 @@ import { World } from './game/world';
 import { commitRun } from './meta/bestiary';
 import { loadSave, resetSave, saveGame } from './meta/save';
 import { Canvas2DRenderer } from './render/renderer';
+import { createTouchUi, isTouchDevice, type TouchUi } from './ui/touch';
 import { drawIdleBackground, drawWorld } from './render/scene';
 import { drawHud } from './ui/hud';
 import { clearOverlay } from './ui/screens/dom';
@@ -67,6 +68,25 @@ watchMouse();
 watchKonami();
 watchFocus();
 applyHardTheme();
+
+/**
+ * 터치 조작 (모바일).
+ *
+ * **PC 에서는 아무것도 안 붙습니다.** 마우스만 있는 기기에 조이스틱을 띄우면
+ * 화면만 가립니다.
+ *
+ * **폰에서는 좌우 패널을 접고 시작합니다.** 패널을 빼면 경기장만 남아 16:9 가 되어
+ * 폰 가로 화면에 거의 딱 맞습니다. 스탯과 스킬은 우측 위 버튼으로 잠깐 폅니다.
+ */
+let panelsVisible = !isTouchDevice();
+const touchUi: TouchUi | null = isTouchDevice()
+  ? createTouchUi(input, () => {
+      panelsVisible = !panelsVisible;
+      renderer.setPanelsVisible(panelsVisible);
+    })
+  : null;
+renderer.setPanelsVisible(panelsVisible);
+window.addEventListener('resize', () => renderer.resize());
 
 /**
  * 하드모드의 겉모습을 화면에 반영합니다.
@@ -454,6 +474,12 @@ const loop = new GameLoop({
     // 알림은 게임이 돌든 메뉴에 있든 계속 흘러야 합니다.
     // 게임오버로 넘어가는 순간 방금 딴 업적이 멈춰 서면 읽을 수가 없습니다
     updateToasts(dt);
+
+    // 터치 조작은 판이 도는 동안에만 띄웁니다. 메뉴 위에 겹치면 카드를 가립니다
+    if (touchUi) {
+      touchUi.setVisible(screen === 'playing');
+      touchUi.update(world);
+    }
 
     if (!world) return;
 

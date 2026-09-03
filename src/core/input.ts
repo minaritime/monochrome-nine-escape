@@ -6,6 +6,14 @@ export class Input {
   private down = new Set<string>();
   private pressedThisStep = new Set<string>();
   private buffer = new Set<string>();
+  /**
+   * 터치 조이스틱이 넣는 이동 방향 (`ui/touch.ts`).
+   *
+   * **키보드와 더하지 않고 갈아끼웁니다.** 둘을 더하면 조이스틱을 잡은 채로 방향키를
+   * 누를 때 속도가 두 배가 되는 자리가 생깁니다. 어차피 한 사람이 둘을 같이 쓰지
+   * 않으므로, **잡고 있는 동안에는 조이스틱이 이깁니다.**
+   */
+  private touch: { x: number; y: number } | null = null;
 
   constructor(target: Window = window) {
     target.addEventListener('keydown', (e) => {
@@ -47,10 +55,33 @@ export class Input {
   }
 
   /**
-   * 이동은 방향키만 씁니다. WASD 는 이동에 쓰지 않습니다.
-   * 스킬이 Q / W / E 라서 W 가 겹치기 때문입니다.
+   * 터치 조이스틱의 방향을 넣습니다. 길이는 0 ~ 1 이고, 손을 떼면 `null` 입니다.
+   * **0 이 아니라 `null` 로 놓는 이유**는 "가만히 잡고 있는 것"과 "안 잡은 것"을
+   * 갈라야 하기 때문입니다. 놓지 않고 0 을 넣으면 키보드가 영영 안 먹습니다.
+   */
+  setTouchVector(v: { x: number; y: number } | null): void {
+    this.touch = v;
+  }
+
+  /**
+   * 버튼을 눌러 키를 흉내 냅니다 (터치 Q 버튼).
+   * 실제 키와 같은 길로 들어가야 `wasPressed` 한 곳만 보면 됩니다.
+   */
+  pressVirtual(code: string): void {
+    if (!this.down.has(code)) this.buffer.add(code);
+    this.down.add(code);
+  }
+
+  releaseVirtual(code: string): void {
+    this.down.delete(code);
+  }
+
+  /**
+   * 이동. 키보드는 **방향키만** 씁니다 (WASD 는 안 씁니다).
+   * 터치 조이스틱을 잡고 있으면 그쪽이 이깁니다.
    */
   moveVector(): { x: number; y: number } {
+    if (this.touch) return this.touch;
     let x = 0;
     let y = 0;
     if (this.isDown('ArrowLeft')) x -= 1;
@@ -69,6 +100,7 @@ export class Input {
     this.down.clear();
     this.buffer.clear();
     this.pressedThisStep.clear();
+    this.touch = null;
   }
 
   /**
