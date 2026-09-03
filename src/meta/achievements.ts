@@ -1,5 +1,5 @@
 import { ACHIEVEMENT } from '../data/balance';
-import { ACHIEVEMENTS, type AchieveCtx, type AchieveDef } from '../data/achievements';
+import { ACHIEVEMENTS, tierName, type AchieveCtx, type AchieveDef } from '../data/achievements';
 import { emptyAchieveStats, saveGame, type SaveData } from './save';
 import type { World } from '../game/world';
 
@@ -61,7 +61,9 @@ export function checkAchievements(save: SaveData, w: World | null, runEnded = fa
 
     out.push({
       id: def.id,
-      name: def.name,
+      // 방금 딴 단계의 이름입니다. `def.name` 을 그대로 쓰면 부자 → 집주인 → 땅주인
+      // 처럼 단계마다 이름이 다른 업적에서 화면과 알림이 서로 다른 말을 합니다
+      name: tierName(def, target - 1),
       desc: def.desc,
       tierLabel: def.tiers.length > 1 ? `${target}/${def.tiers.length}단계` : '',
       coin,
@@ -105,7 +107,7 @@ export function unlockDirect(save: SaveData, id: string): AchieveUnlock[] {
   save.achievements[id] = 1;
   save.coins += coin;
   saveGame(save);
-  return [{ id, name: def.name, desc: def.desc, tierLabel: '', coin }];
+  return [{ id, name: tierName(def, 0), desc: def.desc, tierLabel: '', coin }];
 }
 
 /**

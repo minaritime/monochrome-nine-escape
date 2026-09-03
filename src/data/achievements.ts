@@ -40,6 +40,13 @@ export interface AchieveTier {
   /** 단계형이면 이 값에 도달해야 합니다. 단발형은 없습니다 */
   goal?: number;
   coin: number;
+  /**
+   * 이 단계의 이름. 없으면 업적 이름을 그대로 씁니다.
+   *
+   * 단계마다 이름이 달라지는 업적이 있습니다 (부자 → 집주인 → 땅주인).
+   * 숫자만 커지는 것보다 무엇이 되어가는지가 보입니다.
+   */
+  name?: string;
 }
 
 export interface AchieveDef {
@@ -84,14 +91,26 @@ function steps(
   goals: readonly number[],
   coins: readonly number[],
   progress: (c: AchieveCtx) => number,
+  /** 단계마다 이름이 다른 경우에만 넘깁니다. 없으면 전부 업적 이름을 씁니다 */
+  names?: readonly string[],
 ): AchieveDef {
   return {
     id,
     name,
     desc,
-    tiers: goals.map((goal, i) => ({ goal, coin: coins[i] })),
+    tiers: goals.map((goal, i) => ({ goal, coin: coins[i], name: names?.[i] })),
     progress,
   };
+}
+
+/**
+ * 그 단계의 이름.
+ *
+ * **이름을 읽는 곳은 전부 이 함수를 거쳐야 합니다.** 한 곳이라도 `def.name` 을 그대로
+ * 쓰면 단계마다 이름이 다른 업적에서 화면과 알림이 서로 다른 이름을 말합니다.
+ */
+export function tierName(def: AchieveDef, tierIndex: number): string {
+  return def.tiers[tierIndex]?.name ?? def.name;
 }
 
 /** 이번 판이 그 난이도의 요구 시간을 채웠는가 */
@@ -190,27 +209,36 @@ export const ACHIEVEMENTS: readonly AchieveDef[] = [
   ),
   steps(
     'playtime',
-    '시간 도둑',
+    '이 시간에 공부를 했으면',
     '이 게임에 시간을 씁니다',
     [3600, 18000, 36000],
     [40, 120, 250],
     (c) => c.save.achieveStats.playTime,
   ),
-  steps('rich', '부자', '코인을 누적으로 벌어들입니다', [1000, 5000], [60, 200], (c) => c.save.achieveStats.coinsEarned),
+  steps(
+    'rich',
+    '부자',
+    '코인을 누적으로 벌어들입니다',
+    [1000, 5000, 30000],
+    [60, 200, 500],
+    (c) => c.save.achieveStats.coinsEarned,
+    // 단계마다 이름이 바뀝니다. 숫자만 커지는 것보다 무엇이 되어가는지가 보입니다
+    ['부자', '집주인', '땅주인'],
+  ),
   steps('elite', '정예 사냥꾼', '정예를 누적으로 처치합니다', [500], [200], (c) => c.save.achieveStats.eliteKills),
   steps('regular', '단골', '판을 거듭합니다', [100], [150], (c) => c.save.records.totalRuns),
 
   // --- 3. 기술 업적 ---------------------------------------------------------
   one(
     'shield-intact',
-    '방패는 구시대의 산물이다',
+    '캡틴 처치법',
     '난이도 6 이상에서 방패가 멀쩡히 남은 채로 방패적을 처치합니다',
     A.gold,
     (c) => !!c.w?.track.shieldIntactKill && c.w.difficulty >= 6,
   ),
   one(
     'tank-alive',
-    '제발 죽어줘',
+    '게임 잘못만들었네',
     '난이도 9 이상에서 탱커 한 마리를 3분 이상 살려둡니다',
     A.gold,
     (c) =>
@@ -220,7 +248,7 @@ export const ACHIEVEMENTS: readonly AchieveDef[] = [
   ),
   one(
     'outrun',
-    '뒤지게 빠르네',
+    '이제 무적이지?',
     '이동속도가 모든 적(정예 포함)의 기본 이속보다 20% 이상 빨라집니다',
     A.gold,
     (c) => {
@@ -246,7 +274,7 @@ export const ACHIEVEMENTS: readonly AchieveDef[] = [
   ),
   one(
     'plant',
-    '너는 식물이다',
+    '나는 식물로 환생할테야',
     '강화된 돌진적을 한 번도 돌진시키지 않고 처치합니다',
     A.platinum,
     (c) => !!c.w?.track.chargerNoDashKill,
@@ -276,14 +304,14 @@ export const ACHIEVEMENTS: readonly AchieveDef[] = [
   // --- 4. 이 게임 고유 메커니즘 --------------------------------------------
   one(
     'corpse-tool',
-    '도구로 쓴다',
+    '크리퍼는 최고야',
     '자폭적의 시체 폭발 한 번으로 5마리 이상을 정리합니다 (분열체는 안 셉니다)',
     A.gold,
     (c) => (c.w?.track.corpseBlastBest ?? 0) >= 5,
   ),
   one(
     'blink-kill',
-    '찰나',
+    '아둔 토리다스',
     '은신적이 모습을 드러낸 지 0.1초 안에 처치합니다',
     A.platinum,
     (c) => !!c.w?.track.stealthRevealKill,
@@ -298,10 +326,10 @@ export const ACHIEVEMENTS: readonly AchieveDef[] = [
   },
 
   // --- 5. 무피해 -----------------------------------------------------------
-  one('untouched', '스치지도 않았다', '5분 동안 한 대도 맞지 않습니다', A.gold, (c) => (c.w?.track.noHitBest ?? 0) >= 300),
+  one('untouched', '불가능', '5분 동안 한 대도 맞지 않습니다', A.gold, (c) => (c.w?.track.noHitBest ?? 0) >= 300),
   one(
     'perfect-hunt',
-    '완벽한 사냥',
+    '에이스 따운',
     '보스가 나타나서 죽을 때까지 한 대도 맞지 않습니다',
     A.platinum,
     (c) => !!c.w?.track.bossNoHitKill,

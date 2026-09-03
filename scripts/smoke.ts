@@ -57,7 +57,7 @@ import { clearedAllFrom, difficultyMods, unlockTimeFor } from '../src/meta/diffi
 import { commitRun } from '../src/meta/bestiary';
 import { emptySave, fromJSON } from '../src/meta/save';
 import { buyPerm, isSkipUnlimited } from '../src/meta/shop';
-import { ACHIEVEMENTS, fastestEnemySpeed } from '../src/data/achievements';
+import { ACHIEVEMENTS, fastestEnemySpeed, tierName } from '../src/data/achievements';
 import {
   achieveProgress,
   checkAchievements,
@@ -3060,6 +3060,26 @@ console.log('16) 저장 데이터가 낡거나 망가졌을 때');
     check('1초라도 모자라면 안 열린다', !clearedAllFrom(short, 0));
 
     check('하드모드 값은 저장에 남는다', fromJSON({ hardMode: true }).hardMode === true);
+  }
+
+  // 단계마다 이름이 다른 업적. **이름을 읽는 곳이 전부 `tierName` 을 거쳐야** 화면과
+  // 알림이 같은 이름을 말합니다
+  {
+    const rich = ACHIEVEMENTS.find((a) => a.id === 'rich')!;
+    check('부자는 세 단계다', rich.tiers.length === 3, `${rich.tiers.length}`);
+    check('1단계는 부자', tierName(rich, 0) === '부자', tierName(rich, 0));
+    check('2단계는 집주인', tierName(rich, 1) === '집주인', tierName(rich, 1));
+    check('3단계는 땅주인', tierName(rich, 2) === '땅주인', tierName(rich, 2));
+
+    // 단계 이름이 없는 업적은 업적 이름을 그대로 씁니다
+    const kills = ACHIEVEMENTS.find((a) => a.id === 'kills')!;
+    check('이름을 안 준 단계는 업적 이름', tierName(kills, 3) === kills.name, tierName(kills, 3));
+
+    // 실제로 단계를 따면 알림에 그 단계 이름이 실립니다
+    const save = emptySave();
+    save.achieveStats.coinsEarned = 6000;
+    const got = checkAchievements(save, null, false).filter((g) => g.id === 'rich');
+    check('2단계를 따면 알림이 집주인이라고 말한다', got.length === 1 && got[0].name === '집주인', got.map((g) => g.name).join(','));
   }
 
   // 하드모드 덧칠은 **은은해야 합니다.** 진하면 적탄(빨강)이 배경에 묻혀서

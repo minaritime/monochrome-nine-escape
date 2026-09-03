@@ -1,5 +1,5 @@
 import { ACHIEVEMENT } from '../../data/balance';
-import { type AchieveCtx, type AchieveDef } from '../../data/achievements';
+import { tierName, type AchieveCtx, type AchieveDef } from '../../data/achievements';
 import { achieveProgress, isComplete, tierOf, visibleAchievements } from '../../meta/achievements';
 import type { SaveData } from '../../meta/save';
 import { bindKeys, card, clearOverlay, h, overlayEl, screen } from './dom';
@@ -63,7 +63,9 @@ function rowOf(save: SaveData, def: AchieveDef): HTMLElement {
   const el = card({
     // 누를 수 없는 정보 카드입니다. disabled 만 걸면 상점의 "못 사는 항목" 흐림이 걸립니다
     info: true,
-    title: secret ? '???' : def.name,
+    // **지금 노리는 단계의 이름**입니다. 다 채웠으면 마지막 단계의 이름으로 남습니다.
+    // 단계마다 이름이 다른 업적(부자 → 집주인 → 땅주인)에서 이 자리가 목표가 됩니다
+    title: secret ? '???' : tierName(def, Math.min(have, def.tiers.length - 1)),
     desc: secret ? '숨겨진 업적입니다' : def.desc,
     price: complete ? '완료' : `${nextCoin} 코인`,
   });
