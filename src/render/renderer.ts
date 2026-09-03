@@ -1,4 +1,5 @@
 import { VIEW } from '../data/balance';
+import { viewScale } from './layout';
 
 export interface TextOptions {
   size?: number;
@@ -42,20 +43,31 @@ export class Canvas2DRenderer implements Renderer {
     const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) throw new Error('Canvas 2D 컨텍스트를 만들 수 없습니다');
     this.ctx = ctx;
+    // **여기서 resize 를 직접 듣지 않습니다.** 무대 배율과 캔버스 해상도는 같은
+    // 순간에 맞춰져야 하므로 `watchViewport` 가 둘을 함께 부릅니다 (`main.ts`)
     this.resize();
-    window.addEventListener('resize', () => this.resize());
   }
 
-  /** 화면 크기에 맞춰 캔버스를 확대하되 게임 좌표는 항상 1280x720 을 유지합니다 */
-  private resize(): void {
+  /**
+   * 게임 좌표는 항상 1710x720 입니다. 화면에 맞춰 키우는 것은 `#stage` 가 하고
+   * (`render/layout.ts`), 여기서는 **그 배율만큼 더 촘촘하게 그립니다.**
+   *
+   * CSS 크기를 설계 크기 그대로 두는 것이 중요합니다. 여기서 창 크기를 또 곱하면
+   * 무대 배율과 두 번 곱해져서 화면 밖으로 나갑니다. **키우는 곳은 한 군데여야 합니다.**
+   *
+   * 뒷면(실제 픽셀)은 `dpr x 무대 배율` 로 잡습니다. 그래야 크게 늘렸을 때 글자가
+   * 뭉개지지 않습니다. 상한을 두는 것은 큰 화면에서 버퍼가 지나치게 커지는 것을
+   * 막기 위해서입니다.
+   */
+  resize(): void {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    this.canvas.width = VIEW.w * dpr;
-    this.canvas.height = VIEW.h * dpr;
-    const scale = Math.min(window.innerWidth / VIEW.w, window.innerHeight / VIEW.h);
-    this.canvas.style.width = `${VIEW.w * scale}px`;
-    this.canvas.style.height = `${VIEW.h * scale}px`;
-    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    this.baseTransform = dpr;
+    const px = Math.min(dpr * viewScale(), 3);
+    this.canvas.width = Math.round(VIEW.w * px);
+    this.canvas.height = Math.round(VIEW.h * px);
+    this.canvas.style.width = `${VIEW.w}px`;
+    this.canvas.style.height = `${VIEW.h}px`;
+    this.ctx.setTransform(px, 0, 0, px, 0, 0);
+    this.baseTransform = px;
   }
 
   private baseTransform = 1;

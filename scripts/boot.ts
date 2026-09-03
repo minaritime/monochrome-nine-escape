@@ -9,7 +9,7 @@
 
 // main.ts 는 불러오는 순간 document 를 만지므로 아래에서 동적으로 불러옵니다.
 // 이 둘은 모듈을 읽는 것만으로는 DOM 을 건드리지 않아 정적으로 가져와도 안전합니다
-import { DEBUG } from '../src/data/balance';
+import { DEBUG, VIEW } from '../src/data/balance';
 import { emptySave } from '../src/meta/save';
 
 interface StubElement {
@@ -120,6 +120,8 @@ function createElement(tagName: string): StubElement {
 }
 
 const gameCanvas = createElement('canvas');
+/** 무대. 캔버스와 오버레이를 담는 상자이고 배율이 여기 걸립니다 (`render/layout.ts`) */
+const stageEl = createElement('div');
 const overlay = createElement('div');
 // 업적 알림은 오버레이 바깥(body 직속)에 붙습니다
 const bodyEl = createElement('body');
@@ -169,6 +171,7 @@ Object.assign(globalThis, {
     getElementById: (id: string) => {
       if (id === 'game') return gameCanvas;
       if (id === 'overlay') return overlay;
+      if (id === 'stage') return stageEl;
       // 알림 컨테이너는 없으면 만들어 붙이는 구조라 body 에서 찾아줍니다
       return bodyEl.children.find((c) => c.id === id) ?? null;
     },
@@ -269,6 +272,10 @@ async function main(): Promise<void> {
   check('메인 화면이 떴다', overlayText().includes('게임 시작'));
   frames(3);
   check('첫 프레임이 돌았다', true);
+  // **무대가 실제로 맞춰져야 합니다.** 창 기준으로 크기를 잡는 화면이 하나라도 남아
+  // 있으면 전체화면에서 캔버스 밖으로 튀어나갑니다 (난이도 화면이 실제로 그랬습니다)
+  check('무대 크기가 설계 크기로 잡힌다', stageEl.style.width === `${VIEW.w}px` && stageEl.style.height === `${VIEW.h}px`, `${stageEl.style.width} x ${stageEl.style.height}`);
+  check('무대에 배율이 걸린다', stageEl.style.transform.startsWith('scale('), stageEl.style.transform);
 
   console.log('2) 상점과 도감');
   press('Digit2');

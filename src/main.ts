@@ -8,6 +8,7 @@ import { World } from './game/world';
 import { commitRun } from './meta/bestiary';
 import { loadSave, resetSave, saveGame } from './meta/save';
 import { Canvas2DRenderer } from './render/renderer';
+import { watchViewport } from './render/layout';
 import { drawIdleBackground, drawWorld } from './render/scene';
 import { drawHud } from './ui/hud';
 import { clearOverlay } from './ui/screens/dom';
@@ -66,6 +67,9 @@ let achieveTimer = 0;
 watchMouse();
 watchKonami();
 watchFocus();
+// 무대 배율과 캔버스 해상도를 **같은 순간에** 맞춥니다.
+// 따로 듣게 두면 전체화면에 들어가는 한 프레임 동안 둘이 어긋나 화면이 튑니다
+watchViewport(() => renderer.resize());
 
 /**
  * 창을 벗어나면 자동으로 일시정지합니다 (설정에서 끌 수 있습니다).
