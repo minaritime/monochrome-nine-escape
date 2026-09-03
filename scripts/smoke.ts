@@ -52,7 +52,7 @@ import { ownedSlots } from '../src/game/player';
 import { rollStatGains } from '../src/progression/levelup';
 import { addStat, createStats } from '../src/game/stats';
 import { openSlots, setSealed, togglePassive } from '../src/meta/shop';
-import { difficultyMods, unlockTimeFor } from '../src/meta/difficulty';
+import { clearedAllFrom, difficultyMods, unlockTimeFor } from '../src/meta/difficulty';
 import { commitRun } from '../src/meta/bestiary';
 import { emptySave, fromJSON } from '../src/meta/save';
 import { buyPerm, isSkipUnlimited } from '../src/meta/shop';
@@ -3034,6 +3034,32 @@ console.log('16) 저장 데이터가 낡거나 망가졌을 때');
   check('새 저장은 개발자 모드가 꺼져 있다', emptySave().devMode === false);
   check('켜둔 값은 유지된다', fromJSON({ devMode: true }).devMode === true);
   check('boolean 이 아니면 꺼짐으로 본다', fromJSON({ devMode: 'yes' }).devMode === false);
+
+  // 하드모드 해금. **난이도 0 부터 15 까지이고 입문(-1)은 안 셉니다**
+  {
+    const nothing = emptySave();
+    check('아무것도 안 깼으면 잠겨 있다', !clearedAllFrom(nothing, 0));
+    check('새 저장은 하드모드가 꺼져 있다', nothing.hardMode === false);
+
+    const all = emptySave();
+    for (let lv = 0; lv <= DIFFICULTY.max; lv++) all.records.bestTimeByDifficulty[String(lv)] = unlockTimeFor(lv);
+    check('0~15 를 다 깨면 열린다', clearedAllFrom(all, 0));
+    // 입문을 안 깼어도 열려야 합니다. 그게 이 조건의 전부입니다
+    check('입문(-1)은 안 봐도 열린다', (all.records.bestTimeByDifficulty['-1'] ?? 0) === 0);
+    // 반대로 업적 "완주" 는 입문까지 봐야 합니다. 둘이 같아지면 구분한 의미가 없습니다
+    check('업적 완주는 입문까지 봐야 한다', !clearedAllFrom(all, DIFFICULTY.min));
+
+    const oneShort = emptySave();
+    for (let lv = 0; lv < DIFFICULTY.max; lv++) oneShort.records.bestTimeByDifficulty[String(lv)] = unlockTimeFor(lv);
+    check('한 단계라도 남으면 안 열린다', !clearedAllFrom(oneShort, 0));
+
+    // 시간이 모자라면 깬 것이 아닙니다
+    const short = emptySave();
+    for (let lv = 0; lv <= DIFFICULTY.max; lv++) short.records.bestTimeByDifficulty[String(lv)] = unlockTimeFor(lv) - 1;
+    check('1초라도 모자라면 안 열린다', !clearedAllFrom(short, 0));
+
+    check('하드모드 값은 저장에 남는다', fromJSON({ hardMode: true }).hardMode === true);
+  }
 
   // 설정 기본값. **화면 흔들림은 절반에서 시작합니다.** 예전에 상수 하나로 쓰던
   // 세기와 같은 값이고, 더 원하는 사람만 전체로 올립니다

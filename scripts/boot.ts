@@ -329,6 +329,8 @@ async function main(): Promise<void> {
   check('화면 흔들림은 절반에서 시작한다', overlayText().includes('화면 흔들림') && overlayText().includes('절반'));
   check('파티클은 전체에서 시작한다', overlayText().includes('파티클') && overlayText().includes('전체'));
   check('창을 벗어나면 정지는 켜져 있다', overlayText().includes('창을 벗어나면 정지'));
+  // 히든 요소입니다. 난이도를 다 깨기 전에는 자리조차 없어야 합니다
+  check('하드모드는 안 깼으면 안 보인다', !overlayText().includes('하드모드'));
   clickCard('화면 흔들림');
   check('흔들림을 누르면 다음 값으로 넘어간다', overlayText().includes('전체'), overlayText().trim().slice(0, 80));
 
@@ -466,6 +468,13 @@ async function main(): Promise<void> {
     // 껐다가 다시 켜야 아래 7번에서 디버그 키를 쓸 수 있으므로 여기서는 끄지 않습니다
     press('Escape');
     check('설정에서 메인으로 돌아온다', overlayText().includes('게임 시작'));
+
+    // **하드모드가 보이는 쪽은 여기서 못 잽니다.** `main.ts` 는 저장을 메모리에 들고
+    // 있어서 저장소에 기록을 심어도 화면이 안 바뀌고, 판이 끝날 때 다시 읽는 경로는
+    // 그 직전에 들고 있던 값으로 덮어씁니다. 난이도 15를 실제로 깨는 것 말고는
+    // 길이 없는데 그건 부팅 점검이 할 일이 아닙니다.
+    // **해금 조건 자체는 `smoke.ts` 16번이 경계까지 잽니다** (1초 모자라면 안 열림 등).
+    // 여기서는 "안 깼으면 자리조차 없다"만 봅니다 (위 2번)
   }
 
   console.log('7) 6레벨 강화 갈래 선택');

@@ -1,5 +1,6 @@
 import { SETTINGS } from '../../data/balance';
 import { achieveProgress } from '../../meta/achievements';
+import { clearedAllFrom } from '../../meta/difficulty';
 import type { SaveData } from '../../meta/save';
 import { bindKeys, card, clearOverlay, h, overlayEl, screen } from './dom';
 
@@ -23,6 +24,8 @@ export interface SettingsActions {
   cycleShake: () => void;
   cycleParticles: () => void;
   toggleAutoPause: () => void;
+  /** 하드모드. 난이도 0~15 를 전부 깬 사람에게만 보입니다 */
+  toggleHardMode: () => void;
   /** 저장 전체를 지웁니다 */
   resetAll: () => void;
   /** TEST_ONLY: 업적만 지웁니다. 정식판에서는 이 항목째로 뺍니다 */
@@ -119,6 +122,19 @@ export function showSettings(save: SaveData, notice: string, actions: SettingsAc
         toggle('창을 벗어나면 정지', save.autoPause ? '켬' : '끔', actions.toggleAutoPause),
       ]),
     );
+
+    // **히든 요소입니다.** 난이도 0 부터 15 까지 전부 깨야 나타납니다.
+    // 입문(-1)은 빼는데, 일부러 쉽게 만든 난이도라 도전의 증거가 되지 않습니다.
+    //
+    // 잠겨 있을 때 흐린 카드로 자리를 잡아두지 않습니다. 그러면 히든이 아니라
+    // "아직 못 여는 것"이 되어, 있는 줄 알고 조건을 찾게 됩니다
+    if (clearedAllFrom(save, 0)) {
+      body.push(
+        h('div', { class: 'rowlist' }, [
+          toggle('하드모드', save.hardMode ? '켬' : '끔', actions.toggleHardMode),
+        ]),
+      );
+    }
 
     body.push(h('div', { class: 'settings-sep' }));
 

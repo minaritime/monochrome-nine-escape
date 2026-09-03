@@ -5,6 +5,7 @@ import {
   type DifficultyStep,
   type WaveSpec,
 } from '../data/balance';
+import type { SaveData } from './save';
 
 /** 레벨업에 기본으로 뜨는 선택지 수 */
 export const BASE_SKILL_CHOICES = 3;
@@ -157,6 +158,24 @@ export function difficultyMods(level: number): DifficultyMods {
  */
 export function unlockTimeFor(level: number): number {
   return difficultyMods(level).clearTime;
+}
+
+/**
+ * `from` 부터 최고 난이도까지 전부 클리어했는가.
+ *
+ * **범위를 인자로 받는 이유**는 쓰는 곳마다 시작점이 다르기 때문입니다.
+ * 업적 "완주" 는 입문(-1)까지 포함한 완전 제패라 `DIFFICULTY.min` 에서 시작하고,
+ * 하드모드 해금은 **입문을 빼고** 0 에서 시작합니다. 입문은 일부러 쉽게 만든
+ * 난이도라 도전의 증거로 삼기에 어울리지 않습니다.
+ *
+ * **계산은 한 곳이어야 합니다.** 두 벌로 적어두면 클리어 판정 방식을 바꿀 때
+ * 한쪽만 고쳐서 "업적은 열렸는데 하드모드는 안 열리는" 일이 생깁니다.
+ */
+export function clearedAllFrom(save: SaveData, from: number): boolean {
+  for (let lv = from; lv <= DIFFICULTY.max; lv++) {
+    if ((save.records.bestTimeByDifficulty[String(lv)] ?? 0) < unlockTimeFor(lv)) return false;
+  }
+  return true;
 }
 
 /** 그 난이도에서 새로 붙는 효과 한 줄 */

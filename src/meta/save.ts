@@ -107,6 +107,20 @@ export interface SaveData {
    * 없으면 돌아와서 죽어 있는 것을 봅니다.
    */
   autoPause: boolean;
+  /**
+   * 하드모드. **히든 요소입니다.**
+   *
+   * 난이도 **0 부터 15 까지 전부 클리어**하면 설정에 버튼이 나타납니다
+   * (`clearedAllFrom(save, 0)`). 입문(-1)은 뺍니다. 일부러 쉽게 만든 난이도라
+   * 도전의 증거로 삼기에 어울리지 않습니다.
+   *
+   * **조건은 저장의 난이도별 최고 기록으로 봅니다.** 예전에 깬 것도 그대로
+   * 인정되고, 한 번 열리면 다시 닫히지 않습니다.
+   *
+   * ⚠ **아직 켜도 아무 일도 일어나지 않습니다.** 하드모드의 내용은 나중에 만듭니다.
+   * 지금 있는 것은 해금 조건과 스위치뿐입니다.
+   */
+  hardMode: boolean;
 }
 
 export function emptySave(): SaveData {
@@ -139,6 +153,7 @@ export function emptySave(): SaveData {
     shakeLevel: SETTINGS.shake.default,
     particleLevel: SETTINGS.particles.default,
     autoPause: SETTINGS.autoPauseDefault,
+    hardMode: false,
   };
 }
 
@@ -281,6 +296,7 @@ function migrate(data: Partial<SaveData>): SaveData {
       SETTINGS.particles.levels.length - 1,
     ),
     autoPause: data.autoPause !== false,
+    hardMode: data.hardMode === true,
   };
 }
 

@@ -280,6 +280,12 @@ function goSettings(notice = ''): void {
         saveGame(save);
         goSettings();
       },
+      // ⚠ 지금은 저장에 남기는 것이 전부입니다. 하드모드의 내용은 나중에 만듭니다
+      toggleHardMode: () => {
+        save.hardMode = !save.hardMode;
+        saveGame(save);
+        goSettings(save.hardMode ? '하드모드' : '');
+      },
       resetAll: () => {
         save = resetSave();
         // 난이도 해금이 0 으로 돌아갔는데 마지막에 고른 값이 남아 있으면 어긋납니다

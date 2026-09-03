@@ -12,7 +12,7 @@ import { ALL_ENEMY_IDS } from '../enemies/registry';
 import { eliteStatMul } from '../enemies/elite';
 import { isStatRollable } from '../game/stats';
 import { ownedSlots } from '../game/player';
-import { unlockTimeFor } from '../meta/difficulty';
+import { clearedAllFrom, unlockTimeFor } from '../meta/difficulty';
 import { purchasedCount, totalPurchasable } from '../meta/shop';
 import type { SaveData } from '../meta/save';
 import type { World } from '../game/world';
@@ -397,12 +397,9 @@ export const ACHIEVEMENTS: readonly AchieveDef[] = [
     '완주',
     `난이도 ${DIFFICULTY.min} 부터 ${DIFFICULTY.max} 까지 전부 클리어합니다`,
     600,
-    (c) => {
-      for (let lv = DIFFICULTY.min; lv <= DIFFICULTY.max; lv++) {
-        if ((c.save.records.bestTimeByDifficulty[String(lv)] ?? 0) < unlockTimeFor(lv)) return false;
-      }
-      return true;
-    },
+    // **입문(-1)까지 포함한 완전 제패입니다.** 하드모드 해금(`clearedAllFrom(save, 0)`)과
+    // 시작점이 다르므로 같은 함수에 범위를 달리 넘깁니다
+    (c) => clearedAllFrom(c.save, DIFFICULTY.min),
   ),
 ];
 
