@@ -475,6 +475,12 @@ async function main(): Promise<void> {
     press('Escape');
     check('설정에서 메인으로 돌아온다', overlayText().includes('게임 시작'));
 
+    // 개발자 모드에서는 히든 업적도 가리지 않습니다
+    press('Digit5');
+    check('개발자 모드에서는 히든이 안 가려진다', !overlayText().includes('???'), overlayText().trim().slice(0, 60));
+    check('히든 업적 이름이 보인다', overlayText().includes('사인 수집가'));
+    press('Escape');
+
     // **하드모드가 보이는 쪽은 여기서 못 잽니다.** `main.ts` 는 저장을 메모리에 들고
     // 있어서 저장소에 기록을 심어도 화면이 안 바뀌고, 판이 끝날 때 다시 읽는 경로는
     // 그 직전에 들고 있던 값으로 덮어씁니다. 난이도 15를 실제로 깨는 것 말고는

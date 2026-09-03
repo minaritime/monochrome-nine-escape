@@ -57,7 +57,10 @@ function hiddenRank(save: SaveData, def: AchieveDef): number {
 function rowOf(save: SaveData, def: AchieveDef): HTMLElement {
   const have = tierOf(save, def.id);
   const complete = isComplete(save, def);
-  const secret = !!def.hidden && have === 0;
+  // **개발자 모드에서는 히든도 그대로 보입니다.** 조건을 확인하려면 무엇을 재는
+  // 업적인지 알아야 하는데, 화면에서 `???` 로 가려져 있으면 코드를 열어봐야 합니다.
+  // 가리는 것은 처음 겪는 사람을 위한 것이지 만드는 사람을 위한 것이 아닙니다
+  const secret = !!def.hidden && have === 0 && !save.devMode;
 
   const nextCoin = Math.round((def.tiers[Math.min(have, def.tiers.length - 1)]?.coin ?? 0) * ACHIEVEMENT.coinMul);
   const el = card({
