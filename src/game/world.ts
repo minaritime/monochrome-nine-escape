@@ -141,6 +141,11 @@ export class World {
   /** 이번 판의 난이도와 그로 인한 적 강화 배율 */
   readonly difficulty: number;
   readonly diff: DifficultyMods;
+  /**
+   * 이번 판이 하드모드인가. **판 시작에 굳힙니다.**
+   * 도중에 설정이 바뀌어도 이미 도는 판의 규칙은 안 바뀌어야 합니다
+   */
+  readonly hard: boolean;
 
   /** 상점의 경험치 강화 배율. 판이 시작될 때 한 번 굳힙니다 (`gainXp` 참고) */
   private readonly xpMul: number;
@@ -169,8 +174,9 @@ export class World {
     seed?: number,
     difficulty = 0,
   ) {
-    this.difficulty = clampDifficulty(difficulty);
-    this.diff = difficultyMods(this.difficulty);
+    this.hard = save.hardMode;
+    this.difficulty = clampDifficulty(difficulty, this.hard);
+    this.diff = difficultyMods(this.difficulty, this.hard);
     this.xpMul = xpMultiplier(save);
     this.rng = new Rng(seed);
     // **파티클은 판의 난수기를 쓰면 안 됩니다.** 설정에서 파티클을 줄이면 난수를 덜

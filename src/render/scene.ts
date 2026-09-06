@@ -1,4 +1,4 @@
-import { ARENA_X, CANVAS, DEATH_BURST, ELITE, ENEMY_BULLET, ENEMY_PARAMS, PLAYER } from '../data/balance';
+import { ARENA_X, CANVAS, DEATH_BURST, ELITE, ENEMY_BULLET, ENEMY_PARAMS, HARD, PLAYER } from '../data/balance';
 import { TAU } from '../core/math';
 import { bomberBlastRadius, cowardEnraged, rangedAimTime } from '../enemies/behaviors/special';
 import { eliteMul } from '../enemies/elite';
@@ -17,6 +17,12 @@ export function drawWorld(r: Renderer, w: World): void {
   r.begin(ARENA_X + w.effects.shakeX, w.effects.shakeY);
 
   drawArena(r);
+  // **붉은 기운은 배경에만 겁니다** (2026-09-06). 예전에는 render 맨 끝에서 화면
+  // 전체를 덮었는데, 적과 탄과 HUD 까지 같이 흐려져서 **화면이 뿌옇고 눈이 아팠습니다.**
+  //
+  // 여기(경기장 바닥 위, 엔티티 아래)에 걸면 적 색은 아예 안 건드리게 되므로
+  // "색이 위험도"라는 규칙도 그대로 지켜집니다
+  if (w.save.hardMode) r.rect(0, 0, CANVAS.w, CANVAS.h, HARD.tint);
   drawHazards(r, w);
   drawTelegraphs(r, w);
   drawCoins(r, w);
@@ -34,10 +40,12 @@ export function drawWorld(r: Renderer, w: World): void {
 }
 
 /** 메뉴 화면 뒤에 깔리는 빈 배경 */
-export function drawIdleBackground(r: Renderer): void {
+export function drawIdleBackground(r: Renderer, hard = false): void {
   r.clear(BG);
   r.begin(ARENA_X, 0);
   drawArena(r);
+  // 판 안과 같은 규칙입니다. 배경에만 걸어야 뿌옇지 않습니다
+  if (hard) r.rect(0, 0, CANVAS.w, CANVAS.h, HARD.tint);
   r.end();
 }
 

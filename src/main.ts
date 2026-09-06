@@ -1,6 +1,6 @@
 import './style.css';
 
-import { ACHIEVEMENT, DIFFICULTY, HARD, SETTINGS, VIEW } from './data/balance';
+import { ACHIEVEMENT, DIFFICULTY, SETTINGS } from './data/balance';
 import { GameLoop } from './core/loop';
 import { Input } from './core/input';
 import { Debug } from './game/debug';
@@ -659,11 +659,8 @@ const loop = new GameLoop({
       }
       debug.draw(renderer, world, fps);
     } else {
-      drawIdleBackground(renderer);
+      drawIdleBackground(renderer, save.hardMode);
     }
-    // **맨 위에 덮습니다.** 디버그 오버레이까지 같이 붉어져야 화면 전체가 하나로
-    // 보입니다. 판이 없을 때(메인 화면 배경)도 걸립니다
-    if (save.hardMode) renderer.rect(0, 0, VIEW.w, VIEW.h, HARD.tint);
   },
 });
 

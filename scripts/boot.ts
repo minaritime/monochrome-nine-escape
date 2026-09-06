@@ -637,6 +637,31 @@ async function main(): Promise<void> {
     press('Digit6');
     check('설정에 개발자 항목이 나타난다', overlayText().includes('도감 전체 보기 (개발자)'));
     check('하드모드도 나타난다', overlayText().includes('하드모드 (개발자)'));
+
+    // **하드모드를 켜면 난이도 화면이 통째로 바뀝니다** (2026-09-06).
+    // 예전에는 켜도 색만 붉어지고 난이도는 일반과 같았습니다
+    clickCard('하드모드 (개발자)');
+    press('Escape');
+    press('Digit1');
+    frames(2);
+    check('하드에서 난이도 화면이 열린다', overlayText().includes('난이도 선택'), overlayText().trim().slice(0, 40));
+    // 하드에는 입문(-1)이 없습니다. 왼쪽 끝이 0 입니다
+    press('ArrowLeft');
+    press('ArrowLeft');
+    frames(2);
+    check('하드에는 입문이 없다', !overlayText().includes('입문'), overlayText().trim().slice(0, 60));
+    // 하드 0 은 "추가 효과 없음"이 아닙니다. 일반 15 의 장치를 전부 들고 시작합니다
+    check('하드 0 에 효과가 붙어 있다', overlayText().includes('정예'), overlayText().trim().slice(0, 80));
+    check('하드 0 의 출발선을 알려준다', overlayText().includes('출발선'));
+    press('Escape');
+
+    // 다시 일반으로 돌려 둡니다
+    press('Digit6');
+    clickCard('하드모드 (개발자)');
+    press('Escape');
+    press('Digit1');
+    frames(2);
+    check('일반으로 돌리면 입문이 돌아온다', overlayText().includes('입문') || overlayText().includes('난이도 선택'));
     press('Escape');
   }
 

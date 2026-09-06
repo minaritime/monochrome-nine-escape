@@ -1,6 +1,6 @@
 import { BESTIARY_TIERS, BESTIARY_TIERS_BOSS, DIFFICULTY } from '../data/balance';
 import { isBossId } from '../enemies/boss';
-import { unlockTimeFor } from './difficulty';
+import { difficultyKey, unlockTimeFor } from './difficulty';
 import { ownedSlots } from '../game/player';
 import type { World } from '../game/world';
 import type { SkillId } from '../skills/types';
@@ -60,14 +60,23 @@ export function commitRun(save: SaveData, w: World): void {
   if (w.stats.kills > r.bestKills) r.bestKills = w.stats.kills;
   if (w.player.level > r.bestLevel) r.bestLevel = w.player.level;
 
-  const key = String(w.difficulty);
+  // **하드는 'h0' ~ 'h15' 로 키를 나눕니다.** 같은 칸을 쓰면 하드 기록이 일반 기록을
+  // 덮어써서 일반모드의 최고 기록이 사라집니다
+  const key = difficultyKey(w.difficulty, w.hard);
   if (w.time > (r.bestTimeByDifficulty[key] ?? 0)) r.bestTimeByDifficulty[key] = w.time;
 
   // 지금 난이도의 요구 시간을 채웠으면 다음 난이도가 열립니다.
   // -1 은 항상 고를 수 있으므로 해금 사슬은 0 에서 시작합니다.
-  // 표는 15 에서 끝나므로 그 위로는 열리지 않습니다
+  // 표는 15 에서 끝나므로 그 위로는 열리지 않습니다.
+  //
+  // **하드는 자기 사슬을 따로 탑니다** (`maxHardDifficulty`). 같은 칸을 쓰면
+  // 일반에서 깬 것이 하드까지 열어 줍니다
   const next = Math.min(DIFFICULTY.max, w.difficulty + 1);
-  if (w.time >= unlockTimeFor(w.difficulty) && save.maxDifficulty < next) {
-    save.maxDifficulty = next;
+  if (w.time >= unlockTimeFor(w.difficulty, w.hard)) {
+    if (w.hard) {
+      if (save.maxHardDifficulty < next) save.maxHardDifficulty = next;
+    } else if (save.maxDifficulty < next) {
+      save.maxDifficulty = next;
+    }
   }
 }

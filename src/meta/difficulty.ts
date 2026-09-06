@@ -2,6 +2,8 @@ import {
   DIFFICULTY,
   DIFFICULTY_EASY,
   DIFFICULTY_STEPS,
+  HARD,
+  HARD_DIFFICULTY_STEPS,
   type DifficultyStep,
   type WaveSpec,
 } from '../data/balance';
@@ -49,9 +51,45 @@ export interface DifficultyMods {
   bossCoinMul: number;
 }
 
-/** 고를 수 있는 범위로 자릅니다 */
-export function clampDifficulty(level: number): number {
-  return Math.min(DIFFICULTY.max, Math.max(DIFFICULTY.min, Math.floor(level)));
+/**
+ * 고를 수 있는 범위로 자릅니다.
+ *
+ * **하드모드에는 입문(-1)이 없습니다** (2026-09-06). 일부러 쉽게 만든 난이도라
+ * 하드에 둘 자리가 없고, 하드 0 자체가 이미 일반 15 위에서 시작합니다.
+ */
+export function clampDifficulty(level: number, hard = false): number {
+  const min = hard ? 0 : DIFFICULTY.min;
+  return Math.min(DIFFICULTY.max, Math.max(min, Math.floor(level)));
+}
+
+/**
+ * 배율을 1 쪽으로 당깁니다 (하드 0 의 출발선).
+ *
+ * **"1 로부터의 거리"에 곱합니다.** 체력 x2.10 에 0.7 이면 1 + 1.10 x 0.7 = x1.77 입니다.
+ * 배율 자체에 곱하면 x1.47 이 되어 1 아래로 내려가는 값이 생기고, 그러면 난이도가
+ * 오히려 쉬워지는 자리가 만들어집니다.
+ *
+ * **배율만 건드립니다.** 장치(불리언 · 웨이브 · 선택지 수 · 클리어 시간)는 그대로
+ * 가져옵니다. 그것이 하드 0 을 일반 15 와 같은 판으로 만드는 부분입니다.
+ */
+function softenMuls(mods: DifficultyMods, ratio: number): void {
+  const keys = [
+    'hpMul',
+    'damageMul',
+    'speedMul',
+    'rangeMul',
+    'spawnRateMul',
+    'eliteRatioMul',
+    'bossHpMul',
+    'bossDamageMul',
+    'bulletSpeedMul',
+    'contactDamageMul',
+    'bomberSpeedMul',
+    'bomberDamageMul',
+    'cowardPatienceMul',
+    'hazardDurationMul',
+  ] as const;
+  for (const k of keys) mods[k] = 1 + (mods[k] - 1) * ratio;
 }
 
 export function noDifficulty(): DifficultyMods {
@@ -105,8 +143,14 @@ function applyStep(mods: DifficultyMods, step: DifficultyStep): void {
   if (step.foolShotDirs !== undefined) mods.foolShotDirs = step.foolShotDirs;
 }
 
-/** 1단계부터 level 단계까지의 효과를 전부 곱합니다 (누적) */
-export function difficultyMods(level: number): DifficultyMods {
+/**
+ * 1단계부터 level 단계까지의 효과를 전부 더합니다 (누적).
+ *
+ * **하드모드는 일반 15 를 출발선으로 삼습니다** (2026-09-06). 장치는 전부 그대로
+ * 가져오고 배율만 `HARD.startMul` 만큼 줄인 뒤, 그 위에 하드 표를 쌓습니다.
+ */
+export function difficultyMods(level: number, hard = false): DifficultyMods {
+  if (hard) return hardMods(level);
   const lv = clampDifficulty(level);
   const mods: DifficultyMods = {
     level: lv,
@@ -153,11 +197,44 @@ export function difficultyMods(level: number): DifficultyMods {
 }
 
 /**
+ * 하드모드의 배율 묶음.
+ *
+ * 출발선은 **일반 15** 이고, 거기서 배율만 낮춘 뒤 하드 표를 쌓습니다.
+ * 코인은 일반 15(x3.25) 위에서 이어집니다.
+ */
+function hardMods(level: number): DifficultyMods {
+  const lv = clampDifficulty(level, true);
+  const mods = difficultyMods(DIFFICULTY.max);
+  softenMuls(mods, HARD.startMul);
+
+  mods.level = lv;
+  // 하드 0 이 x3.5, 하드 15 가 x7.25 입니다. 일반과 같은 배율로는 하드 상점을
+  // 채우는 데 300판이 걸립니다
+  mods.coinMul = HARD.coinBase + (lv + 1) * HARD.coinPerLevel;
+  mods.bossCoinMul = DIFFICULTY.bossCoinMul + (DIFFICULTY.bossCoinMul - 1) * (lv / DIFFICULTY.max);
+
+  for (let i = 0; i < lv; i++) applyStep(mods, HARD_DIFFICULTY_STEPS[i]);
+  return mods;
+}
+
+/**
  * 그 난이도로 다음 단계를 열려면 버텨야 하는 시간(초).
  * 기본 15분이고, 난이도 3의 "클리어 조건 +15분"이 붙으면 그 뒤로는 30분입니다.
+ * 하드는 출발선이 일반 15 라 언제나 30분입니다.
  */
-export function unlockTimeFor(level: number): number {
-  return difficultyMods(level).clearTime;
+export function unlockTimeFor(level: number, hard = false): number {
+  return difficultyMods(level, hard).clearTime;
+}
+
+/**
+ * 난이도별 최고 기록을 담는 키.
+ *
+ * **하드는 `'h0'` ~ `'h15'` 로 나눕니다** (2026-09-06). 같은 키를 쓰면 하드 기록이
+ * 일반 기록을 덮어써서 **일반모드의 최고 기록이 사라집니다.** 난이도 숫자는 같은데
+ * 판의 내용이 완전히 다르므로 같은 칸에 넣을 수 없습니다.
+ */
+export function difficultyKey(level: number, hard: boolean): string {
+  return hard ? `h${level}` : String(level);
 }
 
 /**
@@ -171,15 +248,21 @@ export function unlockTimeFor(level: number): number {
  * **계산은 한 곳이어야 합니다.** 두 벌로 적어두면 클리어 판정 방식을 바꿀 때
  * 한쪽만 고쳐서 "업적은 열렸는데 하드모드는 안 열리는" 일이 생깁니다.
  */
-export function clearedAllFrom(save: SaveData, from: number): boolean {
+export function clearedAllFrom(save: SaveData, from: number, hard = false): boolean {
   for (let lv = from; lv <= DIFFICULTY.max; lv++) {
-    if ((save.records.bestTimeByDifficulty[String(lv)] ?? 0) < unlockTimeFor(lv)) return false;
+    const best = save.records.bestTimeByDifficulty[difficultyKey(lv, hard)] ?? 0;
+    if (best < unlockTimeFor(lv, hard)) return false;
   }
   return true;
 }
 
 /** 그 난이도에서 새로 붙는 효과 한 줄 */
-export function difficultyStepLabel(level: number): string {
+export function difficultyStepLabel(level: number, hard = false): string {
+  if (hard) {
+    // 하드 0 은 "추가 효과 없음"이 아닙니다. 일반 15 위에서 시작합니다
+    if (level === 0) return '일반 15 의 장치 전부 · 배율은 낮춰서 시작';
+    return HARD_DIFFICULTY_STEPS[level - 1]?.label ?? '추가 효과 없음';
+  }
   if (level < 0) return DIFFICULTY_EASY.label;
   if (level === 0) return '추가 효과 없음';
   return DIFFICULTY_STEPS[level - 1]?.label ?? '추가 효과 없음';
@@ -220,11 +303,12 @@ function buffedKinds(m: DifficultyMods): string[] {
  * 그 난이도까지 쌓인 효과 전체.
  * 한 문장으로 이어 붙이면 열 줄이 넘는 후반 난이도에서 읽을 수가 없어서 항목별로 돌려줍니다.
  */
-export function difficultyEffects(level: number): DifficultyEffect[] {
-  const lv = clampDifficulty(level);
-  if (lv === 0) return [];
+export function difficultyEffects(level: number, hard = false): DifficultyEffect[] {
+  const lv = clampDifficulty(level, hard);
+  // 일반 0 은 아무것도 안 붙지만, **하드 0 은 이미 일반 15 위에서 시작합니다**
+  if (lv === 0 && !hard) return [];
 
-  const m = difficultyMods(lv);
+  const m = difficultyMods(lv, hard);
   const out: DifficultyEffect[] = [];
   // 1 보다 크면 "+N%", 작으면 "-N%" 로 읽힙니다
   const pct = (v: number) => `${v >= 1 ? '+' : ''}${Math.round((v - 1) * 100)}%`;
@@ -278,8 +362,8 @@ export function difficultyEffects(level: number): DifficultyEffect[] {
 }
 
 /** 그 난이도까지 쌓인 효과 전체를 한 줄로 (기록 화면 등 좁은 자리용) */
-export function difficultySummary(level: number): string {
-  const lines = difficultyEffects(level);
+export function difficultySummary(level: number, hard = false): string {
+  const lines = difficultyEffects(level, hard);
   if (lines.length === 0) return '기본 난이도입니다';
   return lines.map((e) => `${e.label} ${e.value}`).join(' · ');
 }

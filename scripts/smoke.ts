@@ -24,6 +24,7 @@ import {
   ENEMY_PARAMS,
   ENEMY_TABLE,
   HARD,
+  HARD_DIFFICULTY_STEPS,
   FIXED_DT,
   MAX_UTILITY_CHOICES_PER_ROLL,
   SKILLS,
@@ -59,7 +60,7 @@ import { createPlayer, ownedSlots } from '../src/game/player';
 import { rollStatGains } from '../src/progression/levelup';
 import { addStat, createStats } from '../src/game/stats';
 import { openSlots, setSealed, togglePassive } from '../src/meta/shop';
-import { clearedAllFrom, difficultyMods, unlockTimeFor } from '../src/meta/difficulty';
+import { clampDifficulty, clearedAllFrom, difficultyKey, difficultyMods, unlockTimeFor } from '../src/meta/difficulty';
 import { commitRun } from '../src/meta/bestiary';
 import { emptySave, fromJSON } from '../src/meta/save';
 import {
@@ -3463,6 +3464,86 @@ console.log('\n17) 하드모드 상점');
       `   항목 ${totalPurchasable()} → ${totalPurchasableAll()}개 · 스탯 1~20 ${normal.toLocaleString()} · 하드 ${hard.toLocaleString()} 코인`,
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// 18) 하드모드 난이도 (2026-09-06)
+//
+// 지키는 것은 넷입니다.
+//   - 하드 0 이 일반 15 의 **장치를 전부** 가져오는가
+//   - 배율은 낮췄는가, 그리고 **1 아래로 내려가지 않는가**
+//   - 하드에는 입문(-1)이 없는가
+//   - 기록 키가 일반과 갈리는가
+// ---------------------------------------------------------------------------
+console.log('\n18) 하드모드 난이도');
+{
+  const normal15 = difficultyMods(DIFFICULTY.max);
+  const hard0 = difficultyMods(0, true);
+  const hard15 = difficultyMods(DIFFICULTY.max, true);
+
+  check('하드 표가 일반과 같은 칸 수다', HARD_DIFFICULTY_STEPS.length === DIFFICULTY.max, `${HARD_DIFFICULTY_STEPS.length}`);
+
+  // --- 장치는 전부 가져옵니다 ---
+  check('하드 0 은 전원 정예', hard0.allElite === normal15.allElite && hard0.allElite);
+  check('하드 0 은 무적 바보적', hard0.foolInvuln === normal15.foolInvuln && hard0.foolInvuln);
+  check('하드 0 은 선택지 2장', hard0.skillChoices === normal15.skillChoices, `${hard0.skillChoices}`);
+  check('하드 0 은 돌진 쿨 없음', hard0.chargerNoCooldown === normal15.chargerNoCooldown);
+  check('하드 0 은 분열 탄막', hard0.splitterShoot === normal15.splitterShoot);
+  check('하드 0 도 30분 클리어', hard0.clearTime === normal15.clearTime, `${hard0.clearTime}`);
+  check('하드 0 의 웨이브가 일반 15 와 같다', hard0.wave?.count === normal15.wave?.count);
+
+  // --- 배율은 낮춥니다 ---
+  check('하드 0 체력이 일반 15 보다 낮다', hard0.hpMul < normal15.hpMul, `${hard0.hpMul.toFixed(2)} < ${normal15.hpMul.toFixed(2)}`);
+  check('하드 0 공격력이 일반 15 보다 낮다', hard0.damageMul < normal15.damageMul);
+  check('하드 0 스폰율이 일반 15 보다 낮다', hard0.spawnRateMul < normal15.spawnRateMul);
+
+  // **1 아래로 내려가면 안 됩니다.** 배율 자체에 곱하면 (x2.10 x 0.7 = x1.47) 이 아니라
+  // 감소 계열(자폭병 속도 x0.8 등)이 1 을 넘어 오히려 강화가 됩니다
+  const muls: [string, number][] = [
+    ['체력', hard0.hpMul],
+    ['공격력', hard0.damageMul],
+    ['이동속도', hard0.speedMul],
+    ['스폰율', hard0.spawnRateMul],
+    ['접촉', hard0.contactDamageMul],
+    ['적탄', hard0.bulletSpeedMul],
+  ];
+  for (const [name, v] of muls) {
+    check(`하드 0 ${name} 배율이 1 이상`, v >= 1, `${v.toFixed(2)}`);
+  }
+  // 일반 15 에서 1 미만이던 것은 하드에서도 1 미만이어야 합니다 (약화는 약화로 남습니다)
+  check(
+    '자폭병 속도는 여전히 1 미만',
+    normal15.bomberSpeedMul < 1 && hard0.bomberSpeedMul < 1,
+    `${hard0.bomberSpeedMul.toFixed(2)}`,
+  );
+  check('겁쟁이 인내도 1 미만', hard0.cowardPatienceMul < 1, `${hard0.cowardPatienceMul.toFixed(2)}`);
+
+  // --- 하드 표가 실제로 쌓입니다 ---
+  check('하드 15 가 하드 0 보다 세다', hard15.hpMul > hard0.hpMul && hard15.damageMul > hard0.damageMul);
+  check('하드 15 가 일반 15 보다 세다', hard15.hpMul > normal15.hpMul, `${hard15.hpMul.toFixed(2)}`);
+  check('하드 코인이 일반 15 보다 많다', hard0.coinMul > normal15.coinMul, `${hard0.coinMul.toFixed(2)}`);
+  check('하드 코인이 단계마다 오른다', hard15.coinMul > hard0.coinMul, `${hard15.coinMul.toFixed(2)}`);
+
+  // --- 입문(-1)이 없습니다 ---
+  check('하드는 -1 을 0 으로 자른다', clampDifficulty(-1, true) === 0);
+  check('일반은 -1 이 그대로', clampDifficulty(-1) === -1);
+  check('하드 -1 을 넣어도 하드 0 이 나온다', difficultyMods(-1, true).hpMul === hard0.hpMul);
+
+  // --- 기록 키 ---
+  check('하드 기록 키가 갈린다', difficultyKey(3, true) === 'h3' && difficultyKey(3, false) === '3');
+  {
+    // 하드로 깬 기록이 일반 해금을 열어주면 안 됩니다 (그 반대도 마찬가지)
+    const s = emptySave();
+    for (let lv = 0; lv <= DIFFICULTY.max; lv++) {
+      s.records.bestTimeByDifficulty[difficultyKey(lv, true)] = unlockTimeFor(lv, true);
+    }
+    check('하드 기록만으로는 일반 완주가 아니다', !clearedAllFrom(s, 0, false));
+    check('하드 기록으로 하드 완주는 참', clearedAllFrom(s, 0, true));
+  }
+
+  console.log(
+    `   하드 0 체력 x${hard0.hpMul.toFixed(2)} (일반 15 는 x${normal15.hpMul.toFixed(2)}) · 하드 15 x${hard15.hpMul.toFixed(2)} · 코인 x${hard0.coinMul.toFixed(2)} → x${hard15.coinMul.toFixed(2)}`,
+  );
 }
 
 console.log(failures === 0 ? '\n전부 통과했습니다' : `\n실패 ${failures}건`);

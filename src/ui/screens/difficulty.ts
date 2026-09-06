@@ -19,13 +19,20 @@ export function showDifficultySelect(
   onBack: () => void,
   initial = 0,
 ): () => void {
-  const max = Math.min(save.maxDifficulty, DIFFICULTY.max);
+  // **하드모드에는 입문(-1)이 없습니다** (2026-09-06). 일부러 쉽게 만든 난이도라
+  // 하드에 둘 자리가 없고, 하드 0 자체가 이미 일반 15 위에서 시작합니다.
+  //
+  // 해금도 하드 사슬(`maxHardDifficulty`)을 따로 봅니다. 같은 칸을 쓰면 일반에서
+  // 깬 것이 하드까지 열어 줍니다
+  const hard = save.hardMode;
+  const min = hard ? 0 : DIFFICULTY.min;
+  const max = Math.min(hard ? save.maxHardDifficulty : save.maxDifficulty, DIFFICULTY.max);
   // 아직 안 열린 다음 한 칸까지는 볼 수 있습니다. 무엇이 더 붙는지 알아야 버틸 이유가 생깁니다
   const highest = Math.min(max + 1, DIFFICULTY.max);
-  let lv = clamp(initial, DIFFICULTY.min, highest);
+  let lv = clamp(initial, min, highest);
 
   const move = (delta: number) => {
-    const next = clamp(lv + delta, DIFFICULTY.min, highest);
+    const next = clamp(lv + delta, min, highest);
     if (next === lv) return;
     lv = next;
     render();
@@ -45,7 +52,7 @@ export function showDifficultySelect(
     // 난이도마다 효과 줄 수가 3 줄에서 20 줄까지 달라지는데, 그게 바깥 상자 높이를 바꾸면
     // 가운데 정렬 때문에 다이얼과 버튼이 매번 위아래로 튑니다. 누르려던 버튼이 도망갑니다
     const top = h('div', { class: 'diff-top' }, [
-      dial(lv, DIFFICULTY.min, highest, move),
+      dial(lv, min, highest, hard, move),
       h('div', { class: 'diff-sub' }, [subtitleOf(lv, save, locked)]),
       startButton(locked, start),
     ]);
@@ -53,13 +60,16 @@ export function showDifficultySelect(
     // 누적 목록만 구르고, `새로 붙은 것` 은 맨 아래에 고정입니다.
     // 스크롤 안에 있으면 20 줄짜리 난이도에서는 끝까지 내려야 보이는데, 그건 지금 이
     // 난이도를 고르는 이유 자체라 항상 눈에 있어야 합니다
-    const scroll = h('div', { class: 'diff-scroll' }, [effectList(lv)]);
+    const scroll = h('div', { class: 'diff-scroll' }, [effectList(lv, hard)]);
 
     const parts: Node[] = [top, scroll];
-    const fresh = newBox(lv);
+    const fresh = newBox(lv, hard);
     if (fresh) parts.push(fresh);
 
-    overlayEl().append(screen('난이도 선택', '', parts, 'diff-screen', onBack));
+    // **하드인지 반드시 밝힙니다.** 표시가 없으면 켜 둔 것을 잊고 "왜 이렇게 어렵지"가
+    // 됩니다. 배경 색만으로는 구분이 약합니다
+    const title = hard ? '난이도 선택 · 하드' : '난이도 선택';
+    overlayEl().append(screen(title, '', parts, `diff-screen${hard ? ' hard' : ''}`, onBack));
   };
 
   render();
@@ -76,7 +86,7 @@ export function showDifficultySelect(
 }
 
 /** 가운데 숫자와 좌우 화살표 */
-function dial(lv: number, min: number, max: number, move: (delta: number) => void): HTMLElement {
+function dial(lv: number, min: number, max: number, hard: boolean, move: (delta: number) => void): HTMLElement {
   const arrow = (delta: number, glyph: string, label: string) =>
     h(
       'button',
@@ -93,7 +103,7 @@ function dial(lv: number, min: number, max: number, move: (delta: number) => voi
     arrow(-1, '◀', '더 쉽게'),
     h('div', { class: 'diff-value' }, [
       h('div', { class: `diff-num${lv < 0 ? ' easy' : ''}` }, [String(lv)]),
-      h('div', { class: 'diff-name' }, [nameOf(lv)]),
+      h('div', { class: 'diff-name' }, [nameOf(lv, hard)]),
     ]),
     arrow(1, '▶', '더 어렵게'),
   ]);
@@ -108,8 +118,8 @@ function startButton(locked: boolean, onClick: () => void): HTMLElement {
 }
 
 /** 그 난이도에 걸리는 효과를 전부 한 줄씩 폅니다 */
-function effectList(lv: number): HTMLElement {
-  const effects = difficultyEffects(lv);
+function effectList(lv: number, hard: boolean): HTMLElement {
+  const effects = difficultyEffects(lv, hard);
   const rows: Node[] = [h('div', { class: 'diff-list-head' }, ['적용되는 효과'])];
 
   if (effects.length === 0) {
@@ -133,15 +143,20 @@ function effectList(lv: number): HTMLElement {
  * 누적 목록만 보면 무엇이 늘었는지 알 수 없는데, 그게 이 난이도를 고르는 이유입니다.
  * 스크롤 안에 두면 후반 난이도에서는 끝까지 내려야 나옵니다.
  */
-function newBox(lv: number): HTMLElement | null {
-  if (lv <= 0) return null;
+function newBox(lv: number, hard: boolean): HTMLElement | null {
+  // 일반 0 은 아무것도 안 붙지만, **하드 0 은 출발선 자체가 설명거리입니다**
+  if (lv <= 0 && !hard) return null;
+  const title = hard && lv === 0 ? '하드모드의 출발선' : `난이도 ${lv} 에서 새로 붙은 것`;
   return h('div', { class: 'diff-new-box' }, [
-    h('div', { class: 'diff-list-head' }, [`난이도 ${lv} 에서 새로 붙은 것`]),
-    h('div', { class: 'diff-new' }, [difficultyStepLabel(lv)]),
+    h('div', { class: 'diff-list-head' }, [title]),
+    h('div', { class: 'diff-new' }, [difficultyStepLabel(lv, hard)]),
   ]);
 }
 
-function nameOf(lv: number): string {
+function nameOf(lv: number, hard: boolean): string {
+  // **하드에는 "기본"이 없습니다.** 하드 0 은 이미 일반 15 위에서 시작하므로
+  // 그 이름을 붙이면 들어가는 사람이 완전히 잘못된 기대를 하게 됩니다
+  if (hard) return `하드 ${lv}`;
   if (lv < 0) return '입문';
   if (lv === 0) return '기본';
   return `난이도 ${lv}`;

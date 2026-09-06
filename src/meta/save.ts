@@ -141,6 +141,14 @@ export interface SaveData {
    * 그래야 끄는 길을 따로 만들지 않아도 새어 나가지 않습니다.
    */
   devBestiary: boolean;
+  /**
+   * 하드모드에서 고를 수 있는 최고 난이도 (2026-09-06).
+   *
+   * **`maxDifficulty`(일반)와 다른 값입니다.** 하드는 출발선이 일반 15 라 판의
+   * 내용이 완전히 달라서, 같은 칸을 쓰면 일반에서 깬 것이 하드까지 열어 줍니다.
+   * 하드 안에서도 0 부터 차례로 깨야 위가 열립니다.
+   */
+  maxHardDifficulty: number;
 }
 
 export function emptySave(): SaveData {
@@ -176,6 +184,7 @@ export function emptySave(): SaveData {
     hardMode: false,
     hardUnlocked: false,
     devBestiary: false,
+    maxHardDifficulty: 0,
   };
 }
 
@@ -322,6 +331,7 @@ function migrate(data: Partial<SaveData>): SaveData {
     // 옛 저장에는 없는 칸입니다. 하드를 켜 둔 채 갱신한 사람은 그 사실을 그대로 인정합니다
     hardUnlocked: data.hardUnlocked === true || data.hardMode === true,
     devBestiary: data.devBestiary === true,
+    maxHardDifficulty: clampInt(numberOr(data.maxHardDifficulty, 0), 0, DIFFICULTY.max),
   };
 }
 
