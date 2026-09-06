@@ -498,6 +498,27 @@ body {
   margin-bottom: 3px;
 }
 
+/*
+ * 하드모드를 켠 뒤에만 살 수 있는 항목 표시.
+ *
+ * `--danger` 를 쓰면 안 됩니다. 그 색은 위험을 뜻하는 자리이고 하드 항목은
+ * 위험한 것이 아니라 하드 전용일 뿐입니다 (하드 테마가 `--danger` 를 안 옮기는 것과
+ * 같은 이유). 그리고 하드모드를 켜면 `--accent` 가 붉은 쪽으로 옮겨가므로
+ * 이 뱃지도 같이 따라갑니다.
+ */
+.card .hard-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  vertical-align: 1px;
+}
+
 .card .desc {
   color: var(--muted);
   font-size: 13px;

@@ -1,18 +1,22 @@
 import {
-  MAX_ATTACK_SKILLS,
-  MAX_START_ATTACKS,
-  MAX_START_UTILITIES,
+  ARMS_UPGRADE,
+  PERM_MAX_LEVEL,
   PERM_UPGRADES,
   REROLL_UPGRADE,
   REVIVE_UPGRADE,
   SKIP_UPGRADE,
+  START_SKILL_LEVEL_UPGRADE,
   STAT_DEFS,
   PASSIVE,
   STAT_GAINS_PER_LEVEL,
+  XP_UPGRADE,
+  type PermUpgradeDef,
 } from '../../data/balance';
 import { passiveChancePercent } from '../../progression/levelup';
+import { formatGain } from '../../game/stats';
 import { saveGame, type SaveData } from '../../meta/save';
 import {
+  attackSlotCount,
   buyPassive,
   buyPerm,
   buySeal,
@@ -24,30 +28,43 @@ import {
   openSlots,
   passiveCost,
   passiveKeys,
+  maxStartFor,
   permLevel,
   permMaxLevel,
   permNextCost,
   sealedSlots,
   setSealed,
   startSkillCost,
+  startSkillLevel,
   togglePassive,
   toggleStartSkill,
   buyStartSkill,
+  xpMultiplier,
 } from '../../meta/shop';
 import { UTILITY_KEY_LABEL } from '../../game/player';
 import { ATTACK_SKILL_IDS, UTILITY_SKILL_IDS, getSkillDef } from '../../skills/registry';
 import { SKILL_FAMILY_LABEL } from '../../skills/types';
 import { bindKeys, card, clearOverlay, h, helpDot, overlayEl, screen } from './dom';
 
-type Tab = 'perm' | 'passive' | 'attack' | 'utility';
+type Tab = 'perm' | 'passive' | 'attack' | 'utility' | 'hard';
 
-const TAB_ORDER: Tab[] = ['perm', 'passive', 'attack', 'utility'];
+/**
+ * 탭 차례. **하드 탭은 하드모드를 한 번 켠 뒤에만 목록에 들어갑니다.**
+ * 잠겨 있을 때 흐린 탭으로 자리를 잡아두지 않습니다. 그러면 히든이 아니라
+ * "아직 못 여는 것"이 되어, 있는 줄 알고 조건을 찾게 됩니다 (하드모드 스위치와 같은 규칙).
+ */
+function tabOrder(save: SaveData): Tab[] {
+  const tabs: Tab[] = ['perm', 'passive', 'attack', 'utility'];
+  if (save.hardUnlocked) tabs.push('hard');
+  return tabs;
+}
 
 const TAB_LABEL: Record<Tab, string> = {
   perm: '스탯 강화',
   passive: '스탯 고정',
   attack: '공격 스킬',
   utility: '유틸 스킬',
+  hard: '심연',
 };
 
 /**
@@ -62,11 +79,18 @@ const TAB_LABEL: Record<Tab, string> = {
  */
 function tabHelp(tab: Tab, save: SaveData): string[] {
   switch (tab) {
-    case 'perm':
-      return [
+    case 'perm': {
+      const lines = [
         '코인으로 스탯 기본값을 영구히 올립니다. 다음 판부터 바로 적용됩니다.',
         '부활 · 다시 뽑기 · 건너뛰기도 여기서 삽니다.',
       ];
+      if (save.hardUnlocked) {
+        lines.push(
+          `${PERM_MAX_LEVEL}단계 위로는 한 단계가 두 배씩 오릅니다. 하드모드를 열어야 살 수 있습니다.`,
+        );
+      }
+      return lines;
+    }
     case 'passive': {
       const open = openSlots(save);
       return [
@@ -75,15 +99,23 @@ function tabHelp(tab: Tab, save: SaveData): string[] {
         `지금은 칸이 ${open}개라 낀 스탯 하나마다 ${Math.round((PASSIVE.chance / open) * 100)}% 입니다. 안 쓸 칸은 봉인해야 그 몫이 남은 칸으로 몰립니다.`,
       ];
     }
-    case 'attack':
+    case 'attack': {
+      const lv = startSkillLevel(save);
       return [
-        '판을 시작할 때 들고 있을 공격 스킬입니다. 언제나 1레벨로 시작합니다.',
-        `여기서 ${MAX_START_ATTACKS}개까지 장착하고, 판 안에서는 ${MAX_ATTACK_SKILLS}칸까지 모읍니다.`,
+        `판을 시작할 때 들고 있을 공격 스킬입니다. ${lv}레벨로 시작합니다.`,
+        `여기서 ${maxStartFor(save, 'attack')}개까지 장착하고, 판 안에서는 ${attackSlotCount(save)}칸까지 모읍니다.`,
       ];
+    }
     case 'utility':
       return [
         `${UTILITY_KEY_LABEL} 로 직접 쓰는 스킬입니다. 판 안에서도 1칸뿐이라 새로 고르면 교체됩니다.`,
         '공격과 주머니가 따로라 끼워도 공격 칸이 줄지 않습니다.',
+      ];
+    case 'hard':
+      return [
+        '하드모드를 연 사람에게만 열리는 자리입니다.',
+        '경험치와 시작 스킬 숙련은 일반 판에도 그대로 적용됩니다.',
+        '무장 확장만 하드에서만 듣습니다. 하드는 시작 장착이 1칸으로 깎인 채 시작합니다.',
       ];
   }
 }
@@ -123,7 +155,7 @@ export function showShop(save: SaveData, onBack: () => void, onChange?: () => vo
 
     // 지금 탭의 설명은 탭 줄 오른쪽 끝 `?` 안에 접혀 있습니다
     const tabs = h('div', { class: 'tabs' }, [
-      ...TAB_ORDER.map((t) =>
+      ...tabOrder(save).map((t) =>
         tabButton(TAB_LABEL[t], tab === t, () => {
           tab = t;
           render();
@@ -139,7 +171,9 @@ export function showShop(save: SaveData, onBack: () => void, onChange?: () => vo
         ? permTab(save, refresh)
         : tab === 'passive'
           ? passiveTab(save, refresh)
-          : skillTab(save, refresh, tab === 'attack' ? 'attack' : 'utility');
+          : tab === 'hard'
+            ? hardTab(save, refresh)
+            : skillTab(save, refresh, tab === 'attack' ? 'attack' : 'utility');
 
     overlayEl().append(screen('상점', '', [top, tabs, body], '', onBack));
 
@@ -180,7 +214,7 @@ export function showShop(save: SaveData, onBack: () => void, onChange?: () => vo
  * 그 뒤로는 탭 줄 오른쪽 `?` 가 같은 글을 탭마다 나눠서 보여줍니다.
  */
 function introDialog(save: SaveData, onClose: () => void): HTMLElement {
-  const rows = TAB_ORDER.map((t) =>
+  const rows = tabOrder(save).map((t) =>
     h('div', { class: 'shop-intro-row' }, [
       h('b', {}, [TAB_LABEL[t]]),
       h('span', {}, [tabHelp(t, save).join(' ')]),
@@ -216,12 +250,16 @@ function permTab(save: SaveData, refresh: () => void): HTMLElement {
 
   for (const up of PERM_UPGRADES) {
     const lv = permLevel(save, up.key);
-    const max = permMaxLevel(up.key);
+    const max = permMaxLevel(save, up.key);
     const cost = permNextCost(save, up.key);
+    // 21단계부터는 한 단계가 두 배씩 오릅니다. 같은 카드가 이어지는 것이라 뱃지로만
+    // 갈라 보이고, 설명도 그때의 상승량으로 바뀝니다
+    const inHard = lv >= PERM_MAX_LEVEL;
     rows.push(
       card({
         title: `${up.name}  ${lv}/${max}`,
-        desc: up.desc,
+        desc: inHard ? hardStepDesc(up) : up.desc,
+        hard: inHard,
         price: cost === null ? '최대' : `${cost} 코인`,
         disabled: cost === null || save.coins < cost,
         onClick: () => {
@@ -254,6 +292,71 @@ function permTab(save: SaveData, refresh: () => void): HTMLElement {
       }),
     );
   }
+
+  return h('div', { class: 'rowlist' }, rows);
+}
+
+/**
+ * 하드 구간에 들어간 스탯 카드의 설명.
+ *
+ * `desc` 의 끝에 붙은 상승량만 `hardStep` 으로 갈아끼웁니다. 항목마다 하드용 문구를
+ * 따로 적어두면 값을 고칠 때 한쪽만 고쳐서 화면이 거짓말을 합니다.
+ * 형태가 안 맞으면 원본이 그대로 나오므로, `scripts/smoke.ts` 가 실제로 바뀌는지 잽니다.
+ */
+function hardStepDesc(up: PermUpgradeDef): string {
+  return up.desc.replace(/\+[\d.]+%?$/, formatGain(up.stat, up.hardStep));
+}
+
+/**
+ * 하드모드 상점 ("심연").
+ *
+ * 셋 중 둘(경험치 · 시작 스킬 숙련)은 일반 판에도 적용되고 무장 확장만 하드 전용입니다.
+ * 그 사실은 탭 줄의 `?` 한 곳에만 적습니다 (`tabHelp`).
+ */
+function hardTab(save: SaveData, refresh: () => void): HTMLElement {
+  const rows: Node[] = [];
+
+  const row = (key: string, name: string, desc: string, max: number) => {
+    const lv = permLevel(save, key);
+    const cost = permNextCost(save, key);
+    rows.push(
+      card({
+        title: `${name}  ${lv}/${max}`,
+        desc,
+        hard: true,
+        price: cost === null ? '최대' : `${cost} 코인`,
+        disabled: cost === null || save.coins < cost,
+        onClick: () => {
+          if (buyPerm(save, key)) {
+            saveGame(save);
+            refresh();
+          }
+        },
+      }),
+    );
+  };
+
+  row(
+    XP_UPGRADE.key,
+    XP_UPGRADE.name,
+    `${XP_UPGRADE.desc} · 지금 x${xpMultiplier(save).toFixed(2)}`,
+    XP_UPGRADE.costs.length,
+  );
+  row(
+    START_SKILL_LEVEL_UPGRADE.key,
+    START_SKILL_LEVEL_UPGRADE.name,
+    `${START_SKILL_LEVEL_UPGRADE.desc} · 지금 Lv.${startSkillLevel(save)}`,
+    START_SKILL_LEVEL_UPGRADE.costs.length,
+  );
+
+  // 무장 확장은 단계마다 늘어나는 것이 달라서(장착 / 슬롯) 지금 값을 그대로 적습니다
+  const armsLv = Math.min(permLevel(save, ARMS_UPGRADE.key), ARMS_UPGRADE.costs.length);
+  row(
+    ARMS_UPGRADE.key,
+    ARMS_UPGRADE.name,
+    `하드에서 시작 장착 ${ARMS_UPGRADE.startAttacks[armsLv]}칸 · 공격 슬롯 ${ARMS_UPGRADE.slots[armsLv]}칸`,
+    ARMS_UPGRADE.costs.length,
+  );
 
   return h('div', { class: 'rowlist' }, rows);
 }
@@ -376,7 +479,7 @@ function passiveTab(save: SaveData, refresh: () => void): HTMLElement {
 function skillTab(save: SaveData, refresh: () => void, kind: 'attack' | 'utility'): HTMLElement {
   const rows: Node[] = [];
   const ids = kind === 'attack' ? ATTACK_SKILL_IDS : UTILITY_SKILL_IDS;
-  const max = kind === 'attack' ? MAX_START_ATTACKS : MAX_START_UTILITIES;
+  const max = maxStartFor(save, kind);
   const worn = equippedStartCount(save, kind);
 
   for (const id of ids) {

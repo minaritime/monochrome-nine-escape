@@ -93,7 +93,7 @@ console.log(`\n레벨 곡선 · 무적 봇 · ${minutes}분 · 시드 ${seedCoun
 const marks = [1, 3, 5, 10, 15, 20, 25, 30].filter((m) => m <= minutes);
 const avg = (xs: number[]) => xs.reduce((s, v) => s + v, 0) / xs.length;
 
-for (const tier of ['none', 'full'] as ShopTier[]) {
+for (const tier of ['none', 'full', 'hard'] as ShopTier[]) {
   const runs: Sample[] = [];
   for (let i = 0; i < seedCount; i++) runs.push(runOnce(1000 + i * 7919, minutes, tier, difficulty));
 

@@ -367,9 +367,13 @@ function goSettings(notice = ''): void {
         saveGame(save);
         goSettings();
       },
-      // ⚠ 지금은 저장에 남기는 것이 전부입니다. 하드모드의 내용은 나중에 만듭니다
+      // ⚠ 아직 난이도 규칙은 없습니다. 지금 켜면 상점("심연")이 열리고 시작 장착이
+      // 1칸으로 깎이지만, 적 강화는 일반과 같습니다
       toggleHardMode: () => {
         save.hardMode = !save.hardMode;
+        // **한 번 켜면 다시 꺼도 안 내려갑니다.** 이걸 `hardMode` 와 같이 껐다 켜면
+        // 일반으로 돌려놓는 순간 하드 상점이 사라져서 산 것을 확인할 수도 없습니다
+        if (save.hardMode) save.hardUnlocked = true;
         saveGame(save);
         applyHardTheme();
         goSettings(save.hardMode ? '하드모드' : '');

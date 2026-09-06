@@ -61,7 +61,7 @@ export class Debug {
       for (let i = 0; i < DEBUG.stressSpawnCount; i++) w.spawner.spawnNow(w, 'basic');
     }
     if (input.wasPressed('KeyL')) {
-      w.gainXp(w.player.xpToNext - w.player.xp);
+      w.gainXp(w.player.xpToNext - w.player.xp, true);
     }
     if (input.wasPressed('KeyG')) {
       this.godMode = !this.godMode;

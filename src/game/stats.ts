@@ -1,4 +1,11 @@
-import { BASE_STATS, PERM_UPGRADES, STAT_DEFS, type StatKey } from '../data/balance';
+import {
+  BASE_STATS,
+  PERM_HARD_MAX_LEVEL,
+  PERM_MAX_LEVEL,
+  PERM_UPGRADES,
+  STAT_DEFS,
+  type StatKey,
+} from '../data/balance';
 import type { StatBlock } from './types';
 
 export function statDef(key: StatKey) {
@@ -7,12 +14,26 @@ export function statDef(key: StatKey) {
   return def;
 }
 
-/** 상점에서 산 영구 강화를 반영한 시작 스탯 */
-export function createStats(permLevels: Record<string, number>): StatBlock {
+/**
+ * 상점에서 산 영구 강화를 반영한 시작 스탯.
+ *
+ * **21단계부터는 단계당 상승량이 `hardStep` 으로 바뀝니다** (하드모드를 한 번 켠
+ * 사람에게만 열리는 구간). 여기서 상한(`hardUnlocked`)을 다시 자르는 이유는
+ * `save.perm` 이 값 검증 없는 자유 맵이라, 손댄 저장에 `hp: 25` 가 들어 있으면
+ * 하드를 연 적도 없는 사람에게 그대로 먹기 때문입니다.
+ *
+ * **`STAT_DEFS.cap` 은 여기서 안 봅니다.** 그 상한은 "레벨업으로 오를 수 있는
+ * 한계"이고 상점 강화는 그 밖입니다. 대신 표의 값이 상한을 넘지 않도록 잡아두었고
+ * (`PermUpgradeDef.hardStep` 주석) `scripts/smoke.ts` 가 그것을 잽니다.
+ */
+export function createStats(permLevels: Record<string, number>, hardUnlocked = false): StatBlock {
   const stats: StatBlock = { ...BASE_STATS };
+  const max = hardUnlocked ? PERM_HARD_MAX_LEVEL : PERM_MAX_LEVEL;
   for (const up of PERM_UPGRADES) {
-    const lv = permLevels[up.key] ?? 0;
-    if (lv > 0) stats[up.stat] += up.step * lv;
+    const lv = Math.min(Math.max(0, Math.floor(permLevels[up.key] ?? 0)), max);
+    if (lv <= 0) continue;
+    const base = Math.min(lv, PERM_MAX_LEVEL);
+    stats[up.stat] += up.step * base + up.hardStep * (lv - base);
   }
   return stats;
 }

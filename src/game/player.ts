@@ -1,10 +1,10 @@
-import { BASIC_ATTACK, CANVAS, LEVEL, MAX_ATTACK_SKILLS, PLAYER } from '../data/balance';
+import { BASIC_ATTACK, CANVAS, LEVEL, PLAYER } from '../data/balance';
 import { angleTo } from '../core/math';
 import { clampToArena } from './collision';
 import { createStats } from './stats';
 import { getSkillDef, makeSlot, rollDamage, slotCooldown } from '../skills/registry';
 import { nearestEnemy } from '../skills/targeting';
-import { skipCount } from '../meta/shop';
+import { attackSlotCount, maxStartFor, skipCount, startSkillLevel } from '../meta/shop';
 import type { SaveData } from '../meta/save';
 import type { Player, SkillSlot } from './types';
 import type { World } from './world';
@@ -24,7 +24,7 @@ export function ownedSlots(p: Player): SkillSlot[] {
 }
 
 export function createPlayer(save: SaveData): Player {
-  const stats = createStats(save.perm);
+  const stats = createStats(save.perm, save.hardUnlocked);
   const player: Player = {
     x: CANVAS.w / 2,
     y: CANVAS.h / 2,
@@ -44,7 +44,7 @@ export function createPlayer(save: SaveData): Player {
     facing: -Math.PI / 2,
     slow: 1,
     slowTime: 0,
-    attacks: new Array(MAX_ATTACK_SKILLS).fill(null),
+    attacks: new Array(attackSlotCount(save)).fill(null),
     utility: null,
     revives: save.perm.revive ?? 0,
     rerolls: save.perm.reroll ?? 0,
@@ -52,15 +52,24 @@ export function createPlayer(save: SaveData): Player {
     alive: true,
   };
 
-  // 상점에서 산 시작 스킬은 항상 1레벨로 들어갑니다 (기획.md 8장).
-  // 공격은 빈 칸에 차례로, 유틸은 하나뿐인 칸에 들어갑니다
+  // 시작 스킬은 원래 언제나 1레벨입니다 (기획.md 8장). 하드 상점의 "시작 스킬 숙련"을
+  // 사면 그만큼 높게 들어갑니다. 공격은 빈 칸에 차례로, 유틸은 하나뿐인 칸에 들어갑니다.
+  //
+  // **장착 수를 여기서 다시 자릅니다.** 상점에서 토글할 때만 막으면, 일반에서 2개를
+  // 끼워둔 채 하드로 전환한 순간 1칸 규칙이 그대로 새어 나갑니다
+  const level = startSkillLevel(save);
+  const maxAttacks = maxStartFor(save, 'attack');
+  let worn = 0;
   for (const id of save.equippedStartSkills) {
     if (getSkillDef(id).kind === 'utility') {
-      player.utility = makeSlot(id, 1);
+      player.utility = makeSlot(id, level);
       continue;
     }
+    if (worn >= maxAttacks) continue;
     const empty = player.attacks.indexOf(null);
-    if (empty >= 0) player.attacks[empty] = makeSlot(id, 1);
+    if (empty < 0) continue;
+    player.attacks[empty] = makeSlot(id, level);
+    worn++;
   }
 
   return player;

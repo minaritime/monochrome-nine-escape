@@ -30,13 +30,18 @@ import {
   SKILL_BRANCHES,
   SKILL_BRANCH_LEVEL,
   SKILL_MAX_LEVEL,
+  ARMS_UPGRADE,
   PASSIVE,
+  PERM_HARD_MAX_LEVEL,
+  PERM_MAX_LEVEL,
   PERM_UPGRADES,
+  START_SKILL_LEVEL_UPGRADE,
   STAT_DEFS,
   STAT_GAINS_PER_LEVEL,
   STATUS,
   TIME_SCALING,
   VIEW,
+  XP_UPGRADE,
   type EnemyId,
   type SkillBranchDef,
   type SkillBranchId,
@@ -50,14 +55,27 @@ import { eliteMul, rollElite } from '../src/enemies/elite';
 import { killerOf } from '../src/game/killer';
 import { Input } from '../src/core/input';
 import { World, isSkillLevel } from '../src/game/world';
-import { ownedSlots } from '../src/game/player';
+import { createPlayer, ownedSlots } from '../src/game/player';
 import { rollStatGains } from '../src/progression/levelup';
 import { addStat, createStats } from '../src/game/stats';
 import { openSlots, setSealed, togglePassive } from '../src/meta/shop';
 import { clearedAllFrom, difficultyMods, unlockTimeFor } from '../src/meta/difficulty';
 import { commitRun } from '../src/meta/bestiary';
 import { emptySave, fromJSON } from '../src/meta/save';
-import { buyPerm, isSkipUnlimited } from '../src/meta/shop';
+import {
+  attackSlotCount,
+  buyPerm,
+  isSkipUnlimited,
+  maxStartFor,
+  permNextCost,
+  permMaxLevel,
+  purchasedCount,
+  purchasedCountAll,
+  startSkillLevel,
+  totalPurchasable,
+  totalPurchasableAll,
+  xpMultiplier,
+} from '../src/meta/shop';
 import { ACHIEVEMENTS, fastestEnemySpeed, tierName } from '../src/data/achievements';
 import {
   achieveProgress,
@@ -3250,6 +3268,201 @@ console.log('16) 저장 데이터가 낡거나 망가졌을 때');
   const junk = fromJSON({ unlockedStartSkills: 'orbit', equippedStartSkills: [7, null, 'aura'] });
   check('배열이 아니면 빈 목록', junk.unlockedStartSkills.length === 0);
   check('문자열 아닌 값은 걸러진다', junk.equippedStartSkills.join(',') === 'aura', junk.equippedStartSkills.join(','));
+}
+
+// ---------------------------------------------------------------------------
+// 17) 하드모드 상점 (2026-09-06)
+//
+// 여기서 지키는 것은 넷입니다.
+//   - 하드를 안 연 사람에게 21단계가 새어 나가지 않는가
+//   - 하드 25단계 값이 스탯 상한을 안 넘는가 (치명타가 정확히 걸립니다)
+//   - 업적 "플렉스"의 목표치와 세는 쪽이 짝을 이루는가
+//   - 무장 확장의 표가 실제 판과 맞는가
+// ---------------------------------------------------------------------------
+console.log('\n17) 하드모드 상점');
+{
+  // --- 스탯 21~25 단계 ---
+  check('스탯 비용표가 하드 상한까지 있다', PERM_UPGRADES.every((u) => u.costs.length === PERM_HARD_MAX_LEVEL));
+
+  {
+    const locked = emptySave();
+    const open = emptySave();
+    open.hardUnlocked = true;
+    locked.perm.hp = PERM_MAX_LEVEL;
+    open.perm.hp = PERM_MAX_LEVEL;
+    check('하드를 안 열면 20단계가 끝이다', permMaxLevel(locked, 'hp') === PERM_MAX_LEVEL);
+    check('하드를 열면 25단계까지 간다', permMaxLevel(open, 'hp') === PERM_HARD_MAX_LEVEL);
+    check('하드를 안 열면 21단계를 못 산다', permNextCost(locked, 'hp') === null);
+    check('하드를 열면 21단계를 살 수 있다', permNextCost(open, 'hp') !== null);
+  }
+
+  {
+    // 손댄 저장이 하드 단계를 들고 있어도 하드를 연 적 없으면 안 먹어야 합니다.
+    // `save.perm` 은 값 검증이 없는 자유 맵이라 여기서 자르지 않으면 그대로 통과합니다
+    const full: Record<string, number> = {};
+    for (const u of PERM_UPGRADES) full[u.key] = PERM_HARD_MAX_LEVEL;
+    const locked = createStats(full, false);
+    const open = createStats(full, true);
+    check(
+      '하드를 안 열면 20단계까지만 먹는다',
+      locked.maxHp === BASE_STATS.maxHp + 15 * PERM_MAX_LEVEL,
+      `${locked.maxHp}`,
+    );
+    check(
+      '하드 구간은 단계당 두 배로 오른다',
+      open.maxHp === locked.maxHp + 30 * (PERM_HARD_MAX_LEVEL - PERM_MAX_LEVEL),
+      `${open.maxHp}`,
+    );
+
+    // **상한을 넘으면 그 스탯이 레벨업 추첨에서 통째로 빠집니다.** 치명타가 여기 걸립니다
+    for (const def of STAT_DEFS) {
+      if (def.cap === undefined) continue;
+      const up = PERM_UPGRADES.find((u) => u.stat === def.key);
+      if (!up) continue;
+      check(`${def.name} 25단계가 상한을 안 넘는다`, open[def.key] <= def.cap + 1e-9, `${open[def.key]} / ${def.cap}`);
+    }
+    check('치명타는 25단계에서 상한에 닿는다', Math.abs(open.critChance - 0.75) < 1e-9, `${open.critChance}`);
+  }
+
+  // 하드 구간 설명은 `desc` 끝의 상승량만 갈아끼웁니다. 형태가 안 맞으면 원본이 그대로
+  // 나오면서 화면이 20단계 값을 계속 말하게 됩니다
+  for (const up of PERM_UPGRADES) {
+    check(`${up.name} 설명이 상승량으로 끝난다`, /\+[\d.]+%?$/.test(up.desc), up.desc);
+  }
+
+  // --- 업적 짝 맞추기 ---
+  {
+    const before = totalPurchasable();
+    check('플렉스 목표는 156 (하드 제외)', before === 156, `${before}`);
+    check('공급부족 목표가 더 크다', totalPurchasableAll() > before, `${totalPurchasableAll()}`);
+
+    const s = emptySave();
+    s.hardUnlocked = true;
+    for (const u of PERM_UPGRADES) s.perm[u.key] = PERM_HARD_MAX_LEVEL;
+    s.perm[XP_UPGRADE.key] = XP_UPGRADE.costs.length;
+    check(
+      '플렉스는 하드 구간을 안 센다',
+      purchasedCount(s) === PERM_UPGRADES.length * PERM_MAX_LEVEL,
+      `${purchasedCount(s)}`,
+    );
+    check('공급부족은 하드 구간을 센다', purchasedCountAll(s) > purchasedCount(s));
+    check('플렉스는 하드 항목만으로 안 채워진다', purchasedCount(s) < totalPurchasable());
+  }
+
+  // --- 무장 확장 ---
+  {
+    check(
+      '무장 표 길이가 단계 수 + 1 이다',
+      ARMS_UPGRADE.startAttacks.length === ARMS_UPGRADE.costs.length + 1 &&
+        ARMS_UPGRADE.slots.length === ARMS_UPGRADE.costs.length + 1,
+    );
+    check('하드 기본은 시작 장착 1칸', ARMS_UPGRADE.startAttacks[0] === 1);
+    check('마지막 단계는 장착 4 · 슬롯 4', ARMS_UPGRADE.startAttacks[4] === 4 && ARMS_UPGRADE.slots[4] === 4);
+
+    const normal = emptySave();
+    check('일반은 슬롯 3칸', attackSlotCount(normal) === 3, `${attackSlotCount(normal)}`);
+    check('일반은 시작 장착 2칸', maxStartFor(normal, 'attack') === 2);
+
+    const hard = emptySave();
+    hard.hardUnlocked = true;
+    hard.hardMode = true;
+    check('하드는 시작 장착이 1칸으로 깎인다', maxStartFor(hard, 'attack') === 1);
+    check('하드도 슬롯은 3칸에서 시작', attackSlotCount(hard) === 3);
+
+    for (let step = 0; step <= ARMS_UPGRADE.costs.length; step++) {
+      hard.perm[ARMS_UPGRADE.key] = step;
+      check(
+        `무장 ${step}단계: 장착 ${ARMS_UPGRADE.startAttacks[step]} · 슬롯 ${ARMS_UPGRADE.slots[step]}`,
+        maxStartFor(hard, 'attack') === ARMS_UPGRADE.startAttacks[step] &&
+          attackSlotCount(hard) === ARMS_UPGRADE.slots[step],
+      );
+    }
+
+    // 무장을 사 두어도 일반 판에서는 안 듣습니다 (하드 전용)
+    hard.hardMode = false;
+    check('일반 판에서는 무장 확장이 안 듣는다', attackSlotCount(hard) === 3 && maxStartFor(hard, 'attack') === 2);
+  }
+
+  // --- 시작 장착이 판에서 실제로 잘리는가 ---
+  {
+    const s = emptySave();
+    s.hardUnlocked = true;
+    s.hardMode = true;
+    s.unlockedStartSkills = ['shotgun', 'sniper'];
+    s.equippedStartSkills = ['shotgun', 'sniper'];
+    const p = createPlayer(s);
+    check('하드로 넘어오면 초과 장착이 잘린다', p.attacks.filter((x) => x !== null).length === 1);
+    check('슬롯 자체는 3칸', p.attacks.length === 3);
+
+    s.hardMode = false;
+    const p2 = createPlayer(s);
+    check('일반에서는 두 개가 다 들어간다', p2.attacks.filter((x) => x !== null).length === 2);
+  }
+
+  // --- 시작 스킬 숙련 ---
+  {
+    const s = emptySave();
+    s.hardUnlocked = true;
+    s.unlockedStartSkills = ['shotgun'];
+    s.equippedStartSkills = ['shotgun'];
+    check('안 사면 1레벨', startSkillLevel(s) === 1);
+    s.perm[START_SKILL_LEVEL_UPGRADE.key] = START_SKILL_LEVEL_UPGRADE.costs.length;
+    check('다 사면 3레벨', startSkillLevel(s) === 3);
+    const p = createPlayer(s);
+    check('시작 스킬이 그 레벨로 들어간다', p.attacks[0]?.level === 3, `${p.attacks[0]?.level}`);
+  }
+
+  // --- 경험치 강화 ---
+  {
+    const s = emptySave();
+    check('안 사면 배율 1', Math.abs(xpMultiplier(s) - 1) < 1e-9);
+    s.perm[XP_UPGRADE.key] = XP_UPGRADE.costs.length;
+    const mul = xpMultiplier(s);
+    check(
+      '다 사면 배율이 표대로다',
+      Math.abs(mul - (1 + XP_UPGRADE.costs.length * XP_UPGRADE.perLevel)) < 1e-9,
+      `x${mul.toFixed(2)}`,
+    );
+
+    // **곱하는 곳이 `gainXp` 한 곳뿐인지**를 실제로 넣어 보고 잽니다
+    const w = new World(s, input, 777, 0);
+    w.gainXp(10);
+    check('경험치에 배율이 먹는다', Math.abs(w.player.xp - 10 * mul) < 1e-6, `${w.player.xp}`);
+
+    // 강제 레벨업(F1)은 "모자란 만큼"을 넣는 자리라 배율이 곱해지면 두 레벨이 오릅니다
+    const w2 = new World(s, input, 777, 0);
+    w2.gainXp(10, true);
+    check('raw 는 배율을 안 탄다', Math.abs(w2.player.xp - 10) < 1e-6, `${w2.player.xp}`);
+  }
+
+  // --- 노출 조건 ---
+  {
+    check('새 저장은 하드가 안 열려 있다', emptySave().hardUnlocked === false);
+    // 하드를 켜 둔 채 갱신한 사람은 그 사실을 인정합니다
+    check('옛 저장의 hardMode 는 해금으로 읽힌다', fromJSON({ hardMode: true }).hardUnlocked === true);
+    check('한 번 열면 저장에 남는다', fromJSON({ hardUnlocked: true }).hardUnlocked === true);
+    // **끈다고 다시 잠기면 안 됩니다.** 산 것을 확인할 방법이 없어집니다
+    check('하드를 꺼도 해금은 남는다', fromJSON({ hardMode: false, hardUnlocked: true }).hardUnlocked === true);
+  }
+
+  // 코인 규모. 하드 상점이 "살 수 있는 목록"인지 "영영 못 사는 목록"인지가 여기서 갈립니다.
+  // 하드 코인 배율을 정할 때 이 숫자를 보십시오
+  {
+    let normal = 0;
+    let hard = 0;
+    for (const u of PERM_UPGRADES) {
+      for (let i = 0; i < u.costs.length; i++) {
+        if (i < PERM_MAX_LEVEL) normal += u.costs[i];
+        else hard += u.costs[i];
+      }
+    }
+    for (const u of [XP_UPGRADE, START_SKILL_LEVEL_UPGRADE, ARMS_UPGRADE]) {
+      for (const c of u.costs) hard += c;
+    }
+    console.log(
+      `   항목 ${totalPurchasable()} → ${totalPurchasableAll()}개 · 스탯 1~20 ${normal.toLocaleString()} · 하드 ${hard.toLocaleString()} 코인`,
+    );
+  }
 }
 
 console.log(failures === 0 ? '\n전부 통과했습니다' : `\n실패 ${failures}건`);

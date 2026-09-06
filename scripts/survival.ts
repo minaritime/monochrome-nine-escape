@@ -112,7 +112,7 @@ if (mode === 'branch') {
   console.log(`\n상점 단계별 · 최대 ${maxMinutes}분 · 시드 ${seedCount}개`);
   console.log('  난이도 | 상점      | 최소 생존 | 중앙 | 평균 | 최대 | 완주 | Lv | 처치 | 보스 | 코인');
   for (const lv of levels) {
-    for (const tier of ['none', 'half', 'full'] as ShopTier[]) {
+    for (const tier of ['none', 'half', 'full', 'hard'] as ShopTier[]) {
       const rs = [];
       for (let i = 0; i < seedCount; i++) rs.push(runOnce(1000 + i * 7919, maxMinutes, tier, lv));
       const times = rs.map((r) => r.time).sort((a, b) => a - b);

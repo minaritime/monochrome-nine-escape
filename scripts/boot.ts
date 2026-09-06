@@ -282,6 +282,9 @@ async function main(): Promise<void> {
   for (const tabName of ['스탯 고정', '공격 스킬', '유틸 스킬']) {
     check(`상점에 "${tabName}" 탭이 있다`, overlayText().includes(tabName));
   }
+  // 하드 상점은 **한 번 켠 적이 있어야** 보입니다. 흐린 탭으로 자리를 잡아두지도 않습니다.
+  // 그러면 히든이 아니라 "아직 못 여는 것"이 되어, 있는 줄 알고 조건을 찾게 됩니다
+  check('하드 상점 탭은 잠겨 있으면 안 보인다', !overlayText().includes('심연'));
 
   // 첫 방문 도움말은 Esc 한 번을 먹습니다. 그것부터 닫지 않으면 처음 들어온 사람이
   // 상점 밖으로 튕겨 나가면서 도움말도 읽은 것으로 처리됩니다

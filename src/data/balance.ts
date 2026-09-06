@@ -211,6 +211,11 @@ export const DEATH_BURST = {
 /**
  * 공격 스킬은 3칸까지 모읍니다. 다 차면 새 공격 스킬은 더 나오지 않고
  * 가진 것의 레벨업만 나옵니다.
+ *
+ * **하드모드에서는 `ARMS_UPGRADE` 로 4칸까지 늘어납니다.** 그래서 이 값을 직접 읽는
+ * 곳이 있으면 안 됩니다. 판에 실제로 들어가는 칸 수는 `attackSlotCount(save)`
+ * (`meta/shop.ts`) 하나로만 셉니다. 여기 상수를 그대로 쓰면 하드에서 4번째 칸이
+ * 화면에만 없거나 반대로 그림만 있고 안 채워지는 식으로 갈립니다.
  */
 export const MAX_ATTACK_SKILLS = 3;
 
@@ -1665,6 +1670,15 @@ export interface PermUpgradeDef {
   desc: string;
   stat: StatKey;
   step: number;
+  /**
+   * 21단계부터(하드 구간)의 단계당 상승량. 기본은 `step` 의 두 배입니다.
+   *
+   * **치명타만 예외로 두 배가 아닙니다.** 두 배(+6%)면 25단계에서 95% 가 되는데
+   * 상한이 75% 이고, `createStats` 는 상한을 안 보고 그냥 더하므로 그대로 먹습니다.
+   * 치명타 배율 상한 4.0 과 곱하면 **공격력 x4 가 상시**가 됩니다. +2% 로 잡으면
+   * 25단계에서 정확히 상한에 닿아 다섯 칸이 전부 뜻을 가지면서 넘지도 않습니다.
+   */
+  hardStep: number;
   costs: readonly number[];
 }
 
@@ -1678,24 +1692,41 @@ export interface PermUpgradeDef {
  * 10 단위로 반올림하는 것은 상점에서 읽히기 위한 것입니다.
  * 3,644 와 3,640 은 게임에서 같은 값이지만 뒤쪽이 눈에 덜 걸립니다.
  */
-const PERM_MAX_LEVEL = 20;
+export const PERM_MAX_LEVEL = 20;
 const PERM_COST_GROWTH = 1.25;
+
+/**
+ * 하드모드를 한 번 켠 뒤에 열리는 구간 (2026-09-06).
+ *
+ * **단계당 효과가 두 배입니다** (`PermUpgradeDef.hardStep`). 다섯 칸으로 앞의
+ * 스무 칸이 올린 만큼을 다시 올립니다.
+ *
+ * **성장률만 1.25 에서 1.15 로 낮춥니다.** 그대로 이으면 여섯 항목 합계가 36만
+ * 코인이라 "살 수 있는 목록"이 아니라 "영영 못 사는 목록"이 됩니다. 1.15 로도
+ * 27만이라 하드 코인 배율을 같이 올려야 합니다.
+ */
+export const PERM_HARD_MAX_LEVEL = 25;
+const PERM_HARD_COST_GROWTH = 1.15;
 
 function permCosts(seed: readonly number[]): readonly number[] {
   const out = [...seed];
   while (out.length < PERM_MAX_LEVEL) {
     out.push(Math.round((out[out.length - 1] * PERM_COST_GROWTH) / 10) * 10);
   }
+  while (out.length < PERM_HARD_MAX_LEVEL) {
+    out.push(Math.round((out[out.length - 1] * PERM_HARD_COST_GROWTH) / 10) * 10);
+  }
   return out;
 }
 
 export const PERM_UPGRADES: readonly PermUpgradeDef[] = [
-  { key: 'hp', name: '기본 체력', desc: '시작 최대 체력 +15', stat: 'maxHp', step: 15, costs: permCosts([20, 45, 80, 130, 200]) },
-  { key: 'atk', name: '기본 공격력', desc: '시작 공격력 +2', stat: 'attack', step: 2, costs: permCosts([25, 55, 95, 150, 230]) },
-  { key: 'spd', name: '기본 이동속도', desc: '시작 이동속도 +8', stat: 'moveSpeed', step: 8, costs: permCosts([20, 45, 80, 130, 200]) },
-  { key: 'rof', name: '기본 연사', desc: '시작 연사 속도 +0.15', stat: 'fireRate', step: 0.15, costs: permCosts([30, 70, 120, 190, 280]) },
-  { key: 'mag', name: '코인 자석', desc: '코인 획득 범위 +25', stat: 'pickupRange', step: 25, costs: permCosts([15, 35, 70]) },
-  { key: 'crit', name: '기본 치명타', desc: '시작 치명타 확률 +3%', stat: 'critChance', step: 0.03, costs: permCosts([35, 75, 130]) },
+  { key: 'hp', name: '기본 체력', desc: '시작 최대 체력 +15', stat: 'maxHp', step: 15, hardStep: 30, costs: permCosts([20, 45, 80, 130, 200]) },
+  { key: 'atk', name: '기본 공격력', desc: '시작 공격력 +2', stat: 'attack', step: 2, hardStep: 4, costs: permCosts([25, 55, 95, 150, 230]) },
+  { key: 'spd', name: '기본 이동속도', desc: '시작 이동속도 +8', stat: 'moveSpeed', step: 8, hardStep: 16, costs: permCosts([20, 45, 80, 130, 200]) },
+  { key: 'rof', name: '기본 연사', desc: '시작 연사 속도 +0.15', stat: 'fireRate', step: 0.15, hardStep: 0.3, costs: permCosts([30, 70, 120, 190, 280]) },
+  { key: 'mag', name: '코인 자석', desc: '코인 획득 범위 +25', stat: 'pickupRange', step: 25, hardStep: 50, costs: permCosts([15, 35, 70]) },
+  // 치명타만 두 배가 아닙니다 (`PermUpgradeDef.hardStep` 주석). 25단계에서 정확히 상한 75% 입니다
+  { key: 'crit', name: '기본 치명타', desc: '시작 치명타 확률 +3%', stat: 'critChance', step: 0.03, hardStep: 0.02, costs: permCosts([35, 75, 130]) },
 ] as const;
 
 /**
@@ -1752,6 +1783,73 @@ export const REVIVE_UPGRADE = {
   hpRatio: REVIVE_HP_RATIO,
   desc: `체력 ${Math.round(REVIVE_HP_RATIO * 100)}% 부활 · 단계마다 판당 1회`,
   costs: [400, 900],
+} as const;
+
+// ---------------------------------------------------------------------------
+// 하드모드 상점 (2026-09-06)
+//
+// **한 번 하드모드를 켜면 열립니다** (`SaveData.hardUnlocked`). "지금 하드인가"
+// (`hardMode`)가 아닙니다. 그걸로 가르면 일반으로 돌려놓는 순간 목록이 통째로
+// 사라져서 산 것을 확인할 방법조차 없어집니다.
+//
+// **셋 중 둘은 일반모드 판에도 적용됩니다.** 경험치와 시작 스킬 레벨이 그렇고,
+// 무장 확장만 하드 전용입니다. 그것만 수치가 아니라 판의 구조를 바꾸기 때문입니다.
+// ---------------------------------------------------------------------------
+
+/**
+ * 경험치 획득량. **일반모드에도 적용됩니다.**
+ *
+ * 지금 30분 완주가 Lv.59 · 스킬 선택 19회입니다. `xpToNext` 가 레벨의 제곱이라
+ * +40% 는 레벨로 약 +18%, 선택 횟수로 23회쯤입니다. 만렙 하나를 더 만드는 양입니다.
+ *
+ * **값을 만지면 반드시 `npm run levelcurve` 를 돌리십시오.** 이 항목의 값어치가
+ * 전부 "선택 횟수가 몇 회 늘었는가"에 달려 있는데 그 사실은 그 출력에만 드러납니다.
+ */
+export const XP_UPGRADE = {
+  key: 'xp',
+  name: '경험치 획득',
+  desc: '경험치 획득량 +8%',
+  /** 단계당 증가량 */
+  perLevel: 0.08,
+  costs: [1500, 3000, 5500, 9500, 16000],
+} as const;
+
+/**
+ * 시작 스킬 숙련. **일반모드에도 적용됩니다.**
+ *
+ * 시작 스킬은 원래 언제나 1레벨로 들어갑니다 (기획.md 8장). 그래서 시작 스킬 탭이
+ * 16종 1,580 코인짜리 싸구려 탭이었는데, 이걸로 값어치가 생깁니다.
+ * 만렙 10 까지는 멀어서 판 안에서 성장할 자리는 그대로 남습니다.
+ */
+export const START_SKILL_LEVEL_UPGRADE = {
+  key: 'startlv',
+  name: '시작 스킬 숙련',
+  desc: '시작 스킬이 한 레벨 높게 시작',
+  costs: [2000, 5000],
+} as const;
+
+/**
+ * 무장 확장. **하드모드 전용입니다.**
+ *
+ * 하드는 시작 장착이 1칸으로 깎인 채 시작하고(하드모드 공통 규칙, 난이도 표와 무관),
+ * 이 강화로 되돌리면서 그 위까지 넓힙니다.
+ *
+ * **시작 장착과 판 슬롯을 번갈아 늘리는 이유**는 슬롯이 3일 때 시작 장착 3까지는
+ * 뜻이 있고(판 시작부터 3칸이 참) 그 위는 갈 곳이 없기 때문입니다. 슬롯을 먼저
+ * 늘리고 네 번째 장착을 그다음에 팝니다.
+ *
+ * ⚠ **두 배열의 길이는 `costs.length + 1` 이어야 합니다** (0단계 몫이 맨 앞).
+ * `scripts/smoke.ts` 가 잽니다.
+ */
+export const ARMS_UPGRADE = {
+  key: 'arms',
+  name: '무장 확장',
+  desc: '시작 장착 칸과 공격 슬롯을 늘립니다',
+  costs: [1200, 3000, 8000, 15000],
+  /** 단계별 시작 장착 칸. [0] 이 하드 기본값(1칸)입니다 */
+  startAttacks: [1, 2, 3, 3, 4],
+  /** 단계별 판 공격 슬롯. [0] 은 일반과 같은 3칸입니다 */
+  slots: [3, 3, 3, 4, 4],
 } as const;
 
 /**

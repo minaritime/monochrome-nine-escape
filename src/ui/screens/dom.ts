@@ -54,6 +54,13 @@ export interface CardOptions {
    * 읽으라고 만든 화면 전체가 흐려집니다.
    */
   info?: boolean;
+  /**
+   * 하드모드를 켠 뒤에만 살 수 있는 항목. 제목 옆에 `Hard` 뱃지가 붙습니다.
+   *
+   * **뱃지는 이 한 곳에서만 그립니다.** 화면마다 직접 붙이면 하드 항목을 늘릴 때
+   * 그 자리를 매번 찾아다녀야 합니다.
+   */
+  hard?: boolean;
   /** 우측 끝에 붙일 요소 (도감의 생김새 등) */
   right?: Node;
   onClick?: () => void;
@@ -63,7 +70,9 @@ export function card(opts: CardOptions): HTMLElement {
   const children: Node[] = [];
   if (opts.key) children.push(h('div', { class: 'key' }, [opts.key]));
 
-  const body = h('div', { class: 'body' }, [h('div', { class: 'title' }, [opts.title])]);
+  const title = h('div', { class: 'title' }, [opts.title]);
+  if (opts.hard) title.append(h('span', { class: 'hard-badge' }, ['Hard']));
+  const body = h('div', { class: 'body' }, [title]);
   if (opts.desc) body.append(h('div', { class: 'desc' }, [opts.desc]));
   children.push(body);
 

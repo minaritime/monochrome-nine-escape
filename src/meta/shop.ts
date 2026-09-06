@@ -1,13 +1,19 @@
 import {
+  ARMS_UPGRADE,
+  MAX_ATTACK_SKILLS,
   MAX_START_ATTACKS,
   MAX_START_UTILITIES,
+  PERM_HARD_MAX_LEVEL,
+  PERM_MAX_LEVEL,
   PERM_UPGRADES,
   REROLL_UPGRADE,
   REVIVE_UPGRADE,
   SKIP_UPGRADE,
   START_SKILL_COST,
+  START_SKILL_LEVEL_UPGRADE,
   STAT_DEFS,
   PASSIVE,
+  XP_UPGRADE,
   type StatKey,
 } from '../data/balance';
 import { isStatRollable } from '../game/stats';
@@ -26,21 +32,44 @@ export function permLevel(save: SaveData, key: string): number {
 /** 스탯이 아닌 특수 강화 목록 */
 const SPECIAL_UPGRADES = [REVIVE_UPGRADE, REROLL_UPGRADE, SKIP_UPGRADE] as const;
 
+/**
+ * 하드모드를 켠 뒤에만 열리는 강화 목록 (2026-09-06).
+ * 스탯 강화의 21~25단계는 여기 없습니다. 그건 같은 카드가 이어지는 것이라
+ * `permMaxLevel` 이 상한을 갈라주는 것으로 끝납니다.
+ */
+const HARD_UPGRADES = [XP_UPGRADE, START_SKILL_LEVEL_UPGRADE, ARMS_UPGRADE] as const;
+
 function costsOf(key: string): readonly number[] | undefined {
   const special = SPECIAL_UPGRADES.find((u) => u.key === key);
   if (special) return special.costs;
+  const hard = HARD_UPGRADES.find((u) => u.key === key);
+  if (hard) return hard.costs;
   return PERM_UPGRADES.find((u) => u.key === key)?.costs;
 }
 
-export function permMaxLevel(key: string): number {
+/** 하드모드를 켠 적이 있어야만 살 수 있는 항목인가 */
+export function isHardOnlyKey(key: string): boolean {
+  return HARD_UPGRADES.some((u) => u.key === key);
+}
+
+/**
+ * 그 항목을 몇 단계까지 살 수 있는가.
+ *
+ * **스탯 강화만 하드 여부로 갈립니다** (20 → 25). `PERM_UPGRADES.costs` 는 25개를
+ * 전부 들고 있으므로, 잘라주지 않으면 하드를 연 적 없는 사람이 21단계를 삽니다.
+ */
+export function permMaxLevel(save: SaveData, key: string): number {
+  const stat = PERM_UPGRADES.find((u) => u.key === key);
+  if (stat) return save.hardUnlocked ? PERM_HARD_MAX_LEVEL : PERM_MAX_LEVEL;
   return costsOf(key)?.length ?? 0;
 }
 
 /** 다음 단계 비용. 최대 단계면 null */
 export function permNextCost(save: SaveData, key: string): number | null {
+  if (isHardOnlyKey(key) && !save.hardUnlocked) return null;
   const lv = permLevel(save, key);
   const costs = costsOf(key);
-  if (!costs || lv >= costs.length) return null;
+  if (!costs || lv >= permMaxLevel(save, key)) return null;
   return costs[lv];
 }
 
@@ -73,22 +102,92 @@ export function buyPerm(save: SaveData, key: string): boolean {
  */
 export function totalPurchasable(): number {
   let n = 0;
-  for (const u of PERM_UPGRADES) n += u.costs.length;
+  // 스탯은 costs.length(25)가 아니라 일반 상한(20)으로 셉니다. 하드 구간이 섞이면
+  // 하드를 안 연 사람은 이 업적을 영영 못 깹니다
+  n += PERM_UPGRADES.length * PERM_MAX_LEVEL;
   for (const s of SPECIAL_UPGRADES) n += s.costs.length;
-  n += passiveKeys().length;
-  n += PASSIVE.sealCosts.length;
-  n += Object.keys(START_SKILL_COST).length;
+  n += nonPermTotal();
   return n;
 }
 
-/** 지금까지 산 개수 */
+/** 스탯·특수 강화를 뺀 나머지 (패시브 해금 · 봉인 · 시작 스킬) */
+function nonPermTotal(): number {
+  return passiveKeys().length + PASSIVE.sealCosts.length + Object.keys(START_SKILL_COST).length;
+}
+
+/**
+ * 하드 구간까지 포함한 총 개수 (히든 업적 "공급부족").
+ * `totalPurchasable` 과 갈라두는 이유는 위 주석과 같습니다.
+ */
+export function totalPurchasableAll(): number {
+  let n = totalPurchasable();
+  n += PERM_UPGRADES.length * (PERM_HARD_MAX_LEVEL - PERM_MAX_LEVEL);
+  for (const u of HARD_UPGRADES) n += u.costs.length;
+  return n;
+}
+
+/**
+ * 지금까지 산 개수. **하드 구간은 빠집니다** (업적 "플렉스" 용).
+ *
+ * 스탯을 20 으로 자르고 하드 전용 항목을 빼지 않으면, 하드 스탯 몇 칸을 사는 것만으로
+ * 일반 156 이 채워집니다. 세는 쪽과 목표치가 짝을 이뤄야 합니다.
+ */
 export function purchasedCount(save: SaveData): number {
   let n = 0;
+  for (const [key, v] of Object.entries(save.perm)) {
+    if (isHardOnlyKey(key)) continue;
+    const lv = Math.max(0, Math.floor(v));
+    n += PERM_UPGRADES.some((u) => u.key === key) ? Math.min(lv, PERM_MAX_LEVEL) : lv;
+  }
+  return n + ownedNonPerm(save);
+}
+
+/** 하드 구간까지 포함해 산 개수 (히든 업적 "공급부족") */
+export function purchasedCountAll(save: SaveData): number {
+  let n = 0;
   for (const v of Object.values(save.perm)) n += Math.max(0, Math.floor(v));
-  n += save.unlockedPassives.length;
-  n += save.sealsOwned;
-  n += save.unlockedStartSkills.length;
-  return n;
+  return n + ownedNonPerm(save);
+}
+
+function ownedNonPerm(save: SaveData): number {
+  return save.unlockedPassives.length + save.sealsOwned + save.unlockedStartSkills.length;
+}
+
+// ---------------------------------------------------------------------------
+// 하드모드 강화가 실제로 먹는 자리
+// ---------------------------------------------------------------------------
+
+/**
+ * 경험치 획득 배율. **일반모드에도 적용됩니다.**
+ * 곱하는 곳은 `World.gainXp` 한 곳뿐입니다. 출처마다 곱하면 반드시 하나를 빠뜨립니다.
+ */
+export function xpMultiplier(save: SaveData): number {
+  return 1 + permLevel(save, XP_UPGRADE.key) * XP_UPGRADE.perLevel;
+}
+
+/** 시작 스킬이 들어갈 때의 레벨. 안 사면 1 (기획.md 8장의 기본값) */
+export function startSkillLevel(save: SaveData): number {
+  return 1 + permLevel(save, START_SKILL_LEVEL_UPGRADE.key);
+}
+
+function armsLevel(save: SaveData): number {
+  const lv = Math.max(0, Math.floor(permLevel(save, ARMS_UPGRADE.key)));
+  return Math.min(lv, ARMS_UPGRADE.costs.length);
+}
+
+/**
+ * 판에 실제로 들어가는 공격 슬롯 수.
+ *
+ * **`MAX_ATTACK_SKILLS` 를 직접 읽지 마십시오.** 하드에서는 이 값이 4가 될 수 있는데,
+ * 한 곳이라도 상수를 그대로 쓰면 그쪽에서만 3으로 세어져서 네 번째 칸이 화면에만
+ * 없거나 반대로 그림만 있고 안 채워집니다.
+ *
+ * **`hardMode`(지금 하드인가)로 갈립니다.** `hardUnlocked` 가 아닙니다. 무장 확장은
+ * 하드 전용이라 일반 판에서는 사 두었어도 3칸입니다.
+ */
+export function attackSlotCount(save: SaveData): number {
+  if (!save.hardMode) return MAX_ATTACK_SKILLS;
+  return ARMS_UPGRADE.slots[armsLevel(save)];
 }
 
 // ---------------------------------------------------------------------------
@@ -201,8 +300,19 @@ export function equippedStartCount(save: SaveData, kind: 'attack' | 'utility'): 
   return save.equippedStartSkills.filter((s) => getSkillDef(s).kind === kind).length;
 }
 
-export function maxStartFor(kind: 'attack' | 'utility'): number {
-  return kind === 'attack' ? MAX_START_ATTACKS : MAX_START_UTILITIES;
+/**
+ * 시작 장착 칸 수.
+ *
+ * **하드에서는 공격 칸이 1개로 깎인 채 시작하고** 무장 확장으로 4까지 넓힙니다
+ * (`ARMS_UPGRADE`). 이건 난이도 표의 한 칸이 아니라 하드모드 공통 규칙입니다.
+ * 난이도 표는 누적이라 0 칸이 없어서 거기에는 적을 자리가 없습니다.
+ *
+ * 유틸은 하드에서도 1칸 그대로입니다. 손으로 쓰는 키가 Q 하나뿐이라 늘릴 수 없습니다.
+ */
+export function maxStartFor(save: SaveData, kind: 'attack' | 'utility'): number {
+  if (kind === 'utility') return MAX_START_UTILITIES;
+  if (!save.hardMode) return MAX_START_ATTACKS;
+  return ARMS_UPGRADE.startAttacks[armsLevel(save)];
 }
 
 /**
@@ -217,7 +327,7 @@ export function toggleStartSkill(save: SaveData, id: SkillId): boolean {
     return true;
   }
   const kind = getSkillDef(id).kind;
-  if (equippedStartCount(save, kind) >= maxStartFor(kind)) return false;
+  if (equippedStartCount(save, kind) >= maxStartFor(save, kind)) return false;
   save.equippedStartSkills.push(id);
   return true;
 }

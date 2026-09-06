@@ -13,7 +13,7 @@ import { eliteStatMul } from '../enemies/elite';
 import { isStatRollable } from '../game/stats';
 import { ownedSlots } from '../game/player';
 import { clearedAllFrom, unlockTimeFor } from '../meta/difficulty';
-import { purchasedCount, totalPurchasable } from '../meta/shop';
+import { purchasedCount, purchasedCountAll, totalPurchasable, totalPurchasableAll } from '../meta/shop';
 import type { SaveData } from '../meta/save';
 import type { World } from '../game/world';
 
@@ -357,13 +357,15 @@ export const ACHIEVEMENTS: readonly AchieveDef[] = [
   one(
     'complete-build',
     '완성형',
-    `가진 스킬을 전부 Lv.${SKILL_MAX_LEVEL} 로 채웁니다 (공격 3칸 + 유틸 1칸)`,
+    `가진 스킬을 전부 Lv.${SKILL_MAX_LEVEL} 로 채웁니다 (공격 칸을 다 채우고 유틸까지)`,
     A.platinum,
+    // 칸 수를 4 로 못박으면 안 됩니다. 하드에서 무장 확장을 사면 공격 4칸 + 유틸 1칸이라
+    // 다섯이 되어, 다 채운 사람만 조건에서 빠지는 뒤집힘이 생깁니다
     (c) => {
       const w = c.w;
       if (!w) return false;
       const slots = ownedSlots(w.player);
-      return slots.length === 4 && slots.every((s) => s.level >= SKILL_MAX_LEVEL);
+      return slots.length >= 4 && slots.every((s) => s.level >= SKILL_MAX_LEVEL);
     },
   ),
 
@@ -428,6 +430,16 @@ export const ACHIEVEMENTS: readonly AchieveDef[] = [
     // **입문(-1)까지 포함한 완전 제패입니다.** 하드모드 해금(`clearedAllFrom(save, 0)`)과
     // 시작점이 다르므로 같은 함수에 범위를 달리 넘깁니다
     (c) => clearedAllFrom(c.save, DIFFICULTY.min),
+  ),
+  hidden(
+    'supply',
+    '공급부족',
+    '하드모드 상점까지 상점의 모든 물건을 삽니다',
+    700,
+    // **"플렉스"와 세는 범위가 다릅니다.** 저건 일반 상점만 세고(하드를 안 연 사람도
+    // 깰 수 있어야 하므로) 이건 하드 구간까지 전부 셉니다. 같은 계산을 두 벌로 적지
+    // 않도록 `meta/shop.ts` 가 두 짝(`totalPurchasable`/`All`)을 나란히 들고 있습니다
+    (c) => purchasedCountAll(c.save) >= totalPurchasableAll(),
   ),
 ];
 

@@ -117,10 +117,20 @@ export interface SaveData {
    * **조건은 저장의 난이도별 최고 기록으로 봅니다.** 예전에 깬 것도 그대로
    * 인정되고, 한 번 열리면 다시 닫히지 않습니다.
    *
-   * ⚠ **아직 켜도 아무 일도 일어나지 않습니다.** 하드모드의 내용은 나중에 만듭니다.
-   * 지금 있는 것은 해금 조건과 스위치뿐입니다.
+   * ⚠ **아직 난이도 규칙은 없습니다.** 켜면 상점이 열리고 시작 장착이 1칸으로
+   * 깎이지만, 난이도 표는 아직 일반과 같습니다.
    */
   hardMode: boolean;
+  /**
+   * 하드모드를 **한 번이라도 켠 적이 있는가.** `hardMode` 와 다른 값입니다.
+   *
+   * 저건 "지금 하드인가"라 판을 가르고, 이건 "하드 상점이 열렸는가"라 상점을
+   * 가릅니다. **`hardMode` 하나로 상점까지 가르면 안 됩니다.** 일반으로 돌려놓는
+   * 순간 하드 항목이 통째로 사라져서 무엇을 샀는지 확인할 방법조차 없어집니다.
+   *
+   * **한 번 켜지면 다시 꺼도 유지됩니다.** 산 것이 그대로 남아 있어야 하기 때문입니다.
+   */
+  hardUnlocked: boolean;
 }
 
 export function emptySave(): SaveData {
@@ -154,6 +164,7 @@ export function emptySave(): SaveData {
     particleLevel: SETTINGS.particles.default,
     autoPause: SETTINGS.autoPauseDefault,
     hardMode: false,
+    hardUnlocked: false,
   };
 }
 
@@ -297,6 +308,8 @@ function migrate(data: Partial<SaveData>): SaveData {
     ),
     autoPause: data.autoPause !== false,
     hardMode: data.hardMode === true,
+    // 옛 저장에는 없는 칸입니다. 하드를 켜 둔 채 갱신한 사람은 그 사실을 그대로 인정합니다
+    hardUnlocked: data.hardUnlocked === true || data.hardMode === true,
   };
 }
 

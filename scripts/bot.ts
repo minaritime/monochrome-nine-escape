@@ -10,7 +10,20 @@
  *   언제 쓰느냐가 대시의 전부인데 그 판단이 없습니다. 흉내 내려면 봇을 크게 고쳐야 하고,
  *   그러다 보면 봇을 만드는 일이 게임을 만드는 일을 밀어냅니다.
  */
-import { CANVAS, PASSIVE, PERM_UPGRADES, REVIVE_UPGRADE, SKILLS, type SkillBranchId, type StatKey } from '../src/data/balance';
+import {
+  ARMS_UPGRADE,
+  CANVAS,
+  PASSIVE,
+  PERM_HARD_MAX_LEVEL,
+  PERM_MAX_LEVEL,
+  PERM_UPGRADES,
+  REVIVE_UPGRADE,
+  SKILLS,
+  START_SKILL_LEVEL_UPGRADE,
+  XP_UPGRADE,
+  type SkillBranchId,
+  type StatKey,
+} from '../src/data/balance';
 import { World } from '../src/game/world';
 import { branchMods, branchesFor } from '../src/skills/branches';
 import { getSkillDef } from '../src/skills/registry';
@@ -260,12 +273,13 @@ export function pickChoice(w: World, choices: SkillChoice[]): SkillChoice {
  * 영구 강화가 20단계가 되면서 `none` 과 `full` 의 격차가 너무 벌어져,
  * 둘만 재면 "실제로 사람들이 노는 구간"이 그 사이 어디에도 안 잡힙니다.
  */
-export type ShopTier = 'none' | 'half' | 'full';
+export type ShopTier = 'none' | 'half' | 'full' | 'hard';
 
 export const TIER_LABEL: Record<ShopTier, string> = {
   none: '상점 없음',
   half: '절반 구매',
   full: '전부 구매',
+  hard: '하드 상점까지',
 };
 
 export function saveFor(tier: ShopTier) {
@@ -273,7 +287,10 @@ export function saveFor(tier: ShopTier) {
   if (tier === 'none') return save;
 
   const ratio = tier === 'full' ? 1 : 0.5;
-  for (const up of PERM_UPGRADES) save.perm[up.key] = Math.round(up.costs.length * ratio);
+  // **`costs.length` 가 아니라 `PERM_MAX_LEVEL` 입니다.** 비용표는 하드 구간까지
+  // 25개를 들고 있는데, 그대로 쓰면 "절반 구매"가 10단계에서 13단계로 조용히 올라
+  // 예전 측정값과 견줄 수 없게 됩니다. 하드 구간은 `hard` 티어에서만 삽니다
+  for (const up of PERM_UPGRADES) save.perm[up.key] = Math.round(PERM_MAX_LEVEL * ratio);
   save.perm[REVIVE_UPGRADE.key] = Math.round(REVIVE_UPGRADE.costs.length * ratio);
 
   /**
@@ -295,9 +312,27 @@ export function saveFor(tier: ShopTier) {
   // 시작 스킬은 절반이면 1개, 전부면 2개 (`MAX_START_ATTACKS`)
   // `satisfies` 라야 오타난 스킬 id 가 이 자리에서 잡힙니다.
   // `as SkillId[]` 로 덮으면 없는 이름을 적어도 그냥 통과합니다
-  const skills = (['orbit', 'aura'] satisfies SkillId[]).slice(0, tier === 'full' ? 2 : 1);
+  const skills = (['orbit', 'aura'] satisfies SkillId[]).slice(0, tier === 'half' ? 1 : 2);
   save.unlockedStartSkills = skills;
   save.equippedStartSkills = skills;
+
+  /**
+   * 하드 상점까지 전부 산 상태 (2026-09-06).
+   *
+   * **`hardMode` 는 켜지 않습니다.** 지금 하드에는 난이도 규칙이 없어서, 켜면 시작
+   * 장착만 줄어든 채(무장을 다 사면 4칸이지만) 적은 그대로인 판이 됩니다. 그건
+   * 하드를 잰 것이 아니라 "장착 칸만 다른 일반 판"을 잰 것입니다. 하드 표가 붙으면
+   * 그때 켜십시오.
+   *
+   * 그래서 이 티어가 재는 것은 **하드 상점의 강화가 판에 얼마나 보태는가** 하나입니다.
+   */
+  if (tier === 'hard') {
+    save.hardUnlocked = true;
+    for (const up of PERM_UPGRADES) save.perm[up.key] = PERM_HARD_MAX_LEVEL;
+    save.perm[XP_UPGRADE.key] = XP_UPGRADE.costs.length;
+    save.perm[START_SKILL_LEVEL_UPGRADE.key] = START_SKILL_LEVEL_UPGRADE.costs.length;
+    save.perm[ARMS_UPGRADE.key] = ARMS_UPGRADE.costs.length;
+  }
   return save;
 }
 

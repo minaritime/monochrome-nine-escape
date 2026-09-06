@@ -36,6 +36,7 @@ import { eliteStatMul, eliteValue } from '../enemies/elite';
 import { rollStatGains } from '../progression/levelup';
 import { addStat } from './stats';
 import { clampDifficulty, difficultyMods, type DifficultyMods } from '../meta/difficulty';
+import { xpMultiplier } from '../meta/shop';
 import { killerOf } from './killer';
 import { emptyRunTrack } from './types';
 import type { SaveData } from '../meta/save';
@@ -141,6 +142,9 @@ export class World {
   readonly difficulty: number;
   readonly diff: DifficultyMods;
 
+  /** 상점의 경험치 강화 배율. 판이 시작될 때 한 번 굳힙니다 (`gainXp` 참고) */
+  private readonly xpMul: number;
+
   /** 이번 판에서 만난 적 / 처치 수. 종료 시 도감에 반영합니다 */
   encountered = new Set<string>();
 
@@ -167,6 +171,7 @@ export class World {
   ) {
     this.difficulty = clampDifficulty(difficulty);
     this.diff = difficultyMods(this.difficulty);
+    this.xpMul = xpMultiplier(save);
     this.rng = new Rng(seed);
     // **파티클은 판의 난수기를 쓰면 안 됩니다.** 설정에서 파티클을 줄이면 난수를 덜
     // 뽑게 되어 그 뒤의 스폰과 추첨이 통째로 밀립니다. 시드를 고정해도 설정마다 다른
@@ -1130,9 +1135,18 @@ export class World {
   // 성장
   // -------------------------------------------------------------------------
 
-  gainXp(amount: number): void {
+  /**
+   * 경험치를 넣습니다.
+   *
+   * **상점의 경험치 강화가 여기 한 곳에서만 곱해집니다** (`xpMultiplier`). 출처마다
+   * 곱하면 새 출처가 생겼을 때 반드시 하나를 빠뜨립니다.
+   *
+   * `raw` 는 강제 레벨업(F1 디버그) 전용입니다. "다음 레벨까지 모자란 만큼"을 넣는
+   * 자리라 배율이 곱해지면 한 번에 두 레벨이 오릅니다.
+   */
+  gainXp(amount: number, raw = false): void {
     const p = this.player;
-    p.xp += amount;
+    p.xp += raw ? amount : amount * this.xpMul;
     while (p.xp >= p.xpToNext) {
       p.xp -= p.xpToNext;
       p.level++;
