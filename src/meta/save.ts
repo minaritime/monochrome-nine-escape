@@ -131,6 +131,16 @@ export interface SaveData {
    * **한 번 켜지면 다시 꺼도 유지됩니다.** 산 것이 그대로 남아 있어야 하기 때문입니다.
    */
   hardUnlocked: boolean;
+  /**
+   * 개발자 모드에서 도감을 전부 열어 봅니다 (2026-09-06).
+   *
+   * **저장의 도감 기록은 안 건드립니다.** 보이는 단계만 마지막으로 올립니다
+   * (`tierOf`). 기록을 실제로 채우면 껐을 때 원래 진행도를 되돌릴 수가 없습니다.
+   *
+   * **`devMode` 와 같이 봅니다.** 개발자 모드를 끄면 이 값이 남아 있어도 안 듣습니다.
+   * 그래야 끄는 길을 따로 만들지 않아도 새어 나가지 않습니다.
+   */
+  devBestiary: boolean;
 }
 
 export function emptySave(): SaveData {
@@ -165,6 +175,7 @@ export function emptySave(): SaveData {
     autoPause: SETTINGS.autoPauseDefault,
     hardMode: false,
     hardUnlocked: false,
+    devBestiary: false,
   };
 }
 
@@ -310,6 +321,7 @@ function migrate(data: Partial<SaveData>): SaveData {
     hardMode: data.hardMode === true,
     // 옛 저장에는 없는 칸입니다. 하드를 켜 둔 채 갱신한 사람은 그 사실을 그대로 인정합니다
     hardUnlocked: data.hardUnlocked === true || data.hardMode === true,
+    devBestiary: data.devBestiary === true,
   };
 }
 

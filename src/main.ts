@@ -7,6 +7,7 @@ import { Debug } from './game/debug';
 import { World } from './game/world';
 import { commitRun } from './meta/bestiary';
 import { loadSave, resetSave, saveGame } from './meta/save';
+import { clearedAllFrom } from './meta/difficulty';
 import { Canvas2DRenderer } from './render/renderer';
 import { createTouchUi, isMobileLayout, isTouchDevice, type TouchUi } from './ui/touch';
 import { drawIdleBackground, drawWorld } from './render/scene';
@@ -378,6 +379,13 @@ function goSettings(notice = ''): void {
         applyHardTheme();
         goSettings(save.hardMode ? '하드모드' : '');
       },
+      // 개발자 모드에서만 보입니다. `tierOf` 가 `devMode` 를 같이 보므로
+      // 개발자 모드를 끄면 이 값이 남아 있어도 안 듣습니다
+      toggleDevBestiary: () => {
+        save.devBestiary = !save.devBestiary;
+        saveGame(save);
+        goSettings(save.devBestiary ? '도감을 전부 엽니다' : '도감이 원래대로 돌아왔습니다');
+      },
       resetAll: () => {
         save = resetSave();
         // 저장이 비면 하드모드도 꺼집니다. 색만 붉게 남으면 화면이 거짓말을 합니다
@@ -394,6 +402,13 @@ function goSettings(notice = ''): void {
       },
       devModeOff: () => {
         save.devMode = false;
+        // 개발자 모드로 켜 둔 하드모드는 같이 끕니다. 안 끄면 스위치만 사라지고
+        // 하드모드는 켜진 채 남아서 **끌 방법이 없어집니다.** 정상 해금한 사람은
+        // 스위치가 그대로 보이므로 건드리지 않습니다
+        if (save.hardMode && !clearedAllFrom(save, 0)) {
+          save.hardMode = false;
+          applyHardTheme();
+        }
         saveGame(save);
         debug.unlocked = false;
         debug.enabled = false;

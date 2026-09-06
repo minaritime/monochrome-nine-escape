@@ -20,6 +20,8 @@ import { bindKeys, card, clearOverlay, h, overlayEl, screen } from './dom';
  */
 
 export interface SettingsActions {
+  /** 개발자 모드 전용. 도감을 전부 열어 봅니다 */
+  toggleDevBestiary: () => void;
   /** 단계형 설정을 한 칸 넘깁니다 (끝에 닿으면 처음으로) */
   cycleShake: () => void;
   cycleParticles: () => void;
@@ -131,13 +133,31 @@ export function showSettings(save: SaveData, notice: string, actions: SettingsAc
     //
     // **이 조건은 안 낮춥니다** (2026-09-06 사용자 확정). 난이도 15 가 봇으로는 30분에
     // 한참 못 미치지만, 봇 수치로 "사람도 못 깬다"를 결론지을 수 없습니다.
-    // 15 를 깨는 것이 하드모드의 입장권입니다
-    if (clearedAllFrom(save, 0)) {
-      body.push(
-        h('div', { class: 'rowlist' }, [
-          toggle('하드모드', save.hardMode ? '켬' : '끔', actions.toggleHardMode),
-        ]),
-      );
+    // 15 를 깨는 것이 하드모드의 입장권입니다.
+    //
+    // **개발자 모드에서는 조건 없이 켤 수 있습니다** (2026-09-06). 하드모드를 만드는
+    // 동안 화면을 봐야 하는데, 15 를 먼저 깨고 오라는 것은 `?unlock` 을 둔 이유와
+    // 같은 문제입니다. 그때는 라벨에 그 사실을 적습니다. 정상 해금과 구분이 안 되면
+    // 개발자 모드를 켜 둔 것을 잊고 "왜 열려 있지"가 됩니다
+    const hardEarned = clearedAllFrom(save, 0);
+    const hardRow = hardEarned || save.devMode;
+    if (hardRow || save.devMode) {
+      const rows: Node[] = [];
+      if (hardRow) {
+        rows.push(
+          toggle(
+            hardEarned ? '하드모드' : '하드모드 (개발자)',
+            save.hardMode ? '켬' : '끔',
+            actions.toggleHardMode,
+          ),
+        );
+      }
+      // 개발자 전용. 적을 하나 고칠 때마다 50마리를 잡아 와야 수치 칸을 볼 수 있으면
+      // 그 화면은 사실상 확인할 수 없는 화면입니다. 저장의 도감 기록은 안 건드립니다
+      if (save.devMode) {
+        rows.push(toggle('도감 전체 보기 (개발자)', save.devBestiary ? '켬' : '끔', actions.toggleDevBestiary));
+      }
+      body.push(h('div', { class: 'rowlist' }, rows));
     }
 
     body.push(h('div', { class: 'settings-sep' }));

@@ -17,8 +17,18 @@ export function tiersFor(id: string): { pattern: number; numbers: number } {
   return isBossId(id) ? BESTIARY_TIERS_BOSS : BESTIARY_TIERS;
 }
 
-/** 처치 수에 따라 정보가 단계적으로 열립니다 (기획.md 8장) */
+/**
+ * 처치 수에 따라 정보가 단계적으로 열립니다 (기획.md 8장).
+ *
+ * **개발자 모드 스위치가 켜져 있으면 전부 마지막 단계로 봅니다** (2026-09-06).
+ * 적을 하나 고칠 때마다 50마리를 잡아 와야 수치 칸을 볼 수 있으면, 그 화면은
+ * 사실상 확인할 수 없는 화면입니다.
+ *
+ * **저장은 안 건드립니다.** 기록을 실제로 채우면 껐을 때 원래 진행도가 사라집니다.
+ * 그리고 `devMode` 를 같이 보므로 개발자 모드를 끄면 저절로 안 듣습니다.
+ */
 export function tierOf(save: SaveData, id: string): BestiaryTier {
+  if (save.devMode && save.devBestiary) return 'numbers';
   const e = entryOf(save, id);
   if (!e.seen) return 'unknown';
   const t = tiersFor(id);

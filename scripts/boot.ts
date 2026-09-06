@@ -327,6 +327,7 @@ async function main(): Promise<void> {
   press('Digit6');
   check('설정이 열렸다', overlayText().includes('모든 데이터 초기화'));
   // 개발자 모드를 켜기 전에는 그 항목들이 아예 없어야 합니다
+  check('도감 전체 보기는 잠겨 있으면 안 보인다', !overlayText().includes('도감 전체 보기'));
   check('업적 초기화는 잠겨 있으면 안 보인다', !overlayText().includes('업적 초기화'));
   check('개발자 모드 끄기도 안 보인다', !overlayText().includes('개발자 모드'));
   // 설정은 마우스로 쓰는 화면입니다. 숫자키가 남아 있으면 안 됩니다
@@ -487,7 +488,56 @@ async function main(): Promise<void> {
     check('히든 업적 이름이 보인다', overlayText().includes('사인 수집가'));
     press('Escape');
 
-    // **하드모드가 보이는 쪽은 여기서 못 잽니다.** `main.ts` 는 저장을 메모리에 들고
+    // **개발자 모드에서는 하드모드를 조건 없이 켤 수 있습니다** (2026-09-06).
+    // 하드모드를 만드는 동안 화면을 봐야 하는데, 난이도 15 를 먼저 깨고 오라는 것은
+    // `?unlock` 을 둔 이유와 같은 문제입니다.
+    //
+    // **정상 해금으로 열린 것과 구분되어야 합니다.** 구분이 없으면 개발자 모드를
+    // 켜 둔 것을 잊고 "왜 열려 있지"가 됩니다
+    press('Digit6');
+    check('개발자 모드에서는 하드모드가 보인다', overlayText().includes('하드모드'));
+    check('정상 해금과 구분된다', overlayText().includes('하드모드 (개발자)'));
+
+    clickCard('하드모드 (개발자)');
+    check('하드모드가 켜진다', overlayText().includes('[ 켬 ]'), overlayText().trim().slice(0, 80));
+    press('Escape');
+
+    // 켜면 상점에 하드 자리가 생깁니다. 잠겨 있을 때 없던 탭입니다 (위 2번)
+    press('Digit2');
+    check('하드모드를 켜면 상점에 심연 탭이 생긴다', overlayText().includes('심연'));
+    press('Escape');
+
+    // 다시 꺼 둡니다. 아래 7번은 하드모드와 무관한 자리라, 켜 둔 채로 넘기면
+    // 그 점검이 무엇을 재고 있는지 흐려집니다
+    press('Digit6');
+    clickCard('하드모드 (개발자)');
+    check('다시 끌 수 있다', overlayText().includes('[ 끔 ]'));
+
+    // **도감 전체 보기.** 적을 하나 고칠 때마다 50마리를 잡아 와야 수치 칸이 열리면
+    // 그 화면은 사실상 확인할 수 없습니다. 저장의 도감 기록은 안 건드립니다
+    check('개발자 모드에서는 도감 전체 보기가 보인다', overlayText().includes('도감 전체 보기 (개발자)'));
+    clickCard('도감 전체 보기 (개발자)');
+    check('도감 전체 보기가 켜진다', overlayText().includes('도감을 전부 엽니다'));
+    press('Escape');
+
+    press('Digit3');
+    check('도감이 전부 열린다', !overlayText().includes('아직 만나지 못했습니다'), overlayText().trim().slice(0, 60));
+    check('수치 칸까지 열린다', !overlayText().includes('이동 패턴이 열립니다'));
+    press('Escape');
+
+    press('Digit6');
+    clickCard('도감 전체 보기 (개발자)');
+    check('도감 전체 보기를 끌 수 있다', overlayText().includes('원래대로'));
+    press('Escape');
+
+    press('Digit3');
+    check('끄면 도감이 원래대로 돌아온다', overlayText().includes('아직 만나지 못했습니다'));
+    press('Escape');
+
+    press('Digit6');
+    press('Escape');
+
+    // **정상 해금 여부는 여기서 못 잽니다.** `main.ts` 는 저장을 메모리에 들고
     // 있어서 저장소에 기록을 심어도 화면이 안 바뀌고, 판이 끝날 때 다시 읽는 경로는
     // 그 직전에 들고 있던 값으로 덮어씁니다. 난이도 15를 실제로 깨는 것 말고는
     // 길이 없는데 그건 부팅 점검이 할 일이 아닙니다.
