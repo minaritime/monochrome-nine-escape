@@ -254,6 +254,15 @@ function clickCard(title: string): void {
   walk(overlay)?.click();
 }
 
+/**
+ * 디버그 잠금 화면이 떠 있는가.
+ * **글자가 아니라 표식(class)으로 봅니다.** 이 화면에는 아무 글자도 없습니다
+ * (`debugGate.ts` 주석 참고).
+ */
+function gateOpen(): boolean {
+  return overlay.querySelector('.gate') !== null;
+}
+
 /** 화면 안의 모든 텍스트를 모읍니다 */
 function overlayText(el: StubElement = overlay): string {
   let out = el.text;
@@ -274,6 +283,21 @@ async function main(): Promise<void> {
   check('메인 화면이 떴다', overlayText().includes('게임 시작'));
   frames(3);
   check('첫 프레임이 돌았다', true);
+
+  // **메인 화면에서도 F1 로 잠금 화면이 열립니다** (2026-09-06). 개발자 스위치가 전부
+  // 설정 화면에 있는데 그것을 켜려고 판을 시작해야 하면 앞뒤가 안 맞습니다.
+  //
+  // 여기서는 열리는 것과 취소되는 것까지만 봅니다. **실제로 켜는 것은 맨 끝(8번)입니다.**
+  // 여기서 켜면 바로 아래 2번의 "잠겨 있으면 안 보인다"가 통째로 무의미해집니다
+  press('F1');
+  frames(2);
+  check('메인에서도 F1 이 잠금 화면을 연다', gateOpen(), overlayText().trim().slice(0, 40));
+  press('KeyZ');
+  frames(2);
+  check('틀린 키로는 안 열린다 (메인)', gateOpen());
+  press('Escape');
+  frames(2);
+  check('Esc 로 메인에 돌아온다', overlayText().includes('게임 시작'));
 
   console.log('2) 상점과 도감');
   press('Digit2');
@@ -410,10 +434,10 @@ async function main(): Promise<void> {
   // 그 순서를 여기서 그대로 밟으므로, 잠금이 깨지면 이 점검이 통째로 걸립니다
   press('F1');
   frames(2);
-  check('디버그는 F1 만으로는 안 열린다 (잠금 화면)', overlay.querySelector('.gate') !== null);
+  check('디버그는 F1 만으로는 안 열린다 (잠금 화면)', gateOpen());
   press('KeyZ');
   frames(1);
-  check('틀린 키로는 안 열린다', overlay.querySelector('.gate') !== null);
+  check('틀린 키로는 안 열린다', gateOpen());
   for (const code of DEBUG.unlockSequence) press(code);
   frames(2);
   check('비밀번호를 치면 열린다', overlayText().trim() === '', overlayText().trim().slice(0, 40));
@@ -580,6 +604,40 @@ async function main(): Promise<void> {
       frames(3);
       check('고른 뒤 게임으로 복귀했다', overlayText().trim() === '');
     }
+  }
+
+  console.log('8) 메인 화면에서 개발자 모드 켜기');
+  {
+    // 7번이 판을 돌려 둔 채 끝나므로 먼저 메인으로 나옵니다 (일시정지 → 상점 → 메인)
+    press('Escape');
+    frames(2);
+    press('KeyQ');
+    frames(2);
+    press('Escape');
+    frames(2);
+    check('메인으로 나왔다', overlayText().includes('게임 시작'), overlayText().trim().slice(0, 40));
+
+    // 5번에서 판 중에 켜 두었으므로 그대로면 잠금 화면이 안 뜹니다. 먼저 끕니다
+    press('Digit6');
+    clickCard('개발자 모드 끄기');
+    clickCard('개발자 모드 끄기');
+    check('개발자 모드를 껐다', overlayText().includes('껐습니다'));
+    check('끄면 개발자 항목이 사라진다', !overlayText().includes('도감 전체 보기'));
+    press('Escape');
+    check('설정에서 메인으로', overlayText().includes('게임 시작'));
+
+    // **이제 판을 시작하지 않고 메인에서 바로 켭니다.** 이것이 이 통로의 존재 이유입니다
+    press('F1');
+    frames(2);
+    check('메인에서 잠금 화면이 다시 열린다', gateOpen());
+    for (const code of DEBUG.unlockSequence) press(code);
+    frames(2);
+    check('메인에서 개발자 모드가 켜졌다', overlayText().includes('게임 시작'), overlayText().trim().slice(0, 40));
+
+    press('Digit6');
+    check('설정에 개발자 항목이 나타난다', overlayText().includes('도감 전체 보기 (개발자)'));
+    check('하드모드도 나타난다', overlayText().includes('하드모드 (개발자)'));
+    press('Escape');
   }
 
   console.log(failures === 0 ? '\n전부 통과했습니다' : `\n실패 ${failures}건`);

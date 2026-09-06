@@ -509,23 +509,31 @@ function finishRun(w: World): void {
 /**
  * 디버그 잠금 화면을 엽니다.
  *
- * `open` 을 거치므로 판이 멈춥니다. 비밀번호를 치는 동안 가만히 서 있으면
+ * 판 중에 열면 `open` 을 거치므로 판이 멈춥니다. 비밀번호를 치는 동안 가만히 서 있으면
  * 그대로 맞아 죽기 때문입니다.
+ *
+ * **메인 화면에서도 열립니다** (2026-09-06). 개발자 스위치(하드모드 · 도감)는 전부
+ * 설정 화면에 있는데, 그걸 켜려고 판을 시작했다가 다시 나와야 하는 것은 앞뒤가
+ * 맞지 않습니다. 그래서 돌아갈 자리를 인자로 받습니다.
+ *
+ * **오버레이를 켠 쪽이 되돌리는 책임도 집니다.** 여기서 `closeOverlay('playing')` 를
+ * 못박아 두면 메인에서 열었을 때 게임 화면으로 떨어집니다.
  */
-function openDebugGate(): void {
+function openDebugGate(back: () => void): void {
   open('debugauth', () =>
     showDebugGate(
       () => {
         debug.unlocked = true;
-        debug.enabled = true;
+        // 메인에서 켰으면 오버레이를 띄울 판이 없습니다. 판 중에만 바로 펼칩니다
+        debug.enabled = world !== null;
         // **저장에 남깁니다.** `?unlock` 은 페이지가 열릴 때, `?seed` 는 판이 시작될 때
         // 읽히는데 그 시점에는 아직 디버그를 켤 기회가 없습니다. 탭 안에만 두면
         // 주소 파라미터는 영영 안 듣습니다. 끄는 것은 설정 화면에서 합니다
         save.devMode = true;
         saveGame(save);
-        closeOverlay('playing');
+        back();
       },
-      () => closeOverlay('playing'),
+      back,
     ),
   );
 }
@@ -564,6 +572,17 @@ const loop = new GameLoop({
       touchUi.update(world);
     }
 
+    // **메인 화면에서도 F1 로 잠금 화면을 엽니다** (2026-09-06). 개발자 스위치가
+    // 전부 설정 화면에 있는데 그것을 켜려고 판을 시작해야 하면 앞뒤가 안 맞습니다.
+    //
+    // **`!world` 보다 위에 있어야 합니다.** 메인에서는 판이 없어서 아래로 안 내려갑니다.
+    // 메인으로만 한정하는 이유는 상점이나 도감에서 열면 돌아갈 자리를 화면마다
+    // 따로 챙겨야 하기 때문입니다
+    if (screen === 'main' && !debug.unlocked && input.wasPressed('F1')) {
+      openDebugGate(goMain);
+      return;
+    }
+
     if (!world) return;
 
     // 죽는 연출 중에는 판 전체가 멈춰 있고 파편만 움직입니다.
@@ -583,7 +602,7 @@ const loop = new GameLoop({
     // **여는 순간 판이 멈춥니다.** `screen` 이 'playing' 이 아니게 되어 world.update 가
     // 안 도는데, 그래야 비밀번호를 치는 동안 가만히 서서 맞아 죽지 않습니다
     if (!debug.unlocked && input.wasPressed('F1')) {
-      openDebugGate();
+      openDebugGate(() => closeOverlay('playing'));
       return;
     }
 
