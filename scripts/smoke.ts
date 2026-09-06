@@ -23,7 +23,6 @@ import {
   ENEMY_BULLET,
   ENEMY_PARAMS,
   ENEMY_TABLE,
-  HARD,
   HARD_DIFFICULTY_STEPS,
   FIXED_DT,
   MAX_UTILITY_CHOICES_PER_ROLL,
@@ -93,6 +92,7 @@ import { SKILL_FAMILY_LABEL, type SkillFamily } from '../src/skills/types';
 import { canTarget } from '../src/skills/targeting';
 import { generateSkillChoices, applySkillChoice, applyBranchChoice } from '../src/progression/skillChoice';
 import { NEUTRAL_MODS, branchesFor, modsOf } from '../src/skills/branches';
+import { drawIdleBackground, drawWorld } from '../src/render/scene';
 import { drawHud } from '../src/ui/hud';
 import { isMobileLayout, isTouchDevice } from '../src/ui/touch';
 import type { Renderer, TextOptions } from '../src/render/renderer';
@@ -3219,16 +3219,51 @@ console.log('16) 저장 데이터가 낡거나 망가졌을 때');
     );
   }
 
-  // 하드모드 덧칠은 **은은해야 합니다.** 진하면 적탄(빨강)이 배경에 묻혀서
-  // 날아오는 것을 못 봅니다. 색이라 눈으로 볼 수밖에 없지만, 투명도만은 잽니다
+  // **하드모드는 캔버스를 한 획도 바꾸면 안 됩니다** (2026-09-06 사용자 지시).
+  //
+  // 처음에는 화면 전체를 덮었고 그다음에는 경기장 배경에만 걸었는데, 둘 다 인게임이
+  // 붉어져서 적과 탄을 읽기 어려웠습니다. 하드모드의 겉모습은 메뉴 배경과 페이지
+  // 여백(`body.hard`)에서만 냅니다.
+  //
+  // 색은 눈으로 볼 수밖에 없지만 **그리기 호출이 같은지는 잴 수 있습니다.**
+  // 덧칠이 하나라도 들어가면 호출 수가 달라집니다
   {
-    const m = /rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)/.exec(HARD.tint);
-    check('덧칠이 rgba 형식이다', m !== null, HARD.tint);
-    if (m) {
-      const alpha = Number(m[4]);
-      check('덧칠이 옅다 (0 초과 0.15 이하)', alpha > 0 && alpha <= 0.15, `${alpha}`);
-      check('덧칠은 붉은색이다', Number(m[1]) > Number(m[2]) && Number(m[1]) > Number(m[3]), HARD.tint);
-    }
+    const calls: string[] = [];
+    const counting = new Proxy(recordingRenderer([]), {
+      get(target, prop: string) {
+        const v = (target as unknown as Record<string, unknown>)[prop];
+        if (typeof v !== 'function') return v;
+        return (...args: unknown[]) => {
+          calls.push(`${prop}(${args.join(',')})`);
+          return (v as (...a: unknown[]) => unknown)(...args);
+        };
+      },
+    }) as unknown as Renderer;
+
+    // **같은 판을 두 번 그립니다.** 저장의 hardMode 를 바꿔서 World 를 새로 만들면
+    // 난이도까지 달라져서(하드 0 은 전원 정예입니다) 적 수가 달라지고, 그러면
+    // 그리기 차이가 아니라 판 차이를 재게 됩니다
+    const sv = emptySave();
+    const w = new World(sv, input, 909, 0);
+    for (let i = 0; i < 120; i++) w.update(FIXED_DT);
+
+    const draw = (hard: boolean): string[] => {
+      calls.length = 0;
+      sv.hardMode = hard;
+      drawWorld(counting, w);
+      return [...calls];
+    };
+
+    const plain = draw(false);
+    const hard = draw(true);
+    sv.hardMode = false;
+    check('하드모드가 캔버스 그리기를 안 바꾼다', plain.length === hard.length, `${plain.length} vs ${hard.length}`);
+    check('그리기 내용도 같다', plain.join('|') === hard.join('|'));
+
+    // 메인 화면 배경도 마찬가지입니다
+    calls.length = 0;
+    drawIdleBackground(counting);
+    check('메뉴 배경도 덧칠이 없다', !calls.some((c) => c.includes('rgba(255')), calls.length ? calls[calls.length - 1] : '');
   }
 
   // 설정 기본값. **화면 흔들림은 절반에서 시작합니다.** 예전에 상수 하나로 쓰던

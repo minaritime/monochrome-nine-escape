@@ -1,4 +1,4 @@
-import { ARENA_X, CANVAS, DEATH_BURST, ELITE, ENEMY_BULLET, ENEMY_PARAMS, HARD, PLAYER } from '../data/balance';
+import { ARENA_X, CANVAS, DEATH_BURST, ELITE, ENEMY_BULLET, ENEMY_PARAMS, PLAYER } from '../data/balance';
 import { TAU } from '../core/math';
 import { bomberBlastRadius, cowardEnraged, rangedAimTime } from '../enemies/behaviors/special';
 import { eliteMul } from '../enemies/elite';
@@ -17,12 +17,10 @@ export function drawWorld(r: Renderer, w: World): void {
   r.begin(ARENA_X + w.effects.shakeX, w.effects.shakeY);
 
   drawArena(r);
-  // **붉은 기운은 배경에만 겁니다** (2026-09-06). 예전에는 render 맨 끝에서 화면
-  // 전체를 덮었는데, 적과 탄과 HUD 까지 같이 흐려져서 **화면이 뿌옇고 눈이 아팠습니다.**
-  //
-  // 여기(경기장 바닥 위, 엔티티 아래)에 걸면 적 색은 아예 안 건드리게 되므로
-  // "색이 위험도"라는 규칙도 그대로 지켜집니다
-  if (w.save.hardMode) r.rect(0, 0, CANVAS.w, CANVAS.h, HARD.tint);
+  // **하드모드라고 캔버스에 무엇을 덧칠하지 마십시오** (2026-09-06 사용자 지시).
+  // 경기장 안은 게임이 벌어지는 자리라 색이 조금만 달라져도 적과 탄을 읽기 어려워집니다.
+  // 하드모드의 겉모습은 **메뉴 배경과 페이지 여백에서만** 냅니다 (`body.hard`).
+  // `scripts/smoke.ts` 16번이 하드/일반의 그리기 호출이 완전히 같은지 잽니다
   drawHazards(r, w);
   drawTelegraphs(r, w);
   drawCoins(r, w);
@@ -40,12 +38,10 @@ export function drawWorld(r: Renderer, w: World): void {
 }
 
 /** 메뉴 화면 뒤에 깔리는 빈 배경 */
-export function drawIdleBackground(r: Renderer, hard = false): void {
+export function drawIdleBackground(r: Renderer): void {
   r.clear(BG);
   r.begin(ARENA_X, 0);
   drawArena(r);
-  // 판 안과 같은 규칙입니다. 배경에만 걸어야 뿌옇지 않습니다
-  if (hard) r.rect(0, 0, CANVAS.w, CANVAS.h, HARD.tint);
   r.end();
 }
 
