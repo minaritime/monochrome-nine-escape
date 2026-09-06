@@ -6,7 +6,19 @@ export function overlayEl(): HTMLElement {
   return el;
 }
 
+/**
+ * 지금 열려 있는 펼침판을 닫는 함수들 (`helpWrap`).
+ *
+ * **화면을 바꿀 때 같이 닫아야 합니다.** 펼침판은 열려 있는 동안 `document` 에
+ * 바깥 클릭 감시를 다는데, 그것은 클릭으로만 걷힙니다. 그런데 이 게임은 메뉴를
+ * **숫자키로도 넘길 수 있어서** 클릭 한 번 없이 화면이 바뀝니다. 그러면 이미 화면에서
+ * 떨어져 나간 요소를 붙들고 있는 감시가 그대로 남습니다.
+ */
+const openPopovers = new Set<() => void>();
+
 export function clearOverlay(): void {
+  // 복사해서 돌립니다. close 가 이 집합을 건드립니다
+  for (const close of [...openPopovers]) close();
   overlayEl().replaceChildren();
 }
 
@@ -106,7 +118,8 @@ export function helpButton(): HTMLElement {
   const row = (label: string, keys: string) =>
     h('div', { class: 'help-row' }, [h('span', {}, [label]), h('b', {}, [keys])]);
 
-  return h('div', { class: 'help-wrap' }, [
+  return helpWrap(
+    'help-wrap',
     h('button', { class: 'help-btn', type: 'button', 'aria-label': '조작법' }, ['조작법']),
     h('div', { class: 'help-pop', role: 'tooltip' }, [
       row('이동', '← ↑ ↓ →'),
@@ -115,7 +128,48 @@ export function helpButton(): HTMLElement {
       // **디버그 키는 여기 적지 않습니다.** 잠금까지 걸어놓고 메인 화면에서
       // "디버그 F1" 이라고 알려주면 잠근 의미가 없습니다
     ]),
-  ]);
+  );
+}
+
+/**
+ * 펼침판 하나를 감싸 **누르면 열리게** 만듭니다.
+ *
+ * hover 만으로 열면 폰에서는 영영 안 열립니다. 마우스가 없는 기기에는 hover 라는
+ * 것이 아예 없기 때문입니다. PC 의 hover 는 CSS 에 그대로 두고, 여기서는 클릭으로
+ * 여는 길을 하나 더 냅니다.
+ *
+ * **밖을 누르면 닫힙니다.** 안 닫으면 상점처럼 화면이 안 바뀌는 자리에서 펼침판이
+ * 카드 위에 계속 떠 있게 됩니다.
+ */
+function helpWrap(cls: string, btn: HTMLElement, pop: HTMLElement): HTMLElement {
+  const wrap = h('div', { class: cls }, [btn, pop]);
+  /** 열려 있는 동안에만 사는 바깥 클릭 감시. 닫을 때 반드시 같이 걷습니다 */
+  let outside: (() => void) | null = null;
+
+  const close = () => {
+    wrap.classList.remove('open');
+    if (outside) document.removeEventListener('click', outside);
+    outside = null;
+    openPopovers.delete(close);
+  };
+
+  btn.addEventListener('click', (e) => {
+    // 이 클릭이 문서까지 올라가면 방금 단 감시가 그 자리에서 닫아버립니다
+    e.stopPropagation();
+    if (wrap.classList.contains('open')) {
+      close();
+      return;
+    }
+    wrap.classList.add('open');
+    // 열어둔 채로 다른 것을 누르면 닫습니다. 안 닫으면 화면이 안 바뀌는 상점 같은
+    // 자리에서 펼침판이 카드 위에 계속 떠 있습니다
+    outside = close;
+    document.addEventListener('click', outside);
+    // 클릭 없이 화면이 바뀌는 길(숫자키)에서도 걷히도록 `clearOverlay` 에 맡깁니다
+    openPopovers.add(close);
+  });
+
+  return wrap;
 }
 
 /**
@@ -125,14 +179,15 @@ export function helpButton(): HTMLElement {
  * 경우가 많아서 펼침판이 기본으로 왼쪽으로 열립니다.
  */
 export function helpDot(lines: string[], wrapClass = ''): HTMLElement {
-  return h('div', { class: `help-wrap to-left ${wrapClass}`.trim() }, [
+  return helpWrap(
+    `help-wrap to-left ${wrapClass}`.trim(),
     h('button', { class: 'help-btn dot', type: 'button', 'aria-label': '설명' }, ['?']),
     h(
       'div',
       { class: 'help-pop wide', role: 'tooltip' },
       lines.map((t) => h('div', { class: 'help-line' }, [t])),
     ),
-  ]);
+  );
 }
 
 export function screen(title: string, subtitle: string, body: Node[], extraClass = '', onBack?: () => void): HTMLElement {

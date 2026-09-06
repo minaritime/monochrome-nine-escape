@@ -36,6 +36,7 @@ import {
   STAT_GAINS_PER_LEVEL,
   STATUS,
   TIME_SCALING,
+  VIEW,
   type EnemyId,
   type SkillBranchDef,
   type SkillBranchId,
@@ -73,6 +74,43 @@ import { SKILL_FAMILY_LABEL, type SkillFamily } from '../src/skills/types';
 import { canTarget } from '../src/skills/targeting';
 import { generateSkillChoices, applySkillChoice, applyBranchChoice } from '../src/progression/skillChoice';
 import { NEUTRAL_MODS, branchesFor, modsOf } from '../src/skills/branches';
+import { drawHud } from '../src/ui/hud';
+import { isMobileLayout, isTouchDevice } from '../src/ui/touch';
+import type { Renderer, TextOptions } from '../src/render/renderer';
+
+/**
+ * 그린 글자만 받아 적는 렌더러.
+ *
+ * HUD 배치는 눈으로 볼 수밖에 없다고 미루기 쉽지만, "무엇이 어디에 그려졌는가"는
+ * 좌표라 잴 수 있습니다. 실제로 `난이도 N` 이 체력바 위에 겹쳐 있던 것을 아무도
+ * 못 잡고 있었습니다.
+ *
+ * **`begin` 의 offset 은 무시합니다.** HUD 는 경기장 기준 좌표로 그리고,
+ * 여기서 재려는 것도 경기장 안에서의 자리입니다.
+ */
+function recordingRenderer(out: { s: string; x: number; y: number }[]): Renderer {
+  const noop = () => {};
+  return {
+    width: VIEW.w,
+    height: VIEW.h,
+    begin: noop,
+    end: noop,
+    clear: noop,
+    circle: noop,
+    ring: noop,
+    poly: noop,
+    polyOutline: noop,
+    line: noop,
+    rect: noop,
+    rectOutline: noop,
+    arc: noop,
+    cone: noop,
+    fullscreenTint: noop,
+    text: (str: string, x: number, y: number, _opts?: TextOptions) => {
+      out.push({ s: str, x, y });
+    },
+  };
+}
 
 class FakeInput {
   private dir = { x: 1, y: 0 };
@@ -3111,6 +3149,55 @@ console.log('16) 저장 데이터가 낡거나 망가졌을 때');
     ti.setTouchVector({ x: 1, y: 1 });
     ti.clear();
     check('clear 하면 조이스틱도 놓입니다', ti.moveVector().x === 0 && ti.moveVector().y === 0);
+
+    // **일시정지 버튼도 Q 와 같은 길입니다.** 폰에는 Esc 가 없어서 이것이 판을
+    // 멈추는 유일한 길인데, `pauseRun` 을 직접 부르면 멈추는 길이 둘이 됩니다.
+    // 누른 자리에서 곧바로 놓아야 다음에 누를 때도 "새 눌림"으로 잡힙니다
+    ti.pressVirtual('Escape');
+    ti.releaseVirtual('Escape');
+    ti.beginStep();
+    check('일시정지 버튼이 Esc 눌림으로 잡힌다', ti.wasPressed('Escape'));
+    check('누르자마자 놓여 있다', !ti.isDown('Escape'));
+    ti.pressVirtual('Escape');
+    ti.releaseVirtual('Escape');
+    ti.beginStep();
+    check('두 번째도 새 눌림으로 잡힌다', ti.wasPressed('Escape'));
+  }
+
+  // 모바일 판별. **터치 여부만으로 가르면 터치 노트북에도 조이스틱이 붙습니다.**
+  // 그리고 브라우저 전역이 있다고 가정하면 안 됩니다 (`navigator` 는 Node 20 에
+  // 없어서 CI 만 터진 적이 있습니다)
+  {
+    check('브라우저 밖에서는 터치 기기가 아니다', !isTouchDevice());
+    check('브라우저 밖에서는 모바일 배치가 아니다', !isMobileLayout());
+  }
+
+  // 모바일 HUD. **우상단은 일시정지 버튼 자리라 비워야 합니다.** 예전에는 처치·코인·
+  // 적 세 줄이 거기 있어서 버튼과 정확히 겹쳤습니다.
+  // 그리고 `난이도 N` 이 체력바(y 18~38) 위에 그대로 겹쳐 있었습니다
+  {
+    const w = new World(emptySave(), new Input({ addEventListener: () => {} } as unknown as Window), 1, 5);
+    const texts: { s: string; x: number; y: number }[] = [];
+    const rec = recordingRenderer(texts);
+
+    drawHud(rec, w, true);
+    const topRight = texts.filter((t) => t.x > CANVAS.w - 220 && t.y < 110);
+    check('모바일은 우상단을 비운다', topRight.length === 0, topRight.map((t) => t.s).join(','));
+
+    const diff = texts.find((t) => t.s.startsWith('난이도'));
+    check('난이도가 체력바 아래로 내려갔다', !!diff && diff.y > 54, diff ? `y=${diff.y}` : '없음');
+    check('모바일에도 처치·코인이 남아 있다', texts.some((t) => t.s.startsWith('처치')));
+
+    // PC 는 지금 그대로여야 합니다. 우상단 세 줄이 그 자리에 있습니다
+    const pc: { s: string; x: number; y: number }[] = [];
+    drawHud(recordingRenderer(pc), w, false);
+    check('PC 는 우상단에 처치·코인이 있다', pc.some((t) => t.s.startsWith('처치') && t.x > CANVAS.w - 220));
+    const pcDiff = pc.find((t) => t.s.startsWith('난이도'));
+    check('PC 도 난이도가 체력바를 안 가린다', !!pcDiff && pcDiff.y > 54, pcDiff ? `y=${pcDiff.y}` : '없음');
+
+    console.log(
+      `   HUD 글자 · 모바일 ${texts.length}개 (우상단 ${topRight.length}) · PC ${pc.length}개 · 난이도 y=${diff?.y}`,
+    );
   }
 
   // 하드모드 덧칠은 **은은해야 합니다.** 진하면 적탄(빨강)이 배경에 묻혀서

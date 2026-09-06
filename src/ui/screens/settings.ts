@@ -16,7 +16,7 @@ import { bindKeys, card, clearOverlay, h, overlayEl, screen } from './dom';
  * 나가는 길은 우측 상단 화살표 버튼에 이미 있습니다.
  *
  * 화면은 두 구역입니다. **켜고 끄는 것과 되돌릴 수 없는 것을 섞지 않습니다.**
- * 전체화면 토글이 데이터 초기화와 같은 모양으로 나란히 서면 위험도가 뭉개집니다.
+ * 흔들림 토글이 데이터 초기화와 같은 모양으로 나란히 서면 위험도가 뭉개집니다.
  */
 
 export interface SettingsActions {

@@ -12,7 +12,13 @@ const PANEL_BG = '#0a0d13';
 const PANEL_LINE = '#1e2432';
 const LABEL = '#6f7c93';
 
-export function drawHud(r: Renderer, w: World): void {
+/**
+ * @param mobile 좌우 패널을 안 그리는 배치인가 (폰 가로).
+ *
+ * **여기서 기기를 직접 묻지 않습니다.** 그리는 코드가 `isMobileLayout()` 을 부르면
+ * 점검에서 두 배치를 갈라 잴 수가 없습니다. 부르는 쪽이 넘겨줍니다.
+ */
+export function drawHud(r: Renderer, w: World, mobile = false): void {
   // 경기장 안에 그리는 것들
   r.begin(ARENA_X + w.effects.shakeX, w.effects.shakeY);
   drawTargetMarker(r, w);
@@ -21,10 +27,13 @@ export function drawHud(r: Renderer, w: World): void {
   r.begin(ARENA_X, 0);
   drawHealth(r, w);
   drawXp(r, w);
-  drawTopInfo(r, w);
+  drawTopInfo(r, w, mobile);
   drawBossBar(r, w);
   r.end();
 
+  // 폰에서는 패널 두 장이 화면 밖으로 잘립니다. 그리는 값을 아끼는 것이 아니라
+  // 여기 있던 정보를 일시정지 화면으로 옮겼다는 뜻입니다
+  if (mobile) return;
   drawStatPanel(r, w);
   drawSkillPanel(r, w);
 }
@@ -76,7 +85,16 @@ function drawXp(r: Renderer, w: World): void {
   r.text(`Lv.${p.level}`, x + width + 10, y + height, { size: 15, color: '#4dd2ff', weight: 800 });
 }
 
-function drawTopInfo(r: Renderer, w: World): void {
+/**
+ * 좌상단 세로 줄의 자리들.
+ *
+ * 체력바가 18~38, 경험치 막대가 46~54 를 씁니다. **그 아래부터가 글자 자리입니다.**
+ * 예전에는 `난이도 N` 을 y=30 에 그려서 체력바 위에 그대로 겹쳐 있었습니다.
+ */
+const LEFT_DIFF_Y = 72;
+const LEFT_COUNT_Y = 90;
+
+function drawTopInfo(r: Renderer, w: World, mobile: boolean): void {
   const minutes = Math.floor(w.time / 60);
   const seconds = Math.floor(w.time % 60);
   const timeText = `${minutes}:${String(seconds).padStart(2, '0')}`;
@@ -97,7 +115,17 @@ function drawTopInfo(r: Renderer, w: World): void {
 
   // 지금 어떤 난이도로 버티는 중인지 항상 보이게 둡니다
   if (w.difficulty > 0) {
-    r.text(`난이도 ${w.difficulty}`, 18, 30, { size: 15, color: '#ff6b6b', weight: 800 });
+    r.text(`난이도 ${w.difficulty}`, 18, LEFT_DIFF_Y, { size: 15, color: '#ff6b6b', weight: 800 });
+  }
+
+  // **폰에서는 우상단을 비웁니다.** 그 자리가 일시정지 버튼 자리입니다.
+  // 세 줄을 한 줄로 접어 좌상단 아래에 붙입니다
+  if (mobile) {
+    const y = w.difficulty > 0 ? LEFT_COUNT_Y : LEFT_DIFF_Y;
+    r.text(`처치 ${w.stats.kills}`, 18, y, { size: 13, color: '#8d99b0' });
+    r.text(`코인 ${w.stats.coins}`, 92, y, { size: 13, color: '#ffcc4d' });
+    r.text(`적 ${w.enemies.length}`, 168, y, { size: 13, color: '#5f6b80' });
+    return;
   }
 
   r.text(`처치 ${w.stats.kills}`, CANVAS.w - 18, 30, { size: 15, align: 'right', color: '#8d99b0' });

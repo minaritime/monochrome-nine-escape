@@ -9,6 +9,16 @@
   --accent-2: #4dd2ff;
   --danger: #ff5d5d;
   --ok: #6ee7a0;
+
+  /*
+   * 메뉴 치수. **여기 하나만 갈아끼우면 모바일 배치가 됩니다** (`body.mobile`).
+   * 화면마다 px 를 직접 적기 시작하면 다음에 조정할 때 아홉 개 화면을 다시 훑어야 합니다.
+   */
+  --ui-title: 34px;
+  --ui-card: 15px;
+  --ui-pad-x: 32px;
+  --ui-pad-y: 28px;
+  --ui-gap: 10px;
   font-family: 'Pretendard', 'Malgun Gothic', system-ui, sans-serif;
 }
 
@@ -29,7 +39,13 @@ body {
 #app {
   position: relative;
   width: 100vw;
+  /*
+   * **모바일에서 `vh` 는 주소창이 접힌 상태의 높이입니다.** 실제로 보이는 영역보다
+   * 커서 화면 아래쪽이 주소창 뒤로 숨습니다. `dvh` 는 지금 보이는 높이를 따라옵니다.
+   * `vh` 를 먼저 두는 것은 `dvh` 를 모르는 브라우저를 위한 것입니다
+   */
   height: 100vh;
+  height: 100dvh;
   display: grid;
   place-items: center;
 }
@@ -63,7 +79,7 @@ body {
   background: rgba(13, 16, 23, 0.96);
   border: 1px solid var(--line);
   border-radius: 14px;
-  padding: 28px 32px;
+  padding: var(--ui-pad-y) var(--ui-pad-x);
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7);
 }
 
@@ -103,7 +119,12 @@ body {
 
 .screen-body {
   flex: 1 1 auto;
+  /* flex 항목의 기본 최소 크기는 내용 높이입니다. 안 풀면 안 줄고 잘리기만 합니다 */
+  min-height: 0;
   overflow-y: auto;
+  /* 목록 끝에서 계속 밀 때 그 힘이 페이지로 새어 화면이 통째로 당겨지는 것을 막습니다 */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding-right: 4px;
 }
 
@@ -199,7 +220,8 @@ body {
 }
 
 .help-wrap:hover .help-btn,
-.help-wrap:focus-within .help-btn {
+.help-wrap:focus-within .help-btn,
+.help-wrap.open .help-btn {
   color: var(--accent);
   border-color: var(--accent);
 }
@@ -224,8 +246,10 @@ body {
   pointer-events: none;
 }
 
+/* `.open` 은 클릭으로 붙습니다. 폰에는 hover 가 없어서 이것만이 여는 길입니다 */
 .help-wrap:hover .help-pop,
-.help-wrap:focus-within .help-pop {
+.help-wrap:focus-within .help-pop,
+.help-wrap.open .help-pop {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);
@@ -378,7 +402,7 @@ body {
 
 .screen h1 {
   margin: 0 0 4px;
-  font-size: 34px;
+  font-size: var(--ui-title);
   letter-spacing: -0.02em;
 }
 
@@ -397,7 +421,7 @@ body {
 .rowlist {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--ui-gap);
 }
 
 .card {
@@ -412,7 +436,7 @@ body {
   padding: 14px 16px;
   color: var(--text);
   font-family: inherit;
-  font-size: 15px;
+  font-size: var(--ui-card);
   cursor: pointer;
   transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
 }
@@ -523,12 +547,6 @@ body {
   color: var(--accent);
   font-weight: 700;
   font-size: 18px;
-}
-
-.grid2 {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-  gap: 10px;
 }
 
 .stat-line {
@@ -1118,6 +1136,13 @@ body.hard #app::after {
  * 터치 조작 (모바일). PC 에서는 아예 안 붙습니다 (`ui/touch.ts`).
  *
  * 오버레이 밖에 달기 때문에 여기서 직접 화면 위에 띄웁니다.
+ *
+ * **크기 숫자는 여기 없습니다.** `touch.ts` 가 화면 높이에서 계산해 CSS 변수로
+ * 내려보냅니다. 양쪽에 적어두면 한쪽만 고쳤을 때 노브가 원 밖으로 나갑니다.
+ *
+ * **자리는 safe-area 를 봅니다.** 노치 기기를 가로로 들면 화면 가장자리 일부가
+ * 카메라와 홈 인디케이터에 먹힙니다. `viewport-fit=cover` 만 걸고 이걸 안 쓰면
+ * 버튼이 그 밑으로 들어갑니다.
  * ------------------------------------------------------------------------- */
 #touch {
   position: fixed;
@@ -1129,36 +1154,51 @@ body.hard #app::after {
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
+  --tc-skill: 104px;
+  --tc-pause: 50px;
 }
 
 #touch[hidden] {
   display: none;
 }
 
+.tc-zone,
 .tc-stick,
 .tc-skill,
-.tc-panel {
+.tc-pause {
   position: absolute;
-  pointer-events: auto;
   touch-action: none;
 }
 
-/* 이동 조이스틱. 왼손 엄지가 닿는 자리입니다 */
+/*
+ * 조이스틱이 손가락을 받는 구역. **보이지 않습니다.**
+ * 고정된 원 한가운데를 정확히 짚게 하면 화면을 안 보고 조작할 수가 없어서,
+ * 좌하단 어디를 잡아도 그 자리가 중심이 되게 합니다.
+ */
+.tc-zone {
+  left: 0;
+  bottom: 0;
+  width: 50%;
+  height: 78%;
+  pointer-events: auto;
+}
+
+/* 잡은 자리에 떠오르는 원. 크기와 좌표는 전부 JS 가 인라인으로 넣습니다 */
 .tc-stick {
-  left: 20px;
-  bottom: 20px;
-  width: 132px;
-  height: 132px;
+  transform: translate(-50%, -50%);
   border-radius: 50%;
   border: 2px solid rgba(230, 235, 245, 0.22);
   background: rgba(13, 16, 23, 0.35);
   display: grid;
   place-items: center;
+  pointer-events: none;
+}
+
+.tc-stick[hidden] {
+  display: none;
 }
 
 .tc-knob {
-  width: 56px;
-  height: 56px;
   border-radius: 50%;
   background: rgba(230, 235, 245, 0.5);
   /* 손가락을 따라 움직이는 값이라 전환을 넣지 않습니다. 넣으면 조작이 밀립니다 */
@@ -1166,10 +1206,10 @@ body.hard #app::after {
 
 /* Q 버튼. 오른손 엄지 자리 */
 .tc-skill {
-  right: 22px;
-  bottom: 22px;
-  width: 108px;
-  height: 108px;
+  right: max(22px, env(safe-area-inset-right));
+  bottom: max(22px, env(safe-area-inset-bottom));
+  width: var(--tc-skill);
+  height: var(--tc-skill);
   border-radius: 50%;
   border: 2px solid rgba(255, 204, 77, 0.4);
   background: rgba(255, 204, 77, 0.12);
@@ -1178,6 +1218,7 @@ body.hard #app::after {
   display: grid;
   place-items: center;
   gap: 2px;
+  pointer-events: auto;
 }
 
 .tc-skill.ready {
@@ -1201,18 +1242,22 @@ body.hard #app::after {
   font-variant-numeric: tabular-nums;
 }
 
-/* 좌우 정보 패널 펴기 / 접기 */
-.tc-panel {
-  right: 18px;
-  top: 18px;
-  width: 52px;
-  height: 44px;
-  border-radius: 10px;
+/*
+ * 일시정지. **폰에는 Esc 가 없어서 이것이 판을 멈추는 유일한 길입니다.**
+ * 우상단인 이유는 HUD 가 그 자리를 비워두기 때문입니다 (`hud.ts` 의 `drawTopInfo`).
+ */
+.tc-pause {
+  right: max(18px, env(safe-area-inset-right));
+  top: max(14px, env(safe-area-inset-top));
+  width: var(--tc-pause);
+  height: var(--tc-pause);
+  border-radius: 12px;
   border: 1px solid var(--line);
   background: rgba(13, 16, 23, 0.6);
   color: var(--text);
-  font-size: 22px;
+  font-size: calc(var(--tc-pause) * 0.44);
   line-height: 1;
+  pointer-events: auto;
 }
 
 /*
@@ -1237,4 +1282,152 @@ body.hard #app::after {
   .rotate-hint {
     display: grid;
   }
+}
+
+/* ---------------------------------------------------------------------------
+ * 모바일 배치 (`body.mobile`, `main.ts` 의 `applyLayout`).
+ *
+ * **가운데 뜨는 상자를 버리고 화면을 꽉 채웁니다.** 상자 방식은 `92vh` 를 기준으로
+ * 크기를 잡는데, 폰의 `vh` 는 주소창이 접힌 높이라 상자 아래쪽이 화면 밖으로 나가
+ * 목록의 마지막 항목에 영영 못 닿았습니다. 전체 화면이 되면 그 계산 자체가 없어집니다.
+ *
+ * **판별은 터치 여부만이 아니라 화면 크기까지 봅니다** (`isMobileLayout`).
+ * 터치되는 노트북과 큰 태블릿은 PC 로 남습니다.
+ *
+ * 여기 한 덩어리로 모으는 이유는, 화면별 파일에 흩어두면 모바일을 손볼 때마다
+ * 아홉 곳을 다시 찾아다녀야 하기 때문입니다.
+ * ------------------------------------------------------------------------- */
+body.mobile {
+  --ui-title: 22px;
+  --ui-card: 14px;
+  --ui-pad-x: 16px;
+  --ui-pad-y: 14px;
+  --ui-gap: 8px;
+}
+
+/* 상자가 아니라 페이지입니다. 머리말은 고정되고 본문만 구릅니다 */
+body.mobile .screen,
+body.mobile .screen.narrow,
+body.mobile .screen.diff-screen {
+  position: fixed;
+  inset: 0;
+  width: auto;
+  height: auto;
+  max-height: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: rgba(9, 12, 18, 0.97);
+  padding-top: max(var(--ui-pad-y), env(safe-area-inset-top));
+  padding-left: max(var(--ui-pad-x), env(safe-area-inset-left));
+  padding-right: max(var(--ui-pad-x), env(safe-area-inset-right));
+  padding-bottom: max(var(--ui-pad-y), env(safe-area-inset-bottom));
+}
+
+body.mobile .screen .sub {
+  margin-bottom: 12px;
+  font-size: 12.5px;
+}
+
+/*
+ * 터치 타깃은 최소 44px 입니다. 그보다 작으면 엄지로 옆 카드를 누릅니다.
+ * 카드가 화면 폭을 다 쓰므로 세로만 확보하면 됩니다.
+ */
+body.mobile .card {
+  min-height: 44px;
+  padding: 10px 12px;
+}
+
+body.mobile .card .desc {
+  font-size: 12px;
+}
+
+/*
+ * 키 배지와 `ESC` 라벨은 지웁니다. **폰에 없는 키를 알려주는 자리입니다.**
+ * 카드는 눌러서 고르고, 나가기는 화살표를 누릅니다.
+ */
+body.mobile .card .key,
+body.mobile .back-btn .esc {
+  display: none;
+}
+
+body.mobile .back-btn {
+  /* 글자가 빠진 만큼 손가락이 닿을 넓이를 남깁니다 */
+  min-width: 44px;
+  min-height: 44px;
+  justify-content: center;
+}
+
+body.mobile .screen-head {
+  padding-right: 56px;
+}
+
+/* 탭 넷이 줄바꿈되면 머리말이 두 줄이 되어 목록이 그만큼 밀립니다 */
+body.mobile .tabs {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  margin-bottom: 12px;
+  padding-bottom: 4px;
+}
+
+body.mobile .tab {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+}
+
+body.mobile .topbar {
+  margin-bottom: 10px;
+}
+
+/*
+ * 난이도 화면.
+ * 두 칸으로 나눈 것은 넓은 화면에서 스크롤을 줄이려던 것이라 폰에서는 뜻이 없습니다.
+ * 높이 고정(`height: min(92vh, 820px)`)도 전체 화면이 되면서 필요가 없어졌습니다.
+ */
+body.mobile .diff-list {
+  grid-template-columns: 1fr;
+}
+
+body.mobile .diff-num {
+  font-size: 44px;
+}
+
+body.mobile .diff-arrow {
+  width: 44px;
+  height: 44px;
+}
+
+body.mobile .diff-scroll {
+  margin-top: 12px;
+}
+
+/* 일시정지 화면이 정보 패널을 겸합니다 (`showPause` 의 `mobile`) */
+.pause-stats {
+  margin: 14px 0;
+}
+
+/*
+ * 알림은 하단 **가운데**로 옮깁니다.
+ * 기본 자리(우하단)가 Q 버튼과 정확히 같은 좌표라, 판 중에 업적이 뜨면 유틸 스킬의
+ * 남은 쿨다운이 통째로 가려집니다. 조이스틱과 Q 사이는 비어 있습니다.
+ */
+body.mobile #toasts {
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: max(14px, env(safe-area-inset-bottom));
+  align-items: center;
+}
+
+/*
+ * 상점 첫 방문 도움말. 폰에서는 라벨 칸(84px)이 본문을 너무 좁힙니다
+ */
+body.mobile .shop-intro {
+  max-height: 82dvh;
+}
+
+body.mobile .shop-intro-row {
+  grid-template-columns: 1fr;
+  gap: 2px;
 }

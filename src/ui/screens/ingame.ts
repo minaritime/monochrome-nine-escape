@@ -1,6 +1,7 @@
-import { SKILL_BRANCH_LEVEL } from '../../data/balance';
+import { SKILL_BRANCH_LEVEL, STAT_DEFS } from '../../data/balance';
 import type { SkillBranchId } from '../../data/balance';
 import { UTILITY_KEY_LABEL, ownedSlots } from '../../game/player';
+import { formatStat } from '../../game/stats';
 import { getEnemyDef } from '../../enemies/registry';
 import { branchDef, branchMods, branchesFor, modsOf } from '../../skills/branches';
 import { getSkillDef } from '../../skills/registry';
@@ -169,7 +170,16 @@ function slotLabel(s: SkillSlot): string {
   return branch ? `${name}·${branch.name}` : name;
 }
 
-export function showPause(w: World, onResume: () => void, onQuit: () => void): () => void {
+/**
+ * 일시정지.
+ *
+ * @param mobile 좌우 정보 패널이 없는 배치인가.
+ *
+ * **폰에서는 이 화면이 정보 패널을 겸합니다.** 경기장만 남기느라 좌우 패널을 안
+ * 그리는데, 그러면 스탯과 스킬 목록을 볼 자리가 아예 없어집니다. 판 중에 계속
+ * 띄우면 경기장을 가리지만, 이건 멈춰서 보는 정보라 여기가 맞는 자리입니다.
+ */
+export function showPause(w: World, onResume: () => void, onQuit: () => void, mobile = false): () => void {
   clearOverlay();
 
   const attacks = w.player.attacks
@@ -180,16 +190,35 @@ export function showPause(w: World, onResume: () => void, onQuit: () => void): (
     : '없음';
   const skills = `공격  ${attacks}      ${UTILITY_KEY_LABEL} ${util}`;
 
-  const body = [
+  const body: Node[] = [
     h('div', { class: 'hint' }, [
       `생존 ${formatTime(w.time)} · 처치 ${w.stats.kills} · 코인 ${w.stats.coins}`,
       h('div', {}, [skills]),
     ]),
+  ];
+
+  // 패널이 없는 배치에서만 스탯을 폅니다. PC 는 바로 옆에 같은 것이 늘 떠 있습니다
+  if (mobile) {
+    body.push(
+      h(
+        'div',
+        { class: 'pause-stats' },
+        STAT_DEFS.map((def) =>
+          h('div', { class: 'stat-line' }, [
+            h('span', {}, [def.name]),
+            h('span', {}, [formatStat(def.key, w.player.stats[def.key])]),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  body.push(
     h('div', { class: 'rowlist' }, [
       card({ key: 'Esc', title: '계속하기', onClick: onResume }),
       card({ key: 'Q', title: '포기하고 상점으로', desc: '지금까지 모은 코인은 그대로 저장됩니다', onClick: onQuit }),
     ]),
-  ];
+  );
 
   overlayEl().append(screen('일시정지', '', body, 'narrow'));
 

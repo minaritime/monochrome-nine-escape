@@ -8,7 +8,7 @@ import { World } from './game/world';
 import { commitRun } from './meta/bestiary';
 import { loadSave, resetSave, saveGame } from './meta/save';
 import { Canvas2DRenderer } from './render/renderer';
-import { createTouchUi, isTouchDevice, type TouchUi } from './ui/touch';
+import { createTouchUi, isMobileLayout, isTouchDevice, type TouchUi } from './ui/touch';
 import { drawIdleBackground, drawWorld } from './render/scene';
 import { drawHud } from './ui/hud';
 import { clearOverlay } from './ui/screens/dom';
@@ -72,21 +72,76 @@ applyHardTheme();
 /**
  * 터치 조작 (모바일).
  *
- * **PC 에서는 아무것도 안 붙습니다.** 마우스만 있는 기기에 조이스틱을 띄우면
- * 화면만 가립니다.
+ * **만드는 것과 띄우는 것을 가릅니다.** 여기서는 터치가 되는 기기이면 만들어만
+ * 두고, 실제로 띄울지는 루프에서 `mobile` 을 보고 정합니다. 터치되는 노트북은
+ * `isTouchDevice()` 가 참이지만 마우스와 키보드가 있어서 조이스틱이 뜨면 화면만
+ * 가립니다. 이렇게 갈라두면 창 크기가 바뀌어도 다시 만들 필요가 없습니다.
  *
- * **폰에서는 좌우 패널을 접고 시작합니다.** 패널을 빼면 경기장만 남아 16:9 가 되어
- * 폰 가로 화면에 거의 딱 맞습니다. 스탯과 스킬은 우측 위 버튼으로 잠깐 폅니다.
+ * 마우스만 있는 기기에는 아예 안 만듭니다.
  */
-let panelsVisible = !isTouchDevice();
-const touchUi: TouchUi | null = isTouchDevice()
-  ? createTouchUi(input, () => {
-      panelsVisible = !panelsVisible;
-      renderer.setPanelsVisible(panelsVisible);
-    })
-  : null;
-renderer.setPanelsVisible(panelsVisible);
-window.addEventListener('resize', () => renderer.resize());
+const touchUi: TouchUi | null = isTouchDevice() ? createTouchUi(input) : null;
+
+/** 지금 모바일 배치인가. 회전하면 바뀌므로 `applyLayout` 이 갱신합니다 */
+let mobile = false;
+
+/**
+ * 기기에 맞는 배치를 겁니다. 시작할 때 한 번, 그 뒤로는 창 크기가 바뀔 때마다입니다.
+ *
+ * **`body.mobile` 하나로 메뉴 전체가 갈립니다.** 하드모드가 `body.hard` 로 색을
+ * 옮기는 것과 같은 방식이고, 화면 아홉 개에 분기를 따로 넣지 않아도 됩니다.
+ *
+ * **모바일에서는 좌우 정보 패널을 안 그립니다.** 예전에는 우측 위 버튼으로 폈다
+ * 접었는데, 요즘 폰 가로(20:9)에서는 접어도 경기장이 10% 커질 뿐이고 그 버튼이
+ * HUD 의 처치·코인 표시와 정확히 같은 자리였습니다. 스탯과 스킬 목록은 일시정지
+ * 화면에서 봅니다.
+ *
+ * **리사이즈 처리는 여기 하나입니다.** 예전에는 `Canvas2DRenderer` 생성자에도
+ * 리스너가 하나 있어서 두 번 돌았습니다.
+ */
+function applyLayout(): void {
+  mobile = isMobileLayout();
+  document.body.classList.toggle('mobile', mobile);
+  renderer.setPanelsVisible(!mobile);
+  renderer.resize();
+  touchUi?.resize();
+}
+
+applyLayout();
+window.addEventListener('resize', applyLayout);
+
+/**
+ * 전체화면과 가로 고정 (모바일).
+ *
+ * **자동으로는 못 켭니다.** 브라우저가 사용자 제스처 안에서만 허용하므로 판을
+ * 시작하는 그 순간에 겁니다. 주소창이 화면을 먹고 있으면 조이스틱이 손에 안 잡힙니다.
+ *
+ * **거부되는 것이 정상 경로입니다.** iPhone Safari 는 엘리먼트 전체화면을 아예
+ * 지원하지 않고, `orientation.lock` 은 데스크톱과 iOS 에서 거부합니다. 실패해도
+ * 게임은 그대로 돌아야 하므로 전부 삼킵니다. iPhone 에서 실제로 일하는 것은
+ * 전체화면이 아니라 CSS 의 `100dvh` 와 safe-area 쪽입니다.
+ *
+ * **부팅 점검(Node)에는 이 함수들이 없습니다.** 있는지 보고 부르지 않으면 점검이
+ * 통째로 터집니다.
+ */
+function enterFullscreen(): void {
+  if (!mobile) return;
+  const el = document.documentElement;
+  try {
+    if (!document.fullscreenElement && typeof el.requestFullscreen === 'function') {
+      void el.requestFullscreen().catch(() => {});
+    }
+    // **`window.` 를 붙여야 합니다.** 이 파일에는 `screen` 이라는 화면 상태 변수가
+    // 따로 있어서 전역 `screen` 을 가립니다
+    const orientation = window.screen?.orientation as
+      | (ScreenOrientation & { lock?: (o: string) => Promise<void> })
+      | undefined;
+    if (orientation && typeof orientation.lock === 'function') {
+      void orientation.lock('landscape').catch(() => {});
+    }
+  } catch {
+    // 지원하지 않는 기기입니다. 여백이 남을 뿐 게임은 그대로 돌아갑니다
+  }
+}
 
 /**
  * 하드모드의 겉모습을 화면에 반영합니다.
@@ -377,6 +432,9 @@ function seedFromUrl(): number | undefined {
 }
 
 function startRun(): void {
+  // 판을 시작하는 이 순간이 사용자 제스처 안입니다. 여기 말고는 전체화면을 걸 자리가
+  // 없습니다. 난이도 화면의 시작과 게임오버의 다시 하기가 둘 다 여기를 거칩니다
+  enterFullscreen();
   // 고른 난이도가 사라진(저장 데이터가 초기화된) 경우를 대비해 한 번 더 잘라둡니다.
   // 아래로는 DIFFICULTY.min 까지 허용합니다 (-1 은 해금과 무관하게 항상 고를 수 있습니다)
   difficulty = Math.max(DIFFICULTY.min, Math.min(difficulty, save.maxDifficulty));
@@ -396,6 +454,8 @@ function pauseRun(): void {
         finishRun(w);
         goMain();
       },
+      // 폰에는 좌우 패널이 없습니다. 스탯을 볼 자리가 여기뿐입니다
+      mobile,
     ),
   );
 }
@@ -475,9 +535,13 @@ const loop = new GameLoop({
     // 게임오버로 넘어가는 순간 방금 딴 업적이 멈춰 서면 읽을 수가 없습니다
     updateToasts(dt);
 
-    // 터치 조작은 판이 도는 동안에만 띄웁니다. 메뉴 위에 겹치면 카드를 가립니다
+    // 터치 조작은 판이 도는 동안에만 띄웁니다. 메뉴 위에 겹치면 카드를 가립니다.
+    //
+    // **`mobile` 도 같이 봅니다.** 터치되는 노트북은 `isTouchDevice()` 가 참이라
+    // 조작이 만들어지지만, 마우스와 키보드가 있는 기기에 조이스틱이 뜨면 화면만
+    // 가립니다. 만드는 것과 띄우는 것을 갈라두면 창 크기가 바뀌어도 알아서 따라옵니다
     if (touchUi) {
-      touchUi.setVisible(screen === 'playing');
+      touchUi.setVisible(mobile && screen === 'playing');
       touchUi.update(world);
     }
 
@@ -553,7 +617,7 @@ const loop = new GameLoop({
         screen === 'dying' ||
         screen === 'gameover'
       ) {
-        drawHud(renderer, world);
+        drawHud(renderer, world, mobile);
       }
       debug.draw(renderer, world, fps);
     } else {
