@@ -7,20 +7,36 @@ import type { Enemy, Projectile } from '../game/types';
 import type { World } from '../game/world';
 import type { Renderer } from './renderer';
 
+/** 경기장 바닥. **하드모드에서도 이 색은 안 바뀝니다** (아래 `drawWorld` 주석) */
 const BG = '#0d1017';
 const GRID = '#151b26';
 
+/**
+ * 경기장 **바깥**(좌우 정보 패널과 캔버스 여백)의 바닥색.
+ *
+ * 일반은 경기장과 같은 색이라 아무 경계도 안 보이고, 하드모드에서만 붉은 쪽으로
+ * 옮겨갑니다. **경기장 안은 어느 쪽이든 `BG` 그대로입니다** (2026-09-06 사용자 지시).
+ *
+ * `style.css` 의 `--bg` 와 **같은 값이어야 합니다.** 캔버스 밖 페이지 여백이 그 변수를
+ * 쓰기 때문에, 어긋나면 캔버스 가장자리에 이음매가 드러납니다.
+ */
+const PANEL_BG = '#0d1017';
+const PANEL_BG_HARD = '#150d10';
+
 /** 월드 전체를 그립니다. HUD 는 ui/hud.ts 가 따로 그립니다 */
 export function drawWorld(r: Renderer, w: World): void {
-  r.clear(BG);
+  // 캔버스 전체를 패널색으로 깔고, 경기장은 `drawArena` 가 그 위에 `BG` 로 덮습니다.
+  //
+  // **하드모드가 캔버스에서 바꾸는 것은 이 한 줄의 색뿐입니다** (2026-09-06 사용자 지시).
+  // 경기장 안은 게임이 벌어지는 자리라 색이 조금만 달라져도 적과 탄을 읽기 어려워집니다.
+  // 덧칠은 절대 넣지 마십시오. 예전에 화면 전체와 경기장 바닥에 각각 걸었다가
+  // 둘 다 되돌린 자리입니다.
+  // `scripts/smoke.ts` 16번이 "clear 색 하나만 다르다"를 직접 잽니다
+  r.clear(w.hard ? PANEL_BG_HARD : PANEL_BG);
   // 게임 좌표는 경기장 기준(0,0 ~ 1280,720)이라 좌측 패널 폭만큼 밀어서 그립니다
   r.begin(ARENA_X + w.effects.shakeX, w.effects.shakeY);
 
   drawArena(r);
-  // **하드모드라고 캔버스에 무엇을 덧칠하지 마십시오** (2026-09-06 사용자 지시).
-  // 경기장 안은 게임이 벌어지는 자리라 색이 조금만 달라져도 적과 탄을 읽기 어려워집니다.
-  // 하드모드의 겉모습은 **메뉴 배경과 페이지 여백에서만** 냅니다 (`body.hard`).
-  // `scripts/smoke.ts` 16번이 하드/일반의 그리기 호출이 완전히 같은지 잽니다
   drawHazards(r, w);
   drawTelegraphs(r, w);
   drawCoins(r, w);
@@ -37,15 +53,22 @@ export function drawWorld(r: Renderer, w: World): void {
   if (w.enemyTimeScale < 1) r.fullscreenTint('#7ea8ff', 0.07);
 }
 
-/** 메뉴 화면 뒤에 깔리는 빈 배경 */
-export function drawIdleBackground(r: Renderer): void {
-  r.clear(BG);
+/**
+ * 메뉴 화면 뒤에 깔리는 빈 배경.
+ *
+ * 판이 없으므로 하드 여부를 인자로 받습니다 (`main.ts` 가 `save.hardMode` 를 넘깁니다).
+ */
+export function drawIdleBackground(r: Renderer, hard = false): void {
+  r.clear(hard ? PANEL_BG_HARD : PANEL_BG);
   r.begin(ARENA_X, 0);
   drawArena(r);
   r.end();
 }
 
 function drawArena(r: Renderer): void {
+  // 경기장 바닥. **패널색 위를 덮어서 여기만 항상 같은 색으로 만듭니다.**
+  // 이 줄이 없으면 하드모드에서 경기장 안까지 붉어집니다
+  r.rect(0, 0, CANVAS.w, CANVAS.h, BG);
   const step = 80;
   for (let x = step; x < CANVAS.w; x += step) r.line(x, 0, x, CANVAS.h, GRID, 1, 1);
   for (let y = step; y < CANVAS.h; y += step) r.line(0, y, CANVAS.w, y, GRID, 1, 1);

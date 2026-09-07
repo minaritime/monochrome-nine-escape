@@ -3219,14 +3219,14 @@ console.log('16) 저장 데이터가 낡거나 망가졌을 때');
     );
   }
 
-  // **하드모드는 캔버스를 한 획도 바꾸면 안 됩니다** (2026-09-06 사용자 지시).
+  // **하드모드가 캔버스에서 바꾸는 것은 맨 처음 `clear` 한 줄뿐이어야 합니다**
+  // (2026-09-07 사용자 지시).
   //
-  // 처음에는 화면 전체를 덮었고 그다음에는 경기장 배경에만 걸었는데, 둘 다 인게임이
-  // 붉어져서 적과 탄을 읽기 어려웠습니다. 하드모드의 겉모습은 메뉴 배경과 페이지
-  // 여백(`body.hard`)에서만 냅니다.
+  // 경기장 **바깥**(좌우 정보 패널과 여백)은 붉어져도 되지만 **경기장 안은 안 됩니다.**
+  // 예전에 화면 전체와 경기장 바닥에 각각 덧칠을 걸었다가 둘 다 되돌린 자리라,
+  // 덧칠이 하나라도 다시 들어가면 여기서 잡힙니다.
   //
   // 색은 눈으로 볼 수밖에 없지만 **그리기 호출이 같은지는 잴 수 있습니다.**
-  // 덧칠이 하나라도 들어가면 호출 수가 달라집니다
   {
     const calls: string[] = [];
     const counting = new Proxy(recordingRenderer([]), {
@@ -3247,23 +3247,43 @@ console.log('16) 저장 데이터가 낡거나 망가졌을 때');
     const w = new World(sv, input, 909, 0);
     for (let i = 0; i < 120; i++) w.update(FIXED_DT);
 
+    // `World.hard` 는 판 시작에 굳는 값이라 저장을 바꿔도 안 따라옵니다.
+    // 같은 판을 두 번 그려야 하므로 여기서만 직접 갈아끼웁니다
     const draw = (hard: boolean): string[] => {
       calls.length = 0;
-      sv.hardMode = hard;
+      (w as unknown as { hard: boolean }).hard = hard;
       drawWorld(counting, w);
       return [...calls];
     };
 
     const plain = draw(false);
     const hard = draw(true);
-    sv.hardMode = false;
-    check('하드모드가 캔버스 그리기를 안 바꾼다', plain.length === hard.length, `${plain.length} vs ${hard.length}`);
-    check('그리기 내용도 같다', plain.join('|') === hard.join('|'));
+    (w as unknown as { hard: boolean }).hard = false;
+    check('그리기 호출 수가 같다', plain.length === hard.length, `${plain.length} vs ${hard.length}`);
 
-    // 메인 화면 배경도 마찬가지입니다
+    const differ = plain.map((c, i) => (c === hard[i] ? -1 : i)).filter((i) => i >= 0);
+    check(
+      '다른 것은 맨 처음 clear 한 줄뿐이다',
+      differ.length === 1 && differ[0] === 0 && plain[0].startsWith('clear('),
+      differ.map((i) => `${i}:${plain[i]} vs ${hard[i]}`).join(' / ') || '차이 없음',
+    );
+
+    // **경기장 바닥은 어느 쪽이든 같은 색이어야 합니다.** `clear` 바로 다음의
+    // `rect(0,0,1280,720,...)` 이 그 자리이고, 여기가 갈리면 인게임이 붉어집니다
+    const floor = (list: string[]): string | undefined => list.find((c) => c.startsWith('rect(0,0,1280,720'));
+    check('경기장 바닥은 하드에서도 같다', !!floor(plain) && floor(plain) === floor(hard), `${floor(plain)} vs ${floor(hard)}`);
+    check('바깥은 실제로 갈린다', plain[0] !== hard[0], `${plain[0]} vs ${hard[0]}`);
+
+    // 메인 화면 배경도 같은 규칙입니다
     calls.length = 0;
-    drawIdleBackground(counting);
-    check('메뉴 배경도 덧칠이 없다', !calls.some((c) => c.includes('rgba(255')), calls.length ? calls[calls.length - 1] : '');
+    drawIdleBackground(counting, false);
+    const idlePlain = [...calls];
+    calls.length = 0;
+    drawIdleBackground(counting, true);
+    const idleHard = [...calls];
+    check('메뉴 배경도 clear 하나만 다르다', idlePlain.length === idleHard.length && idlePlain.slice(1).join('|') === idleHard.slice(1).join('|'));
+    check('메뉴 배경도 경기장 바닥은 같다', floor(idlePlain) === floor(idleHard), `${floor(idlePlain)}`);
+    console.log(`   캔버스 그리기 ${plain.length}개 · 바깥 ${plain[0]} → ${hard[0]}`);
   }
 
   // 설정 기본값. **화면 흔들림은 절반에서 시작합니다.** 예전에 상수 하나로 쓰던

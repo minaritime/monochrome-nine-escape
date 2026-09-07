@@ -659,7 +659,7 @@ const loop = new GameLoop({
       }
       debug.draw(renderer, world, fps);
     } else {
-      drawIdleBackground(renderer);
+      drawIdleBackground(renderer, save.hardMode);
     }
   },
 });
