@@ -901,7 +901,7 @@ body {
 
 .screen-body::-webkit-scrollbar-thumb:hover,
 .diff-scroll::-webkit-scrollbar-thumb:hover {
-  background: #3d4a66;
+  background: color-mix(in srgb, var(--line) 55%, var(--muted));
   background-clip: padding-box;
 }
 
@@ -945,7 +945,7 @@ body {
   padding: 13px 18px;
   border-radius: 12px;
   border: 1px solid var(--accent);
-  background: linear-gradient(135deg, #1b2231, #141924);
+  background: linear-gradient(135deg, var(--panel-2), var(--panel));
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
   animation:
     toast-in 0.32s cubic-bezier(0.16, 1, 0.3, 1),
@@ -1122,7 +1122,7 @@ body {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  border: 1px solid #3a4256;
+  border: 1px solid var(--line);
   background: transparent;
 }
 
@@ -1179,12 +1179,20 @@ body {
  * 비네트(`#app::after`)까지 있어서 인게임이 통째로 붉었습니다.
  */
 body.hard {
-  --bg: #150d10;
-  --panel: #1a1216;
-  --panel-2: #241a1f;
-  --surface: rgba(23, 13, 16, 0.96);
-  --surface-2: rgba(18, 9, 12, 0.98);
-  --scrim: rgba(11, 5, 6, 0.74);
+  --bg: #2a0a0f;
+  --panel: #3a1119;
+  --panel-2: #4b1821;
+  --surface: rgba(42, 10, 15, 0.96);
+  --surface-2: rgba(30, 6, 10, 0.98);
+  --scrim: rgba(16, 3, 5, 0.8);
+  /*
+   * **`--line` 은 예외로 같이 옮깁니다** (2026-09-07).
+   *
+   * 원래는 안 건드리는 목록에 있었는데, 배경이 이만큼 붉어지고 나니 파란 회색
+   * 테두리(#2c3446)가 카드마다 남아서 **덜 칠해진 것처럼 보입니다.** 테두리는
+   * 뜻을 나르는 색(`--danger` · `--ok` · `--accent`)이 아니라 배경 계열입니다.
+   */
+  --line: #5e222c;
 }
 
 /* ---------------------------------------------------------------------------

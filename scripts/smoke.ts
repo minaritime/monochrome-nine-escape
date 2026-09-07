@@ -6,6 +6,7 @@
  *   npx esbuild scripts/smoke.ts --bundle --format=esm --platform=node --outfile=.smoke.mjs
  *   node .smoke.mjs
  */
+import { readFileSync } from 'node:fs';
 import {
   ALL_BOSS_IDS,
   BASE_STATS,
@@ -92,7 +93,7 @@ import { SKILL_FAMILY_LABEL, type SkillFamily } from '../src/skills/types';
 import { canTarget } from '../src/skills/targeting';
 import { generateSkillChoices, applySkillChoice, applyBranchChoice } from '../src/progression/skillChoice';
 import { NEUTRAL_MODS, branchesFor, modsOf } from '../src/skills/branches';
-import { drawIdleBackground, drawWorld } from '../src/render/scene';
+import { PANEL_BG, PANEL_BG_HARD, drawIdleBackground, drawWorld } from '../src/render/scene';
 import { drawHud } from '../src/ui/hud';
 import { isMobileLayout, isTouchDevice } from '../src/ui/touch';
 import type { Renderer, TextOptions } from '../src/render/renderer';
@@ -3283,6 +3284,20 @@ console.log('16) 저장 데이터가 낡거나 망가졌을 때');
     const idleHard = [...calls];
     check('메뉴 배경도 clear 하나만 다르다', idlePlain.length === idleHard.length && idlePlain.slice(1).join('|') === idleHard.slice(1).join('|'));
     check('메뉴 배경도 경기장 바닥은 같다', floor(idlePlain) === floor(idleHard), `${floor(idlePlain)}`);
+    // **세 값이 한 벌입니다.** 캔버스 패널색(`PANEL_BG`)과 페이지 여백(`--bg`)이
+    // 어긋나면 캔버스 가장자리에 띠가 다시 드러납니다. 색은 눈으로 볼 수밖에 없지만
+    // **같은 값인지는 잴 수 있습니다.** 눈에 맡기면 한쪽만 고치는 날이 반드시 옵니다
+    {
+      const css = readFileSync('src/style.css', 'utf8');
+      const bgOf = (selector: string): string => {
+        const block = css.slice(css.indexOf(selector));
+        const m = /--bg:\s*([^;]+);/.exec(block.slice(0, block.indexOf('}')));
+        return m ? m[1].trim() : '없음';
+      };
+      check('일반 여백이 캔버스 패널색과 같다', bgOf(':root {') === PANEL_BG, `${bgOf(':root {')} vs ${PANEL_BG}`);
+      check('하드 여백이 캔버스 패널색과 같다', bgOf('body.hard {') === PANEL_BG_HARD, `${bgOf('body.hard {')} vs ${PANEL_BG_HARD}`);
+    }
+
     console.log(`   캔버스 그리기 ${plain.length}개 · 바깥 ${plain[0]} → ${hard[0]}`);
   }
 

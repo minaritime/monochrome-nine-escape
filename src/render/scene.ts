@@ -20,8 +20,8 @@ const GRID = '#151b26';
  * `style.css` 의 `--bg` 와 **같은 값이어야 합니다.** 캔버스 밖 페이지 여백이 그 변수를
  * 쓰기 때문에, 어긋나면 캔버스 가장자리에 이음매가 드러납니다.
  */
-const PANEL_BG = '#0d1017';
-const PANEL_BG_HARD = '#150d10';
+export const PANEL_BG = '#0d1017';
+export const PANEL_BG_HARD = '#2a0a0f';
 
 /** 월드 전체를 그립니다. HUD 는 ui/hud.ts 가 따로 그립니다 */
 export function drawWorld(r: Renderer, w: World): void {
