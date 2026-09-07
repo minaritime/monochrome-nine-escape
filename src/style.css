@@ -11,6 +11,18 @@
   --ok: #6ee7a0;
 
   /*
+   * 반투명 표면. 색이 있는데도 변수로 안 뽑혀 있던 자리들입니다.
+   *
+   * `--panel` 계열과 달리 알파가 섞여 있어서 변수를 그대로 못 쓰고 rgba 를 직접
+   * 적어 두었는데, **`.screen` 은 메뉴에서 화면을 거의 다 덮는 면**입니다.
+   * 그게 고정값이면 하드모드를 켜도 카드 몇 장 말고는 아무것도 안 바뀝니다.
+   * 색이 있는 면은 예외 없이 여기를 거쳐야 합니다.
+   */
+  --surface: rgba(13, 16, 23, 0.96);
+  --surface-2: rgba(9, 12, 18, 0.98);
+  --scrim: rgba(5, 7, 11, 0.74);
+
+  /*
    * 메뉴 치수. **여기 하나만 갈아끼우면 모바일 배치가 됩니다** (`body.mobile`).
    * 화면마다 px 를 직접 적기 시작하면 다음에 조정할 때 아홉 개 화면을 다시 훑어야 합니다.
    */
@@ -76,7 +88,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: rgba(13, 16, 23, 0.96);
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: var(--ui-pad-y) var(--ui-pad-x);
@@ -237,7 +249,7 @@ body {
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: rgba(9, 12, 18, 0.98);
+  background: var(--surface-2);
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6);
   opacity: 0;
   visibility: hidden;
@@ -319,7 +331,7 @@ body {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(5, 7, 11, 0.74);
+  background: var(--scrim);
   animation: modal-fade 140ms ease;
 }
 
@@ -340,7 +352,7 @@ body {
   padding: 26px 28px 22px;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: rgba(13, 16, 23, 0.98);
+  background: var(--surface);
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7);
   animation: modal-rise 160ms cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -1141,6 +1153,10 @@ body {
  * `--accent` 는 가격과 강조를 나르는 색이라 뜻이 흐려집니다.
  * (`--danger` 와 `--ok` 를 원래부터 안 옮긴 것과 같은 이유입니다.)
  *
+ * **넓은 면은 반드시 `--surface` 계열을 거칩니다.** `.screen` 은 메뉴에서 화면을
+ * 거의 다 덮는 면인데, 예전에는 알파가 섞였다는 이유로 rgba 를 직접 적어 두어서
+ * 하드모드를 켜도 카드 몇 장 말고는 아무것도 안 바뀌었습니다.
+ *
  * **캔버스에는 아무것도 안 덮습니다.** 경기장 안은 게임이 벌어지는 자리라
  * 색이 조금만 달라져도 적과 탄을 읽기 어려워집니다. 예전에는 화면 전체를 덮는
  * 비네트(`#app::after`)까지 있어서 인게임이 통째로 붉었습니다.
@@ -1149,6 +1165,9 @@ body.hard {
   --bg: #150d10;
   --panel: #1a1216;
   --panel-2: #241a1f;
+  --surface: rgba(23, 13, 16, 0.96);
+  --surface-2: rgba(18, 9, 12, 0.98);
+  --scrim: rgba(11, 5, 6, 0.74);
 }
 
 /* 캔버스 바깥 여백. 게임 화면이 아니라 그 뒤에 깔리는 자리입니다 */
@@ -1341,7 +1360,7 @@ body.mobile .screen.diff-screen {
   border: none;
   border-radius: 0;
   box-shadow: none;
-  background: rgba(9, 12, 18, 0.97);
+  background: var(--surface-2);
   padding-top: max(var(--ui-pad-y), env(safe-area-inset-top));
   padding-left: max(var(--ui-pad-x), env(safe-area-inset-left));
   padding-right: max(var(--ui-pad-x), env(safe-area-inset-right));
