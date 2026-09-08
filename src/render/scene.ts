@@ -1,6 +1,7 @@
 import { ARENA_X, CANVAS, DEATH_BURST, ELITE, ENEMY_BULLET, ENEMY_PARAMS, PLAYER } from '../data/balance';
 import { TAU } from '../core/math';
 import { bomberBlastRadius, cowardEnraged, rangedAimTime } from '../enemies/behaviors/special';
+import { priestRadius } from '../enemies/behaviors/advanced';
 import { eliteMul } from '../enemies/elite';
 import { mummyReviveDelay } from '../enemies/update';
 import type { Enemy, Projectile } from '../game/types';
@@ -288,6 +289,11 @@ function drawEnemy(r: Renderer, e: Enemy, w: World): void {
 
   if (e.burnTime > 0) r.ring(e.x, e.y, e.radius + 3, '#ff9a3c', 1.5, 0.5 * alpha);
   if (e.slow < 1) r.ring(e.x, e.y, e.radius + 5, '#9be7c4', 1, 0.45 * alpha);
+  // 사제가 걸어준 재생. 화상 중에는 회복이 멈추므로 링도 흐려집니다
+  if (e.regenTime > 0) {
+    const on = e.burnTime > 0 ? 0.2 : 0.8;
+    r.ring(e.x, e.y, e.radius + 8 + Math.sin(w.time * 6) * 1.5, '#a8f0e0', 2, on * alpha);
+  }
 
   // 체력바 (다친 적만. 정예는 멀쩡해도 항상 보여서 눈에 띕니다).
   // 무적이면 깎일 일이 없으므로 아예 안 그립니다. 안 줄어드는 막대는 오해만 만듭니다
@@ -482,6 +488,22 @@ function drawEnemyExtras(r: Renderer, e: Enemy, w: World, alpha: number): void {
     case 'summoner':
       r.ring(e.x, e.y, e.radius + 4 + Math.sin(w.time * 3) * 2, e.def.color, 1.5, 0.5 * alpha);
       break;
+    case 'priest': {
+      // 능력이 닿는 반경을 늘 띄웁니다. 이 안의 적이 회복되므로,
+      // 안 보여주면 왜 안 죽는지 알 수가 없습니다 (장판적 미리보기와 같은 규칙)
+      const pr = priestRadius(e, w);
+      r.circle(e.x, e.y, pr, e.def.color, 0.06 * alpha);
+      r.ring(e.x, e.y, pr, e.def.color, 1, 0.22 * alpha);
+      // 쿨다운이 차오르는 링. 다 차면 그 순간 능력이 나갑니다
+      const P = ENEMY_PARAMS.priest;
+      const fill = 1 - Math.max(0, e.state.timer3) / P.cooldown;
+      r.ring(e.x, e.y, e.radius + 5, e.def.accent, 2, (0.25 + fill * 0.6) * alpha);
+      // 십자 표식. 칠각형 안에 있어서 실루엣만으로도 사제인 것이 읽힙니다
+      const h = e.radius * 0.5;
+      r.line(e.x - h, e.y, e.x + h, e.y, e.def.accent, 2.5, 0.85 * alpha);
+      r.line(e.x, e.y - h, e.x, e.y + h, e.def.accent, 2.5, 0.85 * alpha);
+      break;
+    }
     case 'mummy': {
       // 몸을 가로지르는 붕대 줄무늬. 원형 다섯 종 중 이것만의 실루엣입니다
       for (let i = -1; i <= 1; i++) {

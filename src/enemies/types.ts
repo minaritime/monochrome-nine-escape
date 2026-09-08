@@ -44,5 +44,6 @@ export interface EnemyDef {
     | 'summoner'
     | 'mummy'
     | 'stealth'
+    | 'priest'
     | 'boss';
 }

@@ -250,6 +250,13 @@ export interface Enemy {
   revived: boolean;
   /** 매초 빠져나가는 최대 체력의 비율. 0 이면 없습니다 (미라 부활 후) */
   hpDrainRatio: number;
+  /**
+   * 사제가 걸어준 재생이 남은 시간. 0 이면 재생 중이 아닙니다.
+   *
+   * 회복량은 `ENEMY_PARAMS.priest.regenRatio` 한 곳에서 읽습니다. 출처가 사제
+   * 하나뿐이라 개체마다 다른 비율을 들고 다닐 이유가 없습니다.
+   */
+  regenTime: number;
   /** 이동속도가 매초 이만큼 줄어 speedFloor 까지 내려갑니다. 0 이면 없습니다 */
   speedDecay: number;
   speedFloor: number;

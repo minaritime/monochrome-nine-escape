@@ -9,6 +9,15 @@ import {
   type StatKey,
 } from './balance';
 import { ALL_ENEMY_IDS } from '../enemies/registry';
+
+/**
+ * 하드 전용 적을 뺀 목록.
+ *
+ * **"적 N종 전부"를 세는 업적은 반드시 이걸 써야 합니다.** 하드 전용 적을 세면
+ * 하드모드를 안 연 사람은 그 업적을 영영 못 깹니다. 히든 업적과 달리 이건
+ * 진행도 100% 를 막아버립니다.
+ */
+const NORMAL_ENEMY_IDS = ALL_ENEMY_IDS.filter((id) => !ENEMY_TABLE[id].hardOnly);
 import { eliteStatMul } from '../enemies/elite';
 import { isStatRollable } from '../game/stats';
 import { ownedSlots } from '../game/player';
@@ -319,10 +328,10 @@ export const ACHIEVEMENTS: readonly AchieveDef[] = [
   {
     id: 'death-collector',
     name: '사인 수집가',
-    desc: `적 ${ALL_ENEMY_IDS.length}종 전부에게 한 번씩 죽어봅니다`,
+    desc: `적 ${NORMAL_ENEMY_IDS.length}종 전부에게 한 번씩 죽어봅니다`,
     hidden: true,
     tiers: [{ coin: A.legend }],
-    check: (c) => ALL_ENEMY_IDS.every((id) => c.save.achieveStats.deathCauses.includes(id)),
+    check: (c) => NORMAL_ENEMY_IDS.every((id) => c.save.achieveStats.deathCauses.includes(id)),
   },
 
   // --- 5. 무피해 -----------------------------------------------------------

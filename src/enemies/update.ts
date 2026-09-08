@@ -60,7 +60,16 @@ export function updateEnemies(w: World, dt: number): void {
     // 체력 재생 (정예 탱커). 화력이 재생을 못 넘기면 영영 못 죽는다는 것이 요점입니다.
     // **화상 중에는 재생이 멈춥니다.** 지금 재생하는 적이 정예 탱커뿐이라
     // 사실상 화염방사기가 정예 탱커의 카운터가 됩니다 (그것이 의도입니다)
-    const regen = e.burnTime > 0 ? 0 : eliteRegenRatio(e);
+    // 사제가 걸어준 재생도 같은 자리에서 처리합니다.
+    // **타이머는 화상 중에도 계속 흐릅니다.** 멈추면 화상이 카운터가 아니라
+    // "잠깐 미루기"가 되어, 태워도 결국 같은 양을 회복합니다
+    let priestRegen = 0;
+    if (e.regenTime > 0) {
+      e.regenTime -= edt;
+      priestRegen = ENEMY_PARAMS.priest.regenRatio;
+    }
+
+    const regen = e.burnTime > 0 ? 0 : eliteRegenRatio(e) + priestRegen;
     if (regen > 0 && e.hp < e.maxHp) {
       e.hp = Math.min(e.maxHp, e.hp + e.maxHp * regen * edt);
       if (w.rng.chance(0.06)) w.effects.burst(e.x, e.y, 1, '#6ee7a0', 34, 2, 0.35);

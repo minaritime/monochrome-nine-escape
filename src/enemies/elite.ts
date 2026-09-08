@@ -20,7 +20,8 @@ export function eliteMul(
     | 'blastRadiusMul'
     | 'hazardRadiusMul'
     | 'revealRangeMul'
-    | 'reviveDelayMul',
+    | 'reviveDelayMul'
+    | 'auraRadiusMul',
 ): number {
   if (!e.elite) return 1;
   const trait = ELITE_TRAITS[e.defId as EnemyId];
@@ -55,7 +56,13 @@ export function eliteHas(e: Enemy, _w: World, key: 'splitAgain' | 'summonElite' 
 /** 값 자체를 대체하는 정예 수치. 없으면 fallback 을 그대로 씁니다 */
 export function eliteValue(
   e: Enemy,
-  key: 'hazardSlow' | 'hazardDamageMul' | 'shieldRatio' | 'shieldedDamageTaken' | 'brokenDamageTaken',
+  key:
+    | 'hazardSlow'
+    | 'hazardDamageMul'
+    | 'shieldRatio'
+    | 'shieldedDamageTaken'
+    | 'brokenDamageTaken'
+    | 'instantHealRatio',
   fallback: number,
 ): number {
   if (!e.elite) return fallback;

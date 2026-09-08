@@ -146,6 +146,8 @@ export class Spawner {
     const out: EnemyId[] = [];
     for (const id of ALL_ENEMY_IDS) {
       const bal = ENEMY_TABLE[id];
+      // 하드 전용 적은 평소 표에 아예 없습니다. 난이도 표가 열어줘야 나옵니다
+      if (bal.hardOnly && !w.diff.extraEnemies.includes(id)) continue;
       const byTime = w.time >= bal.unlockTime;
       const bySkill = bal.unlockSkills > 0 && w.skillsTaken >= bal.unlockSkills;
       if (!byTime && !bySkill) continue;

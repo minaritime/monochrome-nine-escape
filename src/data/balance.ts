@@ -270,7 +270,8 @@ export type EnemyId =
   | 'summoner'
   | 'shield'
   | 'mummy'
-  | 'stealth';
+  | 'stealth'
+  | 'priest';
 
 export interface EnemyBalance {
   speed: number;
@@ -286,6 +287,17 @@ export interface EnemyBalance {
   weight: number;
   /** 동시 존재 상한 (없으면 무제한) */
   maxAlive?: number;
+  /**
+   * 하드모드 난이도로만 나오는 적인가.
+   *
+   * **켜져 있으면 평소 스폰 표에서 아예 빠집니다.** 난이도 표의 `enemyUnlock` 이
+   * 열어줘야 나옵니다. 시간·스킬 해금과는 다른 축이라 `unlockTime` 으로는 표현할 수
+   * 없습니다 (일반모드에서는 몇 분이 지나도 나오면 안 됩니다).
+   *
+   * "적 N종 전부"를 세는 곳(업적)에서도 빠져야 합니다. 하드를 안 연 사람이 영영 못
+   * 채우는 조건이 되면 안 됩니다.
+   */
+  hardOnly?: boolean;
 }
 
 export const ENEMY_TABLE: Record<EnemyId, EnemyBalance> = {
@@ -306,6 +318,9 @@ export const ENEMY_TABLE: Record<EnemyId, EnemyBalance> = {
   // 실질 체력은 이 값의 몇 배가 됩니다 (ENEMY_PARAMS.mummy 참고)
   mummy: { speed: 0.65, hp: 2.6, damage: 1.2, radiusMul: 1.25, xpMul: 3.0, unlockTime: 600, unlockSkills: 0, weight: 30 },
   stealth: { speed: 0.6, hp: 0.8, damage: 3.0, radiusMul: 1.0, xpMul: 3.4, unlockTime: 660, unlockSkills: 0, weight: 24, maxAlive: 3 },
+  // 사제 (하드 3). 도망 다니는 적이라 체력이 낮으면 존재 의미가 없습니다.
+  // 다만 소환적(7.5)만큼 두꺼우면 재생이 끊기지 않아서 그 중간에 두었습니다
+  priest: { speed: 0.85, hp: 2.0, damage: 0.7, radiusMul: 1.1, xpMul: 3.2, unlockTime: 0, unlockSkills: 0, weight: 26, maxAlive: 3, hardOnly: true },
 };
 
 /** 적별 개별 파라미터. 이동 패턴을 조정하는 손잡이입니다 */
@@ -504,6 +519,28 @@ export const ENEMY_PARAMS = {
    * 깜빡이기만 하고 정작 붙었을 때는 안 보이는 순간이 생겼습니다. 거리 기준이면
    * "붙으면 보인다"가 되어 접촉 피해가 가장 큰 적이라는 성격과 맞습니다.
    */
+  /**
+   * 사제 (하드 3): 주변의 적에게 재생을 겁니다.
+   *
+   * **자기 자신은 재생하지 않습니다.** 스스로 회복하면 도망 다니는 적이 혼자
+   * 안 죽는 적이 되어 성격이 통째로 바뀝니다.
+   *
+   * **화상이 이 재생의 카운터입니다.** 화상 중에는 회복이 멈추는데 3초 타이머는
+   * 계속 흐르므로, 태우는 동안 걸린 재생이 통째로 버려집니다. 시간까지 멈추면
+   * 카운터가 아니라 "잠깐 미루기"가 됩니다.
+   */
+  priest: {
+    /** 이 안에 플레이어가 들어오면 도망갑니다 */
+    fleeRange: 380,
+    /** 능력 재사용 대기. 정예도 같습니다 */
+    cooldown: 10,
+    /** 능력이 닿는 반경. 자폭적의 폭발 반경과 같은 값입니다 */
+    radius: 95,
+    /** 걸린 재생이 유지되는 시간 */
+    regenTime: 3.0,
+    /** 초당 회복량. **대상 자신의** 최대 체력 기준입니다 */
+    regenRatio: 0.10,
+  },
   stealth: {
     revealRange: 230,
     hiddenAlpha: 0.13,
@@ -627,6 +664,10 @@ export interface EliteTrait {
   hazardDamageMul?: number;
   /** 소환적: 정예 전용 행동 (강한 적 소환 + 순간이동) */
   summonElite?: boolean;
+  /** 사제: 능력이 닿는 반경 */
+  auraRadiusMul?: number;
+  /** 사제: 능력을 걸 때 대상들이 **잃은 체력**의 이만큼을 즉시 되찾습니다 */
+  instantHealRatio?: number;
   /** 방패적: 방패 내구도 = 최대 체력 x 이 값 */
   shieldRatio?: number;
   /** 방패적: 방패가 남아 있는 동안 받는 피해 배율 */
@@ -671,6 +712,8 @@ export const ELITE_TRAITS: Partial<Record<EnemyId, EliteTrait>> = {
   stealth: { revealRangeMul: 0.5 },
   /** 되살아나는 데 절반밖에 안 걸립니다 (3초 → 1.5초) */
   mummy: { reviveDelayMul: 0.5 },
+  /** 반경이 넓고, 거는 순간 대상들이 잃은 체력의 5% 를 즉시 되찾습니다 */
+  priest: { auraRadiusMul: 1.5, instantHealRatio: 0.05 },
 };
 
 // ---------------------------------------------------------------------------
@@ -762,6 +805,19 @@ export interface DifficultyStep {
    * 안 닿아서 그 배율을 만날 일이 없고, 결국 관통만 깎여 카운터 관계가 뒤집힙니다.
    */
   shieldDurabilityMul?: number;
+  /**
+   * 은신적이 숨어 있는 동안 완전히 투명해집니다 (하드 3).
+   * 평소에는 `ENEMY_PARAMS.stealth.hiddenAlpha` 만큼 희미하게 보입니다.
+   */
+  stealthDeep?: boolean;
+  /**
+   * 이 단계부터 나오기 시작하는 하드 전용 적.
+   *
+   * `ENEMY_TABLE` 에서 `hardOnly` 인 적은 평소 스폰 표에 아예 없습니다.
+   * 여기 적힌 것만 그 판에서 열립니다. 시간·스킬 해금과는 다른 축이라
+   * `unlockTime` 으로는 표현할 수 없습니다 (일반모드에서는 몇 분이 지나도 안 나옵니다).
+   */
+  enemyUnlock?: EnemyId;
 }
 
 /**
@@ -2140,7 +2196,7 @@ export const HARD = {
 export const HARD_DIFFICULTY_STEPS: readonly DifficultyStep[] = [
   { label: '거대 포식자 등장, 적 공격력 +10%', bossPredatorHard: true, damageMul: 1.1 },
   { label: '방패적 능력 강화, 적 공격력 +10% · 체력 +10%', shieldDurabilityMul: 6, damageMul: 1.1, hpMul: 1.1 },
-  { label: '스폰율 +10%', spawnRateMul: 1.1 },
+  { label: '사제적 등장, 은신적 능력 강화, 적 공격력 +20%', enemyUnlock: 'priest', stealthDeep: true, damageMul: 1.2 },
   { label: '적 체력 +10% · 이동속도 +5%', hpMul: 1.1, speedMul: 1.05 },
   { label: '적 공격력 +10%', damageMul: 1.1 },
   { label: '적 체력 +15%', hpMul: 1.15 },

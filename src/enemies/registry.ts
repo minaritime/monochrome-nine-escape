@@ -2,7 +2,7 @@ import type { BossId, EnemyId } from '../data/balance';
 import { BOSS_DEFS, isBossId } from './boss';
 import { bounce, chase, mummy, mummyOnLethal, puddleChase, puddleOnDeath, shieldBlocks, shielded } from './behaviors/simple';
 import { bomber, bomberIgnite, bomberInit, bomberOnDeath, coward, ranged, splitter, splitterOnDeath } from './behaviors/special';
-import { charger, stealth, summoner } from './behaviors/advanced';
+import { charger, priest, stealth, summoner } from './behaviors/advanced';
 import type { EnemyDef } from './types';
 
 /**
@@ -189,6 +189,21 @@ export const ENEMY_DEFS: Record<EnemyId, EnemyDef> = {
     pattern: '가까이 오면 모습을 드러냅니다. 드러난 동안에만 조준할 수 있습니다',
     behavior: stealth,
     extraDraw: 'stealth',
+  },
+  priest: {
+    id: 'priest',
+    name: '사제',
+    // 접촉 피해가 가장 낮은 축이라 차분한 한색입니다.
+    // 청록 계열이지만 소환적(#4dd2c4)보다 훨씬 밝아서 난전에서도 갈립니다
+    color: '#a8f0e0',
+    accent: '#d8fff5',
+    // 칠각형은 이 적만 씁니다 (탱커 6 · 장판 8 사이의 빈 자리).
+    // 발밑에 능력 반경을 늘 띄우므로 변 수만으로 구분할 일도 거의 없습니다
+    sides: 7,
+    faceMove: false,
+    pattern: '가까이 가면 도망갑니다. 주변의 적에게 체력 재생을 겁니다',
+    behavior: priest,
+    extraDraw: 'priest',
   },
 };
 

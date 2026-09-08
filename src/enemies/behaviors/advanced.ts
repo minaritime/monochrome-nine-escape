@@ -1,6 +1,6 @@
 import { CANVAS, ENEMY_PARAMS } from '../../data/balance';
 import { angleTo, dist } from '../../core/math';
-import { eliteHas, eliteMul } from '../elite';
+import { eliteHas, eliteMul, eliteValue } from '../elite';
 import type { Enemy } from '../../game/types';
 import type { World } from '../../game/world';
 import type { EnemyBehavior } from '../types';
@@ -235,7 +235,8 @@ export const stealth: EnemyBehavior = (e, w) => {
   e.state.flag = revealed;
 
   e.targetable = revealed;
-  e.alpha = revealed ? 1 : P.hiddenAlpha;
+  // 하드 3: 숨어 있는 동안 완전히 투명해집니다
+  e.alpha = revealed ? 1 : w.diff.stealthDeep ? 0 : P.hiddenAlpha;
 
   // 숨어 있는 동안에도 바닥에 흔적을 남겨 단서를 줍니다
   if (!revealed && w.rng.chance(0.12)) {
@@ -243,4 +244,49 @@ export const stealth: EnemyBehavior = (e, w) => {
   }
 
   moveToward(e, w.player.x, w.player.y);
+};
+
+// ---------------------------------------------------------------------------
+// 사제 (하드 3): 배회하다 플레이어가 가까워지면 도망갑니다.
+//   10초마다 주변의 적에게 3초짜리 재생을 겁니다. 자기 자신은 안 걸립니다.
+// ---------------------------------------------------------------------------
+
+/** 이 개체의 능력 반경. 정예는 1.5배입니다 (그리기 쪽도 이 값을 써야 합니다) */
+export function priestRadius(e: Enemy, w: World): number {
+  return ENEMY_PARAMS.priest.radius * eliteMul(e, 'auraRadiusMul') * w.diff.rangeMul;
+}
+
+export const priest: EnemyBehavior = (e, w, dt) => {
+  const P = ENEMY_PARAMS.priest;
+
+  if (dist(e.x, e.y, w.player.x, w.player.y) < P.fleeRange) {
+    moveAway(e, w.player.x, w.player.y);
+  } else {
+    wander(e, w, dt, 1.5, 0.5);
+  }
+  avoidWalls(e, CANVAS.w, CANVAS.h, 60);
+
+  // 소환적과 같은 이유로 timer3 입니다. wander 가 timer 를 1.5초마다 다시 채우기 때문에
+  // timer 를 쓰면 멀리 있는 사제는 능력을 영영 안 씁니다
+  e.state.timer3 -= dt;
+  if (e.state.timer3 > 0) return;
+  e.state.timer3 = P.cooldown;
+
+  const radius = priestRadius(e, w);
+  const instant = eliteValue(e, 'instantHealRatio', 0);
+  let touched = 0;
+  for (const o of w.enemies) {
+    // **자기 자신은 안 걸립니다.** 스스로 회복하면 도망 다니는 적이 혼자 안 죽는 적이
+    // 되어 성격이 통째로 바뀝니다
+    if (o === e || o.dead || o.downed > 0) continue;
+    if (dist(e.x, e.y, o.x, o.y) > radius + o.radius) continue;
+    // 중첩되지 않고 **시간만 갱신**됩니다
+    o.regenTime = P.regenTime;
+    // 정예는 거는 순간 잃은 체력의 일부를 즉시 되찾아 줍니다
+    if (instant > 0 && o.hp < o.maxHp) o.hp = Math.min(o.maxHp, o.hp + (o.maxHp - o.hp) * instant);
+    touched++;
+  }
+
+  w.effects.burst(e.x, e.y, 10, e.def.accent, 150, 3, 0.5);
+  if (touched > 0) w.effects.text(e.x, e.y - e.radius - 8, '재생', e.def.accent, 14);
 };

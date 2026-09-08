@@ -5,6 +5,7 @@ import {
   HARD,
   HARD_DIFFICULTY_STEPS,
   type DifficultyStep,
+  type EnemyId,
   type WaveSpec,
 } from '../data/balance';
 import type { SaveData } from './save';
@@ -49,6 +50,10 @@ export interface DifficultyMods {
   bossPredatorHard: boolean;
   /** 방패적의 방패 내구도 배율 (하드 2) */
   shieldDurabilityMul: number;
+  /** 은신적이 숨어 있는 동안 완전히 투명해집니다 (하드 3) */
+  stealthDeep: boolean;
+  /** 이 판에서 추가로 나오는 하드 전용 적 */
+  extraEnemies: EnemyId[];
   /** 판 종료 시 주운 코인에 곱해집니다 */
   coinMul: number;
   /** 보스가 떨어뜨리는 코인 개수에 곱해집니다 */
@@ -147,6 +152,8 @@ function applyStep(mods: DifficultyMods, step: DifficultyStep): void {
   if (step.foolInvuln) mods.foolInvuln = true;
   if (step.foolShotDirs !== undefined) mods.foolShotDirs = step.foolShotDirs;
   if (step.bossPredatorHard) mods.bossPredatorHard = true;
+  if (step.stealthDeep) mods.stealthDeep = true;
+  if (step.enemyUnlock && !mods.extraEnemies.includes(step.enemyUnlock)) mods.extraEnemies.push(step.enemyUnlock);
 }
 
 /**
@@ -187,6 +194,8 @@ export function difficultyMods(level: number, hard = false): DifficultyMods {
     foolInvuln: false,
     foolShotDirs: null,
     bossPredatorHard: false,
+    stealthDeep: false,
+    extraEnemies: [],
     coinMul: lv < 0 ? DIFFICULTY.easyCoinMul : 1 + lv * DIFFICULTY.coinMulPerLevel,
     // 보스 코인은 난이도 3당 +20%p. 다른 배율과 같이 합으로 쌓습니다 (3당 x1.2 를 곱하면 15단계에서 2.49 가 됩니다).
     // -1 은 전체 코인 배율에서 이미 30% 를 깎았으므로 여기서는 1 그대로 둡니다

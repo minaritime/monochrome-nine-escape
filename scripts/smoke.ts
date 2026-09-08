@@ -92,6 +92,7 @@ import { ALL_ENEMY_IDS, getEnemyDef } from '../src/enemies/registry';
 import { ALL_SKILL_IDS, getSkillDef, lv, makeSlot, slotCooldown } from '../src/skills/registry';
 import { ATTACK_SKILL_IDS, UTILITY_SKILL_IDS } from '../src/skills/registry';
 import { SKILL_FAMILY_LABEL, type SkillFamily } from '../src/skills/types';
+import { priestRadius } from '../src/enemies/behaviors/advanced';
 import { canTarget } from '../src/skills/targeting';
 import { generateSkillChoices, applySkillChoice, applyBranchChoice } from '../src/progression/skillChoice';
 import { NEUTRAL_MODS, branchesFor, modsOf } from '../src/skills/branches';
@@ -272,11 +273,15 @@ console.log('1) 14분 자동 플레이 (무적 · 스킬 자동 사용)');
   // 보스는 하나가 살아 있는 동안 다음이 나오지 않습니다. 못 잡으면 그 뒤로 보스가 끊깁니다
   const boss = w.enemies.find((e) => e.boss && !e.dead);
   const left = boss ? `${((boss.hp / boss.maxHp) * 100).toFixed(0)}%` : '없음';
-  const missing = ALL_ENEMY_IDS.filter((id) => !w.encountered.has(id));
+  // **하드 전용 적은 여기서 세지 않습니다.** 일반 판에는 몇 분이 지나도 안 나오는 것이
+  // 정상이라, 그것까지 세면 이 시험이 영영 안 통과합니다
+  const normalIds = ALL_ENEMY_IDS.filter((id) => !ENEMY_TABLE[id].hardOnly);
+  const missing = normalIds.filter((id) => !w.encountered.has(id));
   console.log(`   만난 종류 ${w.encountered.size} · 보스 등장 ${w.bossesSpawned}회 · 남은 보스 체력 ${left}`);
   if (missing.length) console.log(`   못 만난 종류 ${missing.join(', ')}`);
   check('보스가 등장했다', w.bossesSpawned >= 1, `${w.bossesSpawned}회`);
-  check('14분 안에 전 종류를 만났다', w.encountered.size >= 15, `${w.encountered.size}종`);
+  check('14분 안에 전 종류를 만났다', missing.length === 0, `못 만남 ${missing.join(',')}`);
+  check('하드 전용 적은 일반 판에 안 나온다', !w.encountered.has('priest'));
 }
 
 // ---------------------------------------------------------------------------
@@ -3324,17 +3329,23 @@ console.log('16) 저장 데이터가 낡거나 망가졌을 때');
     b.particleLevel = SETTINGS.particles.levels.length - 1;
     const wa = new World(a, input, 4242, 0);
     const wb = new World(b, input, 4242, 0);
+    let maxParticlesA = 0;
+    let maxParticlesB = 0;
     for (let i = 0; i < 600; i++) {
       wa.update(FIXED_DT);
       wb.update(FIXED_DT);
+      maxParticlesA = Math.max(maxParticlesA, wa.effects.particles.length);
+      maxParticlesB = Math.max(maxParticlesB, wb.effects.particles.length);
     }
     check(
       '파티클 설정이 달라도 같은 판이 나온다',
       wa.enemies.length === wb.enemies.length && wa.stats.kills === wb.stats.kills,
       `적 ${wa.enemies.length}/${wb.enemies.length} · 처치 ${wa.stats.kills}/${wb.stats.kills}`,
     );
-    check('파티클을 끄면 실제로 안 뿌린다', wa.effects.particles.length === 0, `${wa.effects.particles.length}`);
-    check('전체면 뿌린다', wb.effects.particles.length > 0);
+    check('파티클을 끄면 실제로 안 뿌린다', maxParticlesA === 0, `${maxParticlesA}`);
+    // **한 순간의 개수로 재면 안 됩니다.** 파티클은 금방 사라지므로 마지막 프레임에
+    // 마침 하나도 없을 수 있고, 그러면 밸런스를 만질 때마다 이 시험이 뒤집힙니다
+    check('전체면 뿌린다', maxParticlesB > 0, `${maxParticlesB}`);
   }
 
   // 배열이 아니거나 문자열이 아닌 것이 섞여 있어도 버팁니다
@@ -3664,6 +3675,8 @@ console.log('\n19) 하드 1: 거대 포식자');
 
     // 훑기가 보인 절반 / 벽 크기 / 타겟 가능 여부를 프레임마다 모읍니다
     const sides: string[] = [];
+    const pairs: [string, string][] = [];
+    let firstOfPair: string | null = null;
     let sawWall = false;
     let wallCoversHalf = true;
     let hiddenTargetable = false;
@@ -3677,7 +3690,15 @@ console.log('\n19) 하드 1: 거대 포식자');
       if (s?.active) {
         sawWall = true;
         const key = `${s.axis}${s.side}`;
-        if (sides[sides.length - 1] !== key) sides.push(key);
+        if (sides[sides.length - 1] !== key) {
+          sides.push(key);
+          // flag 가 false 면 1차, true 면 2차입니다
+          if (!boss.state.flag) firstOfPair = key;
+          else if (firstOfPair) {
+            pairs.push([firstOfPair, key]);
+            firstOfPair = null;
+          }
+        }
         // 벽은 경기장 절반을 통째로 덮어야 합니다
         const spanW = s.halfW * 2;
         const spanH = s.halfH * 2;
@@ -3704,15 +3725,15 @@ console.log('\n19) 하드 1: 거대 포식자');
       Math.abs(fallX - playerAtFall.x) < 0.001 && Math.abs(fallY - playerAtFall.y) < 0.001,
     );
 
-    // 훑기는 두 번이고 2차는 반드시 반대편입니다
+    // 훑기는 두 번이고 2차는 반드시 반대편입니다.
+    // **순서가 아니라 단계(`state.flag`)로 짝을 짓습니다.** 목록의 짝수/홀수 자리로
+    // 나누면 판이 끝나며 한쪽만 기록된 경우에 짝이 통째로 밀립니다
     check('훑기가 최소 두 번 돈다', sides.length >= 2, `${sides.join(' → ')}`);
-    for (let i = 0; i + 1 < sides.length; i += 2) {
-      const a = sides[i];
-      const b = sides[i + 1];
-      if (!b) break;
+    for (const [a, b] of pairs) {
       // 'lr0' 처럼 앞 두 글자가 축, 마지막 한 글자가 절반입니다
       check(`${a} 다음은 같은 축의 반대편 (${b})`, a.slice(0, 2) === b.slice(0, 2) && a[2] !== b[2]);
     }
+    check('짝을 이룬 훑기가 있다', pairs.length >= 1, `${pairs.length}쌍`);
     console.log(`   훑은 절반 ${sides.join(' → ')}`);
   }
 
@@ -3809,6 +3830,109 @@ console.log('\n20) 하드 2: 방패적');
     check('관통은 하드 2 에서도 총량이 같다', now.pierce === hard.pierce);
     check('막히는 빌드는 확실히 늘어난다', hard.blocked > now.blocked * 2.5, `${hard.blocked}배`);
     console.log(`   총 피해 (본체 체력 기준) · 관통 ${hard.pierce.toFixed(2)}배 (지금 ${now.pierce.toFixed(2)}) · 막히는 ${hard.blocked.toFixed(2)}배 (지금 ${now.blocked.toFixed(2)})`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 21) 하드 3: 사제적 (2026-09-08)
+// ---------------------------------------------------------------------------
+console.log('\n21) 하드 3: 사제적');
+{
+  const hardSave = (): SaveData => {
+    const s = emptySave();
+    s.hardMode = true;
+    s.hardUnlocked = true;
+    return s;
+  };
+  /**
+   * 재는 것이 "회복"이라 플레이어의 자동 공격을 꺼야 합니다.
+   * 안 끄면 회복량이 아니라 "회복 - 기본공격"을 재게 됩니다
+   */
+  const silent = (w: World): World => {
+    w.spawner.enabled = false;
+    w.player.stats.attack = 0;
+    return w;
+  };
+
+  // --- 스폰은 하드 3 부터입니다 ---
+  {
+    const h2 = new World(hardSave(), input, 4242, 2);
+    const h3 = new World(hardSave(), input, 4242, 3);
+    check('하드 2 까지는 사제가 안 열린다', !h2.diff.extraEnemies.includes('priest'));
+    check('하드 3 부터 사제가 열린다', h3.diff.extraEnemies.includes('priest'));
+    check('일반 15 에서도 안 열린다', !new World(emptySave(), input, 1, 15).diff.extraEnemies.includes('priest'));
+  }
+
+  // --- 능력: 주변 적을 회복시키고 자기 자신은 안 됩니다 ---
+  {
+    const w = silent(new World(hardSave(), input, 4242, 3));
+    const p = w.spawnEnemy('priest', 300, 300, {});
+    const near = w.spawnEnemy('basic', 300 + 40, 300, {});
+    const far = w.spawnEnemy('basic', 300 + 600, 300, {});
+    // 셋 다 반쯤 깎아두고 봅니다
+    for (const e of [p, near, far]) e.hp = e.maxHp * 0.5;
+    // 쿨이 돌 때까지 (10초) + 재생 3초
+    step(w, 13, true, false);
+
+    check('가까운 적은 회복한다', near.hp > near.maxHp * 0.6, `${(near.hp / near.maxHp * 100).toFixed(0)}%`);
+    check('먼 적은 회복 안 한다', far.hp <= far.maxHp * 0.51, `${(far.hp / far.maxHp * 100).toFixed(0)}%`);
+    check('사제 자신은 회복 안 한다', p.hp <= p.maxHp * 0.51, `${(p.hp / p.maxHp * 100).toFixed(0)}%`);
+    console.log(`   10초 뒤 · 가까운 적 ${(near.hp / near.maxHp * 100).toFixed(0)}% · 먼 적 ${(far.hp / far.maxHp * 100).toFixed(0)}% · 사제 ${(p.hp / p.maxHp * 100).toFixed(0)}%`);
+  }
+
+  // --- 화상이 재생의 카운터입니다 ---
+  {
+    const w = silent(new World(hardSave(), input, 4242, 3));
+    const target = w.spawnEnemy('basic', 300, 300, {});
+    target.hp = target.maxHp * 0.5;
+    target.regenTime = ENEMY_PARAMS.priest.regenTime;
+    // 화상은 지속 피해도 같이 넣으므로, 회복이 멈추는지만 보려고 피해를 0 으로 둡니다
+    target.burnTime = 5;
+    target.burnDps = 0;
+    const before = target.hp;
+    step(w, 2, true, false);
+    check('화상 중에는 회복이 멈춘다', Math.abs(target.hp - before) < 0.001, `${(target.hp - before).toFixed(2)}`);
+    // **타이머는 계속 흘렀어야 합니다.** 멈추면 카운터가 아니라 "잠깐 미루기"가 됩니다
+    check('재생 시간은 계속 흐른다', target.regenTime < ENEMY_PARAMS.priest.regenTime - 1.5, `${target.regenTime.toFixed(2)}`);
+  }
+
+  // --- 중첩되지 않고 시간만 갱신됩니다 ---
+  {
+    const w = silent(new World(hardSave(), input, 4242, 3));
+    const target = w.spawnEnemy('basic', 300, 300, {});
+    target.hp = target.maxHp * 0.5;
+    target.regenTime = 1.0;
+    const hpPerSec = target.maxHp * ENEMY_PARAMS.priest.regenRatio;
+    const before = target.hp;
+    step(w, 1, true, false);
+    // 두 번 걸렸다면 두 배로 찼을 것입니다
+    check('회복량이 중첩되지 않는다', target.hp - before < hpPerSec * 1.2, `${(target.hp - before).toFixed(1)} vs ${hpPerSec.toFixed(1)}`);
+  }
+
+  // --- 정예는 반경이 넓고 즉시 회복이 붙습니다 ---
+  {
+    const w = silent(new World(hardSave(), input, 4242, 3));
+    const plain = w.spawnEnemy('priest', 200, 200, {});
+    const elite = w.spawnEnemy('priest', 900, 200, { elite: true });
+    check('정예 사제는 반경이 넓다', priestRadius(elite, w) > priestRadius(plain, w) * 1.4);
+
+    // 정예가 걸면 그 순간 잃은 체력의 일부가 즉시 찹니다
+    const target = w.spawnEnemy('basic', 940, 200, {});
+    target.hp = target.maxHp * 0.5;
+    const at = target.hp;
+    elite.state.timer3 = 0.02;
+    step(w, 0.1, true, false);
+    check('정예는 거는 순간 즉시 회복시킨다', target.hp > at, `${(target.hp - at).toFixed(1)}`);
+  }
+
+  // --- 색과 모양 규칙 ---
+  {
+    const d = getEnemyDef('priest');
+    check('사제는 칠각형이다', d.sides === 7, `${d.sides}`);
+    check('사제는 차가운 색이다', (() => {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(d.color.slice(i, i + 2), 16));
+      return r - (g + b) / 2 < 0;
+    })());
   }
 }
 
