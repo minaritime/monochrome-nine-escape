@@ -93,7 +93,9 @@ export function updateEnemies(w: World, dt: number): void {
     const move = 1 - Math.min(slowAmount, STATUS.slowCap);
     e.x += (e.vx * move + e.knockVx) * edt;
     e.y += (e.vy * move + e.knockVy) * edt;
-    clampToArena(e, e.radius, 0);
+    // 특수 패턴 중인 포식자 보스는 화면 밖으로 물러났다가 반대편에서 들어옵니다.
+    // 여기서 가두면 이탈도 훑기도 성립하지 않습니다
+    if (!e.sweep) clampToArena(e, e.radius, 0);
   }
 }
 

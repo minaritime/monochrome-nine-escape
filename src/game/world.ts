@@ -4,6 +4,7 @@ import { compact } from '../core/pool';
 import { TAU, clamp, dist } from '../core/math';
 import {
   BOSS,
+  BOSS_PREDATOR_HARD,
   BOSS_VARIANTS,
   CANVAS,
   COIN,
@@ -371,7 +372,7 @@ export class World {
       if (e.dead || e.downed > 0) continue;
       if (dist(p.x, p.y, e.x, e.y) < e.radius + p.radius) {
         // 접촉 피해만 따로 오르는 난이도가 있습니다 (탄·장판·폭발은 damageMul 쪽에서 이미 처리)
-        this.damagePlayer(e.damage * this.diff.contactDamageMul, false, killerOf(e));
+        this.damagePlayer(e.damage * e.contactMul * this.diff.contactDamageMul, false, killerOf(e));
         return;
       }
     }
@@ -483,6 +484,8 @@ export class World {
       hpDrainRatio: 0,
       speedDecay: 0,
       speedFloor: 0,
+      contactMul: 1,
+      sweep: null,
       state: { timer: 0, timer2: 0, timer3: 0, phase: 0, angle: 0, flag: false, targetX: 0, targetY: 0 },
     };
 
@@ -548,8 +551,18 @@ export class World {
       hpDrainRatio: 0,
       speedDecay: 0,
       speedFloor: 0,
+      contactMul: 1,
+      sweep: null,
       state: { timer: 0, timer2: 0, timer3: 0, phase: 0, angle: 0, flag: false, targetX: 0, targetY: 0 },
     };
+    // 하드 1: 포식자만 거대 포식자가 됩니다.
+    // **`damage` 가 아니라 `contactMul` 을 올립니다.** `damage` 를 올리면 슬램 충격파도
+    // 같이 세지는데, "몸통은 치명적이지만 충격파는 원래대로"가 이 보스의 성격입니다
+    if (bossId === 'boss' && this.diff.bossPredatorHard) {
+      e.radius *= BOSS_PREDATOR_HARD.radiusMul;
+      e.contactMul = BOSS_PREDATOR_HARD.contactMul;
+    }
+
     // 종류마다 쓰는 타이머가 달라서 각 보스 정의가 직접 채웁니다
     def.init?.(e, this);
     this.enemies.push(e);

@@ -748,6 +748,8 @@ export interface DifficultyStep {
   foolInvuln?: boolean;
   /** 바보적이 튕길 때 쏘는 갈래 수를 이 값으로 갈아끼웁니다 */
   foolShotDirs?: number;
+  /** 포식자 보스가 거대 포식자가 됩니다 (하드 1). 표는 `BOSS_PREDATOR_HARD` */
+  bossPredatorHard?: boolean;
 }
 
 /**
@@ -945,6 +947,61 @@ export const BOSS_PREDATOR = {
   slamDamageMul: 0.8,
   summonInterval: 12,
   summonCount: 3,
+} as const;
+
+/**
+ * 하드 1 의 거대 포식자 (2026-09-08 사용자 확정).
+ *
+ * 포식자가 **몸통은 치명적이지만 충격파는 원래대로**인 보스가 되고,
+ * 돌진 세 번마다 한 번은 돌진 대신 **특수 패턴**을 씁니다.
+ *
+ * ```
+ * 이탈 0.5초 (무적 · 타겟 불가)
+ *   → 절반 훑기 1차 (예고 1.0초 → 통과)
+ *   → 절반 훑기 2차 (반드시 반대편 절반)
+ *   → 낙하 예고 1.5초 → 예고가 다 차는 순간 즉시 등장 + 즉시 피해
+ *   → 기절 3초
+ * ```
+ *
+ * **훑기는 몸이 지나가는 것이 아니라 경기장 절반을 덮는 벽입니다.** 그 안에서는
+ * 옆으로 비켜도 소용이 없고 **반대편 절반으로 건너가는 것**이 유일한 대응입니다.
+ * 그래서 "특수가 시작되면 가운데 경계선으로 붙는다"가 대비 방법이 됩니다.
+ *
+ * **1차가 어느 절반인지는 예고로만 알 수 있지만 2차는 반드시 반대편입니다.**
+ * 처음은 어렵고 그 뒤는 예측할 수 있게 하려는 것이라, 2차의 절반을 무작위로
+ * 바꾸지 마십시오. 그러면 배울 것이 없는 패턴이 됩니다.
+ *
+ * **낙하에는 떨어지는 연출이 없습니다.** 연출을 넣으면 예고가 다 찬 뒤에 공격이
+ * 오게 되어 "다 차는 순간 터진다"는 약속이 깨지고, 내려오는 몸이 화면을 가립니다.
+ */
+export const BOSS_PREDATOR_HARD = {
+  /** 몸통 접촉 피해 배수. 슬램은 이 값을 안 받습니다 */
+  contactMul: 5,
+  radiusMul: 1.5,
+  /** 몸이 커진 만큼 충격파도 같이 넓힙니다 (135 → 200) */
+  slamRadius: 200,
+  /** 평소 돌진 속도. 기본값(4.5)의 두 배입니다 */
+  chargeSpeedMul: 9.0,
+  /** 돌진 이 횟수마다 한 번은 돌진 대신 특수 패턴입니다 */
+  specialEveryCharges: 3,
+  exitTime: 0.5,
+  /**
+   * 훑기 예고.
+   *
+   * **이 값이 곧 회피 시간의 전부입니다.** 훑기가 초당 2400 이라 절반을 0.3~0.5초에
+   * 지나가므로, 예고가 끝난 뒤에는 사실상 움직일 틈이 없습니다.
+   * 이탈 0.5초를 더해 1.5초 안에 경계선을 넘어야 합니다.
+   */
+  sweepTelegraph: 1.0,
+  sweepSpeed: 2400,
+  /** 훑는 벽의 진행 방향 두께 */
+  sweepThickness: 132,
+  fallTelegraph: 1.5,
+  fallRadius: 260,
+  /** 낙하 피해 = 몸통 접촉 피해(x5 적용 후) x 이 값 */
+  fallDamageMul: 2,
+  /** 패턴이 끝나면 이만큼 무방비입니다. 위험을 넘긴 대가로 주어지는 딜 타임입니다 */
+  stunTime: 3.0,
 } as const;
 
 /**
@@ -2069,7 +2126,7 @@ export const HARD = {
  * 이 표에 섞어 넣으십시오.
  */
 export const HARD_DIFFICULTY_STEPS: readonly DifficultyStep[] = [
-  { label: '적 체력 +10%', hpMul: 1.1 },
+  { label: '거대 포식자 등장, 적 공격력 +10%', bossPredatorHard: true, damageMul: 1.1 },
   { label: '적 공격력 +10%', damageMul: 1.1 },
   { label: '스폰율 +10%', spawnRateMul: 1.1 },
   { label: '적 체력 +10% · 이동속도 +5%', hpMul: 1.1, speedMul: 1.05 },

@@ -12,6 +12,8 @@ import {
   BASE_STATS,
   BASE_WEIGHT,
   BOSS,
+  BOSS_PREDATOR,
+  BOSS_PREDATOR_HARD,
   SETTINGS,
   SKIP_UPGRADE,
   BOSS_SWARM,
@@ -62,7 +64,7 @@ import { addStat, createStats } from '../src/game/stats';
 import { openSlots, setSealed, togglePassive } from '../src/meta/shop';
 import { clampDifficulty, clearedAllFrom, difficultyKey, difficultyMods, unlockTimeFor } from '../src/meta/difficulty';
 import { commitRun } from '../src/meta/bestiary';
-import { emptySave, fromJSON } from '../src/meta/save';
+import { emptySave, fromJSON, type SaveData } from '../src/meta/save';
 import {
   attackSlotCount,
   buyPerm,
@@ -3614,6 +3616,136 @@ console.log('\n18) 하드모드 난이도');
   console.log(
     `   하드 0 체력 x${hard0.hpMul.toFixed(2)} (일반 15 는 x${normal15.hpMul.toFixed(2)}) · 하드 15 x${hard15.hpMul.toFixed(2)} · 코인 x${hard0.coinMul.toFixed(2)} → x${hard15.coinMul.toFixed(2)}`,
   );
+}
+
+// ---------------------------------------------------------------------------
+// 19) 하드 1: 거대 포식자 (2026-09-08)
+//
+// 이 패턴은 화면을 봐야만 알 수 있는 것이 많아 보이지만, 실제로 어긋나기 쉬운 곳은
+// 전부 숫자입니다. 특히 **판정과 그림이 같은 값을 보는가**(`sweep.halfW/halfH`)와
+// **2차가 반드시 반대편인가**가 그렇습니다.
+// ---------------------------------------------------------------------------
+console.log('\n19) 하드 1: 거대 포식자');
+{
+  const hardSave = (): SaveData => {
+    const s = emptySave();
+    s.hardMode = true;
+    s.hardUnlocked = true;
+    return s;
+  };
+
+  // --- 몸통만 치명적입니다 ---
+  {
+    const w = new World(hardSave(), input, 4242, 1);
+    w.spawner.enabled = false;
+    const boss = w.spawnBoss('boss');
+    const plain = new World(emptySave(), input, 4242, 0);
+    plain.spawner.enabled = false;
+    const plainBoss = plain.spawnBoss('boss');
+
+    check('하드 1 에서 포식자가 커진다', boss.radius > plainBoss.radius * 1.4, `${boss.radius.toFixed(0)}`);
+    check('몸통 접촉이 x5', boss.contactMul === BOSS_PREDATOR_HARD.contactMul, `${boss.contactMul}`);
+    check('일반 포식자는 x1', plainBoss.contactMul === 1);
+
+    // 슬램은 500% 를 안 받습니다. 몸통과 충격파의 세기가 갈려 있어야 합니다
+    const body = boss.damage * boss.contactMul * w.diff.contactDamageMul;
+    const slam = boss.damage * BOSS_PREDATOR.slamDamageMul;
+    check('슬램이 몸통보다 훨씬 약하다', slam < body / 4, `몸통 ${body.toFixed(0)} · 슬램 ${slam.toFixed(0)}`);
+    console.log(
+      `   몸통 ${body.toFixed(0)} · 슬램 ${slam.toFixed(0)} · 낙하 ${(body * BOSS_PREDATOR_HARD.fallDamageMul).toFixed(0)} (플레이어 체력 ${w.player.stats.maxHp.toFixed(0)})`,
+    );
+  }
+
+  // --- 특수 패턴이 실제로 돌아갑니다 ---
+  {
+    const w = new World(hardSave(), input, 909, 1);
+    w.spawner.enabled = false;
+    const boss = w.spawnBoss('boss');
+
+    // 훑기가 보인 절반 / 벽 크기 / 타겟 가능 여부를 프레임마다 모읍니다
+    const sides: string[] = [];
+    let sawWall = false;
+    let wallCoversHalf = true;
+    let hiddenTargetable = false;
+    let sawStun = false;
+    let fallX = -1;
+    let fallY = -1;
+    let playerAtFall = { x: 0, y: 0 };
+
+    step(w, 60, true, false, () => {
+      const s = boss.sweep;
+      if (s?.active) {
+        sawWall = true;
+        const key = `${s.axis}${s.side}`;
+        if (sides[sides.length - 1] !== key) sides.push(key);
+        // 벽은 경기장 절반을 통째로 덮어야 합니다
+        const spanW = s.halfW * 2;
+        const spanH = s.halfH * 2;
+        const ok = s.axis === 'lr' ? spanW === CANVAS.w / 2 : spanH === CANVAS.h / 2;
+        if (!ok) wallCoversHalf = false;
+      }
+      // 화면 밖에 있는 동안 자동 조준에 잡히면 안 됩니다
+      if (boss.y < -100 && boss.targetable) hiddenTargetable = true;
+      // 낙하 예고가 뜬 순간의 플레이어 자리를 적어둡니다
+      if (boss.state.phase === 13 && fallX < 0) {
+        fallX = boss.state.targetX;
+        fallY = boss.state.targetY;
+        playerAtFall = { x: w.player.x, y: w.player.y };
+      }
+      if (boss.state.phase === 14) sawStun = true;
+    });
+
+    check('특수 패턴에서 벽이 실제로 지나간다', sawWall);
+    check('벽이 경기장 절반을 덮는다', wallCoversHalf);
+    check('화면 밖에서는 타겟이 안 된다', !hiddenTargetable);
+    check('낙하 뒤 기절 단계가 온다', sawStun);
+    check(
+      '낙하 지점이 예고 시점의 플레이어 자리다',
+      Math.abs(fallX - playerAtFall.x) < 0.001 && Math.abs(fallY - playerAtFall.y) < 0.001,
+    );
+
+    // 훑기는 두 번이고 2차는 반드시 반대편입니다
+    check('훑기가 최소 두 번 돈다', sides.length >= 2, `${sides.join(' → ')}`);
+    for (let i = 0; i + 1 < sides.length; i += 2) {
+      const a = sides[i];
+      const b = sides[i + 1];
+      if (!b) break;
+      // 'lr0' 처럼 앞 두 글자가 축, 마지막 한 글자가 절반입니다
+      check(`${a} 다음은 같은 축의 반대편 (${b})`, a.slice(0, 2) === b.slice(0, 2) && a[2] !== b[2]);
+    }
+    console.log(`   훑은 절반 ${sides.join(' → ')}`);
+  }
+
+  // --- 일반모드에는 안 나옵니다 ---
+  {
+    const w = new World(emptySave(), input, 909, 15);
+    w.spawner.enabled = false;
+    const boss = w.spawnBoss('boss');
+    let sawSpecial = false;
+    step(w, 60, true, false, () => {
+      if (boss.sweep || boss.state.phase >= 10) sawSpecial = true;
+    });
+    check('일반 15 에서는 특수 패턴이 없다', !sawSpecial);
+    check('일반 15 의 포식자는 안 커진다', boss.contactMul === 1);
+  }
+
+  // --- 패턴이 끝나면 다시 경기장 안입니다 ---
+  //
+  // 화면 밖에 나가 있는 것은 특수 패턴 도중뿐이어야 합니다. 패턴이 끝났는데도
+  // 밖에 남아 있으면 잡을 수도 맞을 수도 없는 보스가 되어 판이 영영 안 끝납니다
+  {
+    const w = new World(hardSave(), input, 31337, 1);
+    w.spawner.enabled = false;
+    const boss = w.spawnBoss('boss');
+    let outsideWhileNormal = false;
+    step(w, 120, true, false, () => {
+      if (boss.sweep) return;
+      const out = boss.x < -boss.radius || boss.x > CANVAS.w + boss.radius || boss.y < -boss.radius || boss.y > CANVAS.h + boss.radius;
+      if (out) outsideWhileNormal = true;
+    });
+    check('패턴 밖에서는 항상 경기장 안이다', !outsideWhileNormal, `${boss.x.toFixed(0)},${boss.y.toFixed(0)}`);
+    check('보스 좌표가 정상이다', finite(boss.x, boss.y, boss.hp));
+  }
 }
 
 console.log(failures === 0 ? '\n전부 통과했습니다' : `\n실패 ${failures}건`);

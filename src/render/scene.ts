@@ -129,6 +129,31 @@ function drawTelegraphs(r: Renderer, w: World): void {
         if (fill > 0.02) r.line(fx + nx, fy + ny, fx - nx, fy - ny, t.color, 2, 0.85);
         break;
       }
+      case 'sweep': {
+        // 곧 훑고 지나갈 절반. `line` 과 자료는 같지만 사각형으로 그립니다.
+        // 폭이 640 이나 되면 둥근 끝이 320px 이나 튀어나와 실제 범위와 어긋납니다
+        const fill = 1 - k;
+        const horiz = Math.abs(t.x2 - t.x) > Math.abs(t.y2 - t.y);
+        const x0 = horiz ? Math.min(t.x, t.x2) : t.x - t.width / 2;
+        const y0 = horiz ? t.y - t.width / 2 : Math.min(t.y, t.y2);
+        const bw = horiz ? Math.abs(t.x2 - t.x) : t.width;
+        const bh = horiz ? t.width : Math.abs(t.y2 - t.y);
+        const fx = t.x + (t.x2 - t.x) * fill;
+        const fy = t.y + (t.y2 - t.y) * fill;
+
+        r.rect(x0, y0, bw, bh, t.color, 0.09);
+        if (fill > 0) {
+          if (horiz) r.rect(Math.min(t.x, fx), y0, Math.abs(fx - t.x), bh, t.color, 0.26);
+          else r.rect(x0, Math.min(t.y, fy), bw, Math.abs(fy - t.y), t.color, 0.26);
+        }
+        r.rectOutline(x0, y0, bw, bh, t.color, 2, 0.5);
+        // 차오른 앞머리. 다 차는 순간 이 선이 있던 자리로 벽이 들어옵니다
+        if (fill > 0.02) {
+          if (horiz) r.line(fx, y0, fx, y0 + bh, t.color, 2.5, 0.85);
+          else r.line(x0, fy, x0 + bw, fy, t.color, 2.5, 0.85);
+        }
+        break;
+      }
       case 'blast':
         r.ring(t.x, t.y, t.radius * (1.05 - k * 0.35), t.color, 3, k * 0.9);
         break;
@@ -219,6 +244,13 @@ function drawEnemy(r: Renderer, e: Enemy, w: World): void {
   const flash = e.hitFlash > 0;
   const color = flash ? '#ffffff' : e.def.color;
 
+  // 절반 훑기 중인 포식자는 원이 아니라 **벽**입니다 (하드 1).
+  // 판정과 같은 값을 써야 하므로 크기는 `e.sweep` 에서만 읽습니다
+  if (e.sweep?.active) {
+    drawSweepWall(r, e, color);
+    return;
+  }
+
   // 전원이 정예인 난이도(9 이상)에서는 표식을 감춥니다.
   // 정예 표식은 "저건 다르다"를 알리는 장치인데, 전부 정예면 알릴 차이가 없습니다.
   // 화면 전체가 붉은 링으로 덮여서 오히려 아무것도 안 보이게 됩니다
@@ -266,6 +298,25 @@ function drawEnemy(r: Renderer, e: Enemy, w: World): void {
     r.rect(x, y, wBar, 3, '#000000', 0.5 * alpha);
     r.rect(x, y, wBar * Math.max(0, e.hp / e.maxHp), 3, showElite ? '#ff6b6b' : '#8fe36b', 0.9 * alpha);
   }
+}
+
+/**
+ * 절반 훑기의 벽 (하드 1 거대 포식자).
+ *
+ * 판정이 사각형이므로 그림도 사각형이어야 합니다. 원으로 그리면 "몸에서 비켜섰는데
+ * 맞았다"가 되어 무엇에 맞았는지 알 수 없게 됩니다.
+ */
+function drawSweepWall(r: Renderer, e: Enemy, color: string): void {
+  const s = e.sweep;
+  if (!s) return;
+  const x = e.x - s.halfW;
+  const y = e.y - s.halfH;
+  const wBox = s.halfW * 2;
+  const hBox = s.halfH * 2;
+  r.rect(x, y, wBox, hBox, color, 0.95);
+  r.rectOutline(x, y, wBox, hBox, e.def.accent, 3, 0.9);
+  // 한가운데의 몸. 이것이 보스라는 것이 보여야 합니다
+  r.circle(e.x, e.y, Math.min(s.halfW, s.halfH) * 0.8, e.def.accent, 0.5);
 }
 
 /**

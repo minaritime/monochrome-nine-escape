@@ -253,7 +253,43 @@ export interface Enemy {
   /** 이동속도가 매초 이만큼 줄어 speedFloor 까지 내려갑니다. 0 이면 없습니다 */
   speedDecay: number;
   speedFloor: number;
+  /**
+   * 몸에 닿았을 때의 피해에만 곱해집니다 (하드 1 의 거대 포식자가 x5).
+   *
+   * **`damage` 를 직접 올리면 안 됩니다.** 그 값은 슬램 충격파도 같이 쓰는데,
+   * 거대 포식자는 "몸통은 치명적이지만 충격파는 원래대로"가 성격이라
+   * 한 값으로 묶으면 그 구분이 사라집니다.
+   */
+  contactMul: number;
+  /** 절반 훑기 중이면 벽 정보. null 이면 훑는 중이 아닙니다 */
+  sweep: BossSweep | null;
   state: EnemyState;
+}
+
+/**
+ * 포식자 보스의 절반 훑기 (하드 1 특수 패턴).
+ *
+ * 몸이 아니라 **경기장 절반을 덮는 벽**이 지나갑니다. 충돌과 그리기가
+ * 반드시 같은 값을 봐야 하므로 벽 크기를 여기 한 곳에만 둡니다.
+ */
+export interface BossSweep {
+  /** 'lr' = 좌/우 절반을 세로로 훑음, 'tb' = 상/하 절반을 가로로 훑음 */
+  axis: 'lr' | 'tb';
+  /** 0 = 좌(또는 상) 절반, 1 = 우(또는 하) 절반 */
+  side: 0 | 1;
+  /** 진행 방향 (+1 = 오른쪽/아래, -1 = 왼쪽/위) */
+  dir: 1 | -1;
+  /**
+   * 지금 실제로 벽이 지나가는 중인가.
+   *
+   * `sweep` 자체는 특수 패턴이 도는 내내 채워져 있습니다 (이탈 · 예고 · 낙하 예고
+   * 동안에도 다음 훑기가 어느 절반인지 기억해야 하기 때문입니다). 그 사이에는 벽이
+   * 없으므로, **충돌과 그리기는 반드시 이 값을 봐야 합니다.**
+   */
+  active: boolean;
+  /** 벽의 절반 크기. 충돌 판정과 그리기가 이 값을 함께 씁니다 */
+  halfW: number;
+  halfH: number;
 }
 
 export type ProjectileKind = 'bullet' | 'pierce' | 'homing' | 'lob' | 'mine' | 'orbit' | 'ricochet' | 'enemy';
@@ -423,8 +459,13 @@ export interface PendingBlast {
  * - line: 돌진 경로
  * - blast: 방금 터진 폭발 (뒤로 갈수록 옅어집니다)
  * - incoming: 곧 터질 자리 (뒤로 갈수록 진해지고 안이 차오릅니다)
+ * - sweep: 곧 훑고 지나갈 사각형 (포식자 보스의 절반 훑기)
+ *
+ * **`sweep` 은 `line` 과 자료는 같지만 그리는 법이 다릅니다.** `line` 은 둥근 끝을
+ * 쓰는데, 폭이 640 이나 되면 차오르는 앞머리가 반원으로 320px 이나 튀어나와
+ * 실제 위험 범위와 어긋나 보입니다. 그래서 사각형으로 따로 그립니다.
  */
-export type TelegraphKind = 'spawn' | 'line' | 'blast' | 'incoming';
+export type TelegraphKind = 'spawn' | 'line' | 'blast' | 'incoming' | 'sweep';
 
 export interface Telegraph {
   kind: TelegraphKind;
