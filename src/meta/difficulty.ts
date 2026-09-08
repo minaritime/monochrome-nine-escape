@@ -47,6 +47,8 @@ export interface DifficultyMods {
   foolShotDirs: number | null;
   /** 포식자 보스가 거대 포식자가 됩니다 (하드 1) */
   bossPredatorHard: boolean;
+  /** 방패적의 방패 내구도 배율 (하드 2) */
+  shieldDurabilityMul: number;
   /** 판 종료 시 주운 코인에 곱해집니다 */
   coinMul: number;
   /** 보스가 떨어뜨리는 코인 개수에 곱해집니다 */
@@ -130,6 +132,7 @@ function applyStep(mods: DifficultyMods, step: DifficultyStep): void {
   mods.bomberDamageMul = addMul(mods.bomberDamageMul, step.bomberDamageMul);
   mods.cowardPatienceMul = addMul(mods.cowardPatienceMul, step.cowardPatienceMul);
   mods.hazardDurationMul = addMul(mods.hazardDurationMul, step.hazardDurationMul);
+  mods.shieldDurabilityMul = addMul(mods.shieldDurabilityMul, step.shieldDurabilityMul);
   mods.clearTime += step.clearTimeAdd ?? 0;
   mods.skillChoices += step.skillChoiceAdd ?? 0;
 
@@ -172,6 +175,7 @@ export function difficultyMods(level: number, hard = false): DifficultyMods {
     bomberDamageMul: 1,
     cowardPatienceMul: 1,
     hazardDurationMul: 1,
+    shieldDurabilityMul: 1,
     clearTime: DIFFICULTY.baseClearTime,
     skillChoices: BASE_SKILL_CHOICES,
     wave: null,

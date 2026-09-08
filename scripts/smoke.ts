@@ -3748,5 +3748,69 @@ console.log('\n19) 하드 1: 거대 포식자');
   }
 }
 
+// ---------------------------------------------------------------------------
+// 20) 하드 2: 방패적 (2026-09-08)
+//
+// **내구도만 오르고 본체가 받는 피해는 안 바뀝니다.** 이게 이 칸의 전부이고,
+// 여기가 어긋나면 "관통이 방패적의 카운터"라는 관계가 통째로 뒤집힙니다.
+// ---------------------------------------------------------------------------
+console.log('\n20) 하드 2: 방패적');
+{
+  const hardSave = (): SaveData => {
+    const s = emptySave();
+    s.hardMode = true;
+    s.hardUnlocked = true;
+    return s;
+  };
+  const shieldOf = (w: World) => {
+    w.spawner.enabled = false;
+    return w.spawnEnemy('shield', 400, 400, {});
+  };
+
+  const before = shieldOf(new World(hardSave(), input, 55, 1));
+  const after = shieldOf(new World(hardSave(), input, 55, 2));
+  const normal15 = shieldOf(new World(emptySave(), input, 55, 15));
+
+  check('하드 1 까지는 방패 내구도가 그대로', Math.abs(before.shieldMax / before.maxHp - 0.5) < 0.001, `${(before.shieldMax / before.maxHp).toFixed(2)}`);
+  check('하드 2 에서 방패 내구도가 6배', Math.abs(after.shieldMax / after.maxHp - 3.0) < 0.001, `${(after.shieldMax / after.maxHp).toFixed(2)}`);
+  check('일반모드는 안 바뀐다', Math.abs(normal15.shieldMax / normal15.maxHp - 0.5) < 0.001);
+
+  // --- 관통은 완전히 그대로입니다 ---
+  {
+    const w = new World(hardSave(), input, 55, 2);
+    const e = shieldOf(w);
+    const hp0 = e.hp;
+    const shield0 = e.shieldHp;
+    w.damageEnemy(e, 100, { fromX: w.player.x, fromY: w.player.y, ignoreShield: true });
+    check('관통은 본체에 그대로 들어간다', Math.abs(hp0 - e.hp - 100) < 0.001, `${(hp0 - e.hp).toFixed(1)}`);
+    check('관통은 방패를 안 깎는다', e.shieldHp === shield0);
+  }
+
+  // --- 막히는 스킬은 방패에 통째로 버려집니다 ---
+  {
+    const w = new World(hardSave(), input, 55, 2);
+    const e = shieldOf(w);
+    e.facing = Math.atan2(w.player.y - e.y, w.player.x - e.x);
+    const hp0 = e.hp;
+    w.damageEnemy(e, 100, { fromX: w.player.x, fromY: w.player.y });
+    check('막히는 피해는 본체에 안 들어간다', e.hp === hp0);
+    check('막히는 피해는 방패를 깎는다', e.shieldHp < e.shieldMax);
+    check('한 방에 안 깨진다', e.shieldHp > 0, `${e.shieldHp.toFixed(0)}`);
+  }
+
+  // --- 죽이는 데 필요한 총 피해 (본체 체력 기준) ---
+  {
+    const kill = (durabilityRatio: number) => ({
+      pierce: 1,
+      blocked: durabilityRatio + 1,
+    });
+    const now = kill(0.5);
+    const hard = kill(3.0);
+    check('관통은 하드 2 에서도 총량이 같다', now.pierce === hard.pierce);
+    check('막히는 빌드는 확실히 늘어난다', hard.blocked > now.blocked * 2.5, `${hard.blocked}배`);
+    console.log(`   총 피해 (본체 체력 기준) · 관통 ${hard.pierce.toFixed(2)}배 (지금 ${now.pierce.toFixed(2)}) · 막히는 ${hard.blocked.toFixed(2)}배 (지금 ${now.blocked.toFixed(2)})`);
+  }
+}
+
 console.log(failures === 0 ? '\n전부 통과했습니다' : `\n실패 ${failures}건`);
 process.exit(failures === 0 ? 0 : 1);

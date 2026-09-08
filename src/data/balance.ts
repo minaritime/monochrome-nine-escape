@@ -750,6 +750,18 @@ export interface DifficultyStep {
   foolShotDirs?: number;
   /** 포식자 보스가 거대 포식자가 됩니다 (하드 1). 표는 `BOSS_PREDATOR_HARD` */
   bossPredatorHard?: boolean;
+  /**
+   * 방패적의 방패 내구도 배율 (하드 2).
+   *
+   * **피해 배율이 아니라 내구도입니다.** 방패는 정면 피해를 통째로 흡수하고
+   * 관통·폭발·화상·장판은 그냥 지나가므로, 내구도만 올리면 **관통 빌드는 전혀
+   * 영향이 없고 방패에 막히는 화력만 버려집니다.** 관통이 방패적의 카운터라는
+   * 성격을 그대로 두면서 나머지를 어렵게 만드는 자리입니다.
+   *
+   * 본체가 받는 피해에 배율을 걸면 안 됩니다. 방패에 막히는 스킬은 애초에 본체에
+   * 안 닿아서 그 배율을 만날 일이 없고, 결국 관통만 깎여 카운터 관계가 뒤집힙니다.
+   */
+  shieldDurabilityMul?: number;
 }
 
 /**
@@ -2127,7 +2139,7 @@ export const HARD = {
  */
 export const HARD_DIFFICULTY_STEPS: readonly DifficultyStep[] = [
   { label: '거대 포식자 등장, 적 공격력 +10%', bossPredatorHard: true, damageMul: 1.1 },
-  { label: '적 공격력 +10%', damageMul: 1.1 },
+  { label: '방패적 능력 강화, 적 공격력 +10% · 체력 +10%', shieldDurabilityMul: 6, damageMul: 1.1, hpMul: 1.1 },
   { label: '스폰율 +10%', spawnRateMul: 1.1 },
   { label: '적 체력 +10% · 이동속도 +5%', hpMul: 1.1, speedMul: 1.05 },
   { label: '적 공격력 +10%', damageMul: 1.1 },

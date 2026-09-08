@@ -424,8 +424,11 @@ export class World {
     // 체력 · 속도 · 공격력 · 크기 모두 종류별 정예 값이 있으면 그것으로 대체됩니다
     const maxHp =
       ENEMY_BASE.hp * bal.hp * scaling.hp * eliteStatMul(id, elite, 'hpMul') * (opts.hpMul ?? 1);
+    // 하드 2 는 내구도만 올립니다. 본체가 받는 피해는 안 건드리므로
+    // 관통·폭발·화상·장판은 지금과 똑같고, 방패에 막히는 화력만 버려집니다
     const shieldRatio = def.hasShield
-      ? (elite ? ELITE_TRAITS[id]?.shieldRatio ?? ENEMY_PARAMS.shield.durabilityRatio : ENEMY_PARAMS.shield.durabilityRatio)
+      ? (elite ? ELITE_TRAITS[id]?.shieldRatio ?? ENEMY_PARAMS.shield.durabilityRatio : ENEMY_PARAMS.shield.durabilityRatio) *
+        this.diff.shieldDurabilityMul
       : 0;
 
     const e: Enemy = {
