@@ -966,6 +966,61 @@ console.log('3-5) 감속은 곱하지 않고 더하는가');
   check('감속 상한이 완전 정지를 막는다', STATUS.slowCap < 1, `${STATUS.slowCap}`);
 }
 
+console.log('3-7) 넉백 폭발: 자기 체력으로는 절대 안 죽는가');
+{
+  const K = SKILLS.knockback;
+  const L = SKILL_MAX_LEVEL;
+  const top = K.damage + K.damagePerLevel * (L - 1);
+  console.log(
+    `   넉백 · Lv.1 ${Math.round(K.damage * 100)}% → 만렙 ${Math.round(top * 100)}% · 쿨 ${K.cooldown}초 (초당 ${(top / K.cooldown).toFixed(2)}배) · 대가 최대 체력 ${Math.round(K.selfDamageRatio * 100)}%`,
+  );
+
+  /** 체력을 지정한 비율로 맞춰놓고 Q 한 번을 누릅니다 */
+  const press = (hpRatio: number) => {
+    const w = new World(emptySave(), input, 7401);
+    w.spawner.enabled = false;
+    w.player.attacks.length = 0;
+    w.player.utility = makeSlot('knockback', 1);
+    w.player.x = 640;
+    w.player.y = 360;
+    const victim = w.spawnEnemy('basic', 700, 360, {});
+    victim.maxHp = 1e9;
+    victim.hp = 1e9;
+    w.player.hp = w.player.stats.maxHp * hpRatio;
+    const hp0 = w.player.hp;
+    const vhp0 = victim.hp;
+    const fired = getSkillDef('knockback').activate(w, w.player.utility);
+    return { fired, hp0, hp: w.player.hp, alive: w.player.alive, hurt: vhp0 - victim.hp };
+  };
+
+  // 대가(20%)와 정확히 같은 체력이면 쓰는 순간 0 이 됩니다. 거기까지 막습니다
+  const atLimit = press(K.selfDamageRatio);
+  console.log(`   체력 ${Math.round(K.selfDamageRatio * 100)}% 에서 · 발동 ${atLimit.fired} · 체력 ${atLimit.hp0.toFixed(0)} → ${atLimit.hp.toFixed(0)}`);
+  check('대가와 같은 체력에서는 안 나간다', !atLimit.fired);
+  check('안 나갔으면 체력도 안 깎인다', atLimit.hp === atLimit.hp0, `${atLimit.hp0} → ${atLimit.hp}`);
+  check('안 나갔으면 적도 안 맞는다', atLimit.hurt === 0, `${atLimit.hurt}`);
+
+  const below = press(0.05);
+  check('그보다 낮아도 안 나간다', !below.fired && below.alive);
+
+  // 바로 위에서는 나가고, 나가도 죽지 않습니다
+  const above = press(K.selfDamageRatio + 0.05);
+  console.log(`   체력 ${Math.round((K.selfDamageRatio + 0.05) * 100)}% 에서 · 발동 ${above.fired} · 체력 ${above.hp0.toFixed(0)} → ${above.hp.toFixed(0)} · 적 피해 ${above.hurt.toFixed(0)}`);
+  check('대가보다 많으면 나간다', above.fired);
+  check('나가면 대가를 치른다', above.hp < above.hp0, `${above.hp0.toFixed(0)} → ${above.hp.toFixed(0)}`);
+  check('그래도 살아 있다', above.alive && above.hp > 0, `${above.hp.toFixed(1)}`);
+  check('적이 실제로 맞는다', above.hurt > 0, `${above.hurt.toFixed(0)}`);
+
+  // 하한과 대가는 같은 상수여야 합니다. 갈라지면 "쓸 수는 있는데 쓰면 죽는" 구간이 생깁니다
+  const full = press(1);
+  check('가득 찬 체력에서는 당연히 나간다', full.fired);
+  check(
+    '대가는 최대 체력 기준이다',
+    Math.abs(full.hp0 - full.hp - full.hp0 * K.selfDamageRatio) < 0.01,
+    `${(full.hp0 - full.hp).toFixed(1)}`,
+  );
+}
+
 console.log('3-6) 오래 남는 투사체: 미사일 수명과 자폭 · 도탄은 명중 횟수로만 끝나는가');
 {
   // --- 수명이 쿨보다 넉넉해야 합니다 ---

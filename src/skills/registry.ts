@@ -671,9 +671,26 @@ export const SKILL_DEFS: Record<SkillId, SkillDef> = {
     levelText: (l) =>
       `반경 ${Math.round(lv(S.knockback.radius, S.knockback.radiusPerLevel, l))}` +
       ` · 공격력 ${Math.round(lv(S.knockback.damage, S.knockback.damagePerLevel, l) * 100)}%` +
-      ` · 기절 ${S.knockback.stun.toFixed(1)}초 · 내 체력 ${Math.round(S.knockback.selfDamageRatio * 100)}% 소모`,
+      ` · 기절 ${S.knockback.stun.toFixed(1)}초 · 내 체력 ${Math.round(S.knockback.selfDamageRatio * 100)}% 소모` +
+      ` (체력 ${Math.round(S.knockback.selfDamageRatio * 100)}% 이하면 발동 안 함)`,
     activate: (w, slot) => {
       const p = w.player;
+
+      // **이 스킬로는 죽지 않습니다** (2026-09-09). 남은 체력이 대가보다 적거나 같으면
+      // 아예 안 나갑니다. 자기 체력을 태우는 스킬이 자살 버튼을 겸하면, 위기에 쓰는
+      // 스킬인데 정작 위기에 못 쓰게 됩니다.
+      //
+      // **하한은 `selfDamageRatio` 그대로입니다.** 따로 숫자를 적으면 대가를 바꿀 때
+      // 한쪽만 고쳐서 "쓸 수는 있는데 쓰면 죽는" 구간이 다시 생깁니다.
+      //
+      // 발동을 안 하므로 쿨도 안 돕니다 (`tickSlot` 이 false 면 쿨을 안 겁니다).
+      // 대신 **왜 안 나갔는지 알려줘야 합니다.** 누른 사람 입장에서는 눌렀는데
+      // 아무 일도 안 일어난 것과 구분되지 않습니다
+      if (p.hp <= p.stats.maxHp * S.knockback.selfDamageRatio) {
+        w.effects.text(p.x, p.y - 34, '체력 부족', '#ff6b6b', 16);
+        return false;
+      }
+
       const radius = lv(S.knockback.radius, S.knockback.radiusPerLevel, slot.level);
       const mult = lv(S.knockback.damage, S.knockback.damagePerLevel, slot.level);
       for (const e of w.enemies) {
