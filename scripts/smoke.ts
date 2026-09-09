@@ -966,6 +966,125 @@ console.log('3-5) 감속은 곱하지 않고 더하는가');
   check('감속 상한이 완전 정지를 막는다', STATUS.slowCap < 1, `${STATUS.slowCap}`);
 }
 
+console.log('3-6) 오래 남는 투사체: 미사일 수명과 자폭 · 도탄은 명중 횟수로만 끝나는가');
+{
+  // --- 수명이 쿨보다 넉넉해야 합니다 ---
+  {
+    const M = SKILLS.missile;
+    console.log(`   미사일 쿨 ${M.cooldown}초 · 수명 ${M.life}초 (쿨의 ${(M.life / M.cooldown).toFixed(2)}배) · 사거리 ${(M.speed * M.life).toFixed(0)}px`);
+    // 겨눈 적이 죽으면 새 대상을 찾아 도는데, 그 사이에 다음 발사가 오고도
+    // 남을 만큼은 살아 있어야 "유도한다"는 성질이 벌이 되지 않습니다
+    check('미사일 수명이 쿨의 두 배는 된다', M.life >= M.cooldown * 2, `${M.life} vs ${M.cooldown}`);
+    check('미사일은 수명 안에 경기장을 가로지른다', M.speed * M.life > CANVAS.w, `${(M.speed * M.life).toFixed(0)}px`);
+  }
+
+  // --- 수명이 다한 미사일은 그 자리에서 터집니다 ---
+  {
+    const w = new World(emptySave(), input, 7301);
+    w.spawner.enabled = false;
+    w.player.attacks.length = 0;
+    w.player.x = 100;
+    w.player.y = 360;
+
+    // 발사할 대상 하나를 두고 쏜 뒤, 그 대상을 지워서 미사일을 미아로 만듭니다
+    const bait = w.spawnEnemy('basic', 300, 360, {});
+    getSkillDef('missile').activate(w, makeSlot('missile', 1));
+    const shots = w.projectiles.filter((q) => !q.dead && q.kind === 'homing');
+    check('미사일이 나갔다', shots.length > 0, `${shots.length}발`);
+    bait.dead = true;
+
+    // 미아가 된 미사일을 경기장 구석으로 옮기고, 그 옆에 희생양을 둡니다.
+    // 유도가 데려가지 않도록 수명을 거의 끝까지 당겨 놓습니다
+    const victim = w.spawnEnemy('tank', 1100, 200, {});
+    victim.maxHp = 1e9;
+    victim.hp = 1e9;
+    const before = victim.hp;
+    for (const q of shots) {
+      q.x = victim.x;
+      q.y = victim.y;
+      q.vx = 0;
+      q.vy = 0;
+      q.life = FIXED_DT * 0.5;
+    }
+    step(w, FIXED_DT * 2, true, false);
+    console.log(`   수명이 다한 미사일 ${shots.length}발 · 옆에 있던 적 체력 ${before} → ${victim.hp.toFixed(0)}`);
+    check('수명이 다하면 그 자리에서 터진다', victim.hp < before, `${(before - victim.hp).toFixed(1)} 피해`);
+    check('미사일은 사라진다', shots.every((q) => q.dead));
+  }
+
+  // --- 그 폭발도 방패는 존중합니다 ---
+  {
+    // 미사일이 방패에 막힌다는 약점을, 수명이 다할 때까지 기다리는 것으로
+    // 우회할 수 있으면 안 됩니다
+    const w = new World(emptySave(), input, 7302);
+    w.spawner.enabled = false;
+    w.player.attacks.length = 0;
+    // 방패는 **움직이는 방향**을 봅니다 (faceMove). 그 방향은 곧 플레이어 쪽이므로,
+    // 정면 판정을 재려면 플레이어를 폭발과 같은 쪽에 두어야 합니다.
+    // `facing` 을 손으로 넣어봐야 다음 프레임에 이동이 덮어씁니다
+    w.player.x = 1200;
+    w.player.y = 400;
+    const bait = w.spawnEnemy('basic', 1150, 400, {});
+    getSkillDef('missile').activate(w, makeSlot('missile', 1));
+    const shots = w.projectiles.filter((q) => !q.dead && q.kind === 'homing');
+    check('미사일은 방패를 안 무시한다', shots.every((q) => !q.ignoreShield));
+    bait.dead = true;
+
+    // 방패적을 정면으로 세우고 그 앞에서 터뜨립니다
+    const sh = w.spawnEnemy('shield', 1000, 400, {});
+    sh.maxHp = 1e9;
+    sh.hp = 1e9;
+    sh.shieldMax = 1e9;
+    sh.shieldHp = 1e9;
+    const hp0 = sh.hp;
+    const shield0 = sh.shieldHp;
+    for (const q of shots) {
+      q.x = sh.x + 20;
+      q.y = sh.y;
+      q.vx = 0;
+      q.vy = 0;
+      q.life = FIXED_DT * 0.5;
+    }
+    step(w, FIXED_DT * 2, true, false);
+    console.log(`   방패적 · 본체 ${hp0} → ${sh.hp.toFixed(0)} · 방패 ${shield0} → ${sh.shieldHp.toFixed(0)}`);
+    check('정면이면 본체가 아니라 방패가 받는다', sh.hp === hp0 && sh.shieldHp < shield0, `본체 ${(hp0 - sh.hp).toFixed(1)} · 방패 ${(shield0 - sh.shieldHp).toFixed(1)}`);
+  }
+
+  // --- 도탄은 수명으로 안 사라집니다 ---
+  {
+    const w = new World(emptySave(), input, 7303);
+    w.spawner.enabled = false;
+    w.player.attacks.length = 0;
+    w.player.x = 640;
+    w.player.y = 360;
+    const bait = w.spawnEnemy('basic', 800, 360, {});
+    getSkillDef('ricochet').activate(w, makeSlot('ricochet', 1));
+    const shot = w.projectiles.find((q) => !q.dead && q.kind === 'ricochet');
+    check('도탄이 나갔다', !!shot);
+    if (shot) {
+      check('도탄은 수명이 무한이다', shot.life === Infinity, `${shot.life}`);
+      // 터지는 것이 아니라 그냥 남습니다. 폭발 반경이 있으면 자폭 갈래를 타게 됩니다
+      check('도탄에는 폭발이 없다', shot.blast === 0, `${shot.blast}`);
+
+      // 적을 전부 치우고 오래 돌려도 살아 있어야 합니다
+      bait.dead = true;
+      const bounces = shot.pierce;
+      step(w, 20, true, false);
+      console.log(`   도탄 · 적 없이 20초 뒤 살아 있음 ${!shot.dead} · 남은 명중 ${shot.pierce}/${bounces}`);
+      check('적이 없어도 수명으로 안 사라진다', !shot.dead);
+      check('명중 횟수도 안 줄었다', shot.pierce === bounces, `${shot.pierce}/${bounces}`);
+
+      // 끝나는 길은 명중 횟수 하나뿐입니다
+      shot.pierce = 1;
+      shot.targetId = 0;
+      const prey = w.spawnEnemy('basic', shot.x + 10, shot.y, {});
+      void prey;
+      step(w, 0.4, true, false);
+      check('명중 횟수를 다 쓰면 사라진다', shot.dead, `남은 ${shot.pierce}`);
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 console.log('4) 방패적: 정면 기본공격만으로 방패를 깨고 잡을 수 있는가');
 {

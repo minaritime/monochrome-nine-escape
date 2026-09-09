@@ -403,7 +403,12 @@ export const SKILL_DEFS: Record<SkillId, SkillDef> = {
         radius: S.ricochet.radius, damage, crit, color: '#ffd166',
         // 남은 명중 횟수를 pierce 칸에 담습니다 (관통과 뜻이 같아서 칸을 나눌 이유가 없습니다)
         pierce: Math.max(1, Math.round(lv(S.ricochet.bounces, S.ricochet.bouncesPerLevel, slot.level) * b.pierceMul)),
-        life: 6,
+        // **수명으로는 안 사라집니다** (2026-09-09). 도탄은 명중 횟수를 다 쓰면
+        // 어차피 사라지므로 수명은 이중 제한이었고, 적이 흩어져 있으면 벽만 몇 번
+        // 치다 시간이 다 되어 "화면을 돌아다니는 동안 계속 일한다"는 성질이
+        // 상황에 따라 없던 일이 됐습니다. 지금은 명중 횟수 하나로만 끝납니다.
+        // `blast` 가 0 이라 수명이 다해도 터지지 않고, 애초에 다할 일이 없습니다
+        life: Infinity,
         ignoreShield: true,
         splitOnHit: b.splitOnHit,
         splitsLeft: b.splitOnHit ? b.splitOnHit.max : 0,

@@ -97,9 +97,23 @@ function detonate(w: World, p: Projectile, damage = p.damage, ignoreShield = tru
 
 function onExpire(w: World, p: Projectile): void {
   p.dead = true;
+  if (p.blast <= 0) return;
+
+  // 지뢰와 유탄은 원래 "터지려고 만든 것"이라 폭발이 방패를 무시합니다 (폭발 계열)
   if (p.kind === 'mine' || p.kind === 'lob') {
-    if (p.blast > 0) detonate(w, p);
+    detonate(w, p);
+    return;
   }
+
+  // 수명이 다한 미사일은 그 자리에서 터집니다 (2026-09-09).
+  // 끝까지 못 맞혔다고 아무 일도 없이 사라지면 유도가 빗나갔을 때의 손해가 0 이 됩니다.
+  //
+  // **방패는 그대로 존중합니다** (`p.ignoreShield`, 미사일은 false).
+  // 무시하게 두면 "미사일은 방패에 막힌다"는 약점을 **수명이 다할 때까지 기다리는
+  // 것만으로** 우회할 수 있습니다. 갈래로 약점을 지우지 않는다는 규칙과 같은 자리입니다.
+  //
+  // 도탄은 여기 안 옵니다. `blast` 가 0 이라 위에서 이미 빠져나갑니다
+  if (p.kind === 'homing') detonate(w, p, p.damage, p.ignoreShield);
 }
 
 function moveStraight(w: World, p: Projectile, dt: number): void {
