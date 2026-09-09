@@ -837,10 +837,21 @@ export class World {
       return;
     }
 
-    this.stats.kills++;
+    // **분열체는 처치로 안 셉니다** (2026-09-09). 분열적 한 마리를 잡으면 그 자리에서
+    // 3마리(정예는 12마리)가 더 생기는데, 그것까지 세면 같은 적 하나가 4~13 처치가
+    // 되어 처치 수가 무엇을 뜻하는지 알 수 없게 됩니다. **한 마리는 한 번입니다.**
+    //
+    // 처치 수를 세는 곳은 이 두 줄뿐이고 나머지는 전부 여기서 파생됩니다
+    // (HUD · 게임오버 · `records.totalKills` · `bestKills` · 도감의 종류별 처치 ·
+    // 처치를 세는 업적). 한 곳만 빼면 화면마다 다른 숫자가 나옵니다.
+    //
+    // **경험치와 코인은 이 규칙과 별개입니다.** 분열체도 경험치를 주고(원본의 0.4배)
+    // 코인은 예전부터 안 줬습니다. 잡는 노동에 대한 대가는 그대로 둡니다
+    if (!e.child) {
+      this.stats.kills++;
+      this.stats.killsByType[e.defId] = (this.stats.killsByType[e.defId] ?? 0) + 1;
+    }
     if (this.blastKills >= 0 && !e.child) this.blastKills++;
-    const key = e.defId;
-    this.stats.killsByType[key] = (this.stats.killsByType[key] ?? 0) + 1;
     this.recordKillForAchievements(e);
 
     this.effects.burst(e.x, e.y, e.boss ? 46 : e.elite ? 16 : 9, e.def.color, e.boss ? 260 : 150, e.boss ? 5 : 3);

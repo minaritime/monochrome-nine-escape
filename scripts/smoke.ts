@@ -2657,9 +2657,18 @@ console.log('10-4-11b) 정예 분열체는 코인을 안 주고, 죽은 돌진�
   const afterFirst = w.coins.length;
   for (const c of [...w.enemies.filter((o) => !o.dead)]) w.killEnemy(c);
   for (const c of [...w.enemies.filter((o) => !o.dead)]) w.killEnemy(c);
-  console.log(`   정예 분열 · 최초 처치 코인 ${afterFirst}개 · 전부 처치 뒤 ${w.coins.length}개`);
+  console.log(
+    `   정예 분열 · 최초 처치 코인 ${afterFirst}개 · 전부 처치 뒤 ${w.coins.length}개 · 처치 수 ${w.stats.kills} · 도감 ${w.stats.killsByType.splitter ?? 0}`,
+  );
   check('최초 처치에만 코인이 나온다', w.coins.length === afterFirst, `${afterFirst} → ${w.coins.length}`);
   check('그 코인은 정예 몫만큼이다', afterFirst === ELITE.coinDrop, `${afterFirst}`);
+
+  // **분열체는 처치로 안 셉니다** (2026-09-09). 정예 분열적은 1 → 3 → 9 라서
+  // 세면 한 마리가 13 처치가 되어 처치 수가 무엇을 뜻하는지 알 수 없게 됩니다
+  check('분열체를 잡아도 처치는 한 번뿐이다', w.stats.kills === 1, `${w.stats.kills}`);
+  check('도감의 종류별 처치도 한 번뿐이다', w.stats.killsByType.splitter === 1, `${w.stats.killsByType.splitter}`);
+  // 잡는 노동에 대한 대가는 그대로입니다. 처치 수만 안 세는 것이지 보상이 사라진 것이 아닙니다
+  check('분열체도 경험치는 준다', w.player.xp > 0, `${w.player.xp.toFixed(1)}`);
 
   // 차지 도중에 죽으면 경로 예고도 같이 사라집니다
   const w2 = new World(emptySave(), stillInput, 11010);
