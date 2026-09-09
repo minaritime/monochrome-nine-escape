@@ -168,12 +168,15 @@ export const charger: EnemyBehavior = (e, w, dt) => {
 };
 
 // ---------------------------------------------------------------------------
-// 소환적: 도주하며 **못 죽이는 하수인**을 부릅니다 (2026-08-16 재설계).
+// 소환적: 도주하며 하수인을 부릅니다 (2026-09-09 재설계).
 //
-// 하수인은 피해도 안 받고 타겟도 되지 않습니다. 사라지는 길은 소환적 본체를 잡는
-// 것뿐이고, 잡는 순간 전부 한꺼번에 소멸합니다 (`World.despawnMinions`).
-// 소환적은 도주형이라 "가장 가까운 적"을 노리는 기본공격으로는 절대 안 잡힙니다.
-// 근원을 끊으러 갈 것인가 하수인을 피해 다닐 것인가가 이 적의 과제입니다.
+// 하수인은 평범하게 맞고 죽지만 **잡아도 아무것도 안 나옵니다** (경험치 · 처치
+// 통계 · 코인 전부 없음, `World.killEnemy` 의 하수인 갈래). 5초마다 무한히 다시
+// 채워지는 적이라 보상을 붙이면 소환적 하나가 무한 경험치 공급기가 됩니다.
+//
+// 보상은 전부 본체 쪽에 있습니다. 본체를 잡으면 하수인이 한꺼번에 사라지면서
+// 그 수만큼 코인이 떨어집니다 (`World.despawnMinions`). 치우고 다니면 그 몫이
+// 줄어드니 모아둔 채 근원을 끊는 쪽이 이득입니다.
 // ---------------------------------------------------------------------------
 export const summoner: EnemyBehavior = (e, w, dt) => {
   const P = ENEMY_PARAMS.summoner;
@@ -199,7 +202,6 @@ export const summoner: EnemyBehavior = (e, w, dt) => {
   const kind = e.summonKind ?? P.minionPool[0];
   const a = w.rng.angle();
   w.spawnEnemy(kind, e.x + Math.cos(a) * 30, e.y + Math.sin(a) * 30, {
-    immortal: true,
     ownerId: e.id,
     // 정예 소환적의 유일한 차이입니다. 그 외 행동은 일반과 똑같습니다
     elite: eliteHas(e, w, 'summonElite'),

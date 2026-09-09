@@ -2343,7 +2343,7 @@ console.log('10-4-11) 정예 고유 능력 (바보 · 분열 · 장판 · 소환
     check('유예가 끝나면 아프다', w.player.hp < before);
   }
 
-  // 소환: 못 죽이는 하수인을 부르고, 본체를 잡으면 전부 한꺼번에 사라집니다
+  // 소환: 하수인은 잡을 수 있지만 보상이 없고, 보상은 전부 본체 쪽에 있습니다
   {
     const w = new World(emptySave(), stillInput, 11004);
     w.spawner.enabled = false;
@@ -2366,23 +2366,55 @@ console.log('10-4-11) 정예 고유 능력 (바보 · 분열 · 장판 · 소환
       '부르는 종류는 표 안에서 나온다',
       [...kinds].every((k) => (ENEMY_PARAMS.summoner.minionPool as readonly string[]).includes(k)),
     );
-    // 못 죽이는 것이 이 하수인의 전부입니다. 타겟도 되면 안 됩니다
-    check('하수인은 전부 무적이다', minions.every((o) => o.immortal));
-    check('하수인은 타겟이 안 된다', minions.every((o) => !o.targetable));
-    const before = minions[0].hp;
-    w.damageEnemy(minions[0], 9999);
-    check('하수인은 피해를 안 받는다', minions[0].hp === before && !minions[0].dead);
+    // 이제 하수인도 평범하게 맞고 죽습니다. 무적도 타겟 불가도 없습니다
+    check('하수인은 무적이 아니다', minions.every((o) => !o.immortal));
+    check('하수인도 타겟이 된다', minions.every((o) => o.targetable));
 
-    // 본체를 잡으면 전부 사라집니다. 이것이 유일한 처리 방법입니다
-    const killsBefore = w.stats.kills;
-    src.immortal = false;
-    src.invuln = 0;
-    w.damageEnemy(src, src.maxHp * 10);
-    const left = w.enemies.filter((o) => !o.dead && o.ownerId === src.id).length;
-    console.log(`   본체 처치 후 남은 하수인 ${left}마리 · 처치 수 ${killsBefore} → ${w.stats.kills}`);
-    check('본체를 잡으면 하수인이 전부 사라진다', left === 0);
-    // 하수인 수만큼 처치가 붙으면 소환적 하나가 여섯 마리 몫의 보상을 줍니다
-    check('하수인 소멸은 처치로 안 세어진다', w.stats.kills === killsBefore + 1, `${killsBefore} → ${w.stats.kills}`);
+    // 다만 잡아도 아무것도 안 나옵니다. 5초마다 무한히 다시 채워지는 적이라
+    // 보상을 붙이면 소환적 하나를 방치하는 것이 무한 경험치 공급이 됩니다
+    {
+      const victim = minions[0];
+      const k0 = w.stats.kills;
+      const xp0 = w.player.xp;
+      const c0 = w.coins.length;
+      w.damageEnemy(victim, victim.maxHp * 10);
+      console.log(
+        `   하수인 직접 처치 · 죽음 ${victim.dead} · 처치 ${k0} → ${w.stats.kills} · 경험치 ${xp0} → ${w.player.xp} · 코인 ${c0} → ${w.coins.length}`,
+      );
+      check('하수인은 피해를 받고 죽는다', victim.dead);
+      check('하수인 처치는 처치로 안 세어진다', w.stats.kills === k0, `${k0} → ${w.stats.kills}`);
+      check('하수인 처치는 경험치를 안 준다', w.player.xp === xp0, `${xp0} → ${w.player.xp}`);
+      check('하수인 처치는 코인을 안 준다', w.coins.length === c0, `${c0} → ${w.coins.length}`);
+    }
+
+    // 본체를 잡으면 남은 하수인이 전부 사라지고, 그 수만큼 코인이 떨어집니다.
+    // 이것이 소환적의 보상 전부라, 하수인을 치우고 다니면 그만큼 몫이 줄어듭니다.
+    //
+    // 하수인 수를 손으로 맞춥니다. 자연히 불리게 두면 그동안 기본공격이 하수인을
+    // 잡아버려서 몇 마리가 남아 있었는지가 판마다 달라집니다
+    {
+      const wk = new World(emptySave(), stillInput, 11005);
+      wk.spawner.enabled = false;
+      wk.player.x = 60;
+      wk.player.y = 60;
+      const host = wk.spawnEnemy('summoner', 1200, 660, {});
+      const want = ENEMY_PARAMS.summoner.maxMinions;
+      for (let i = 0; i < want; i++) wk.spawnEnemy('fool', 1200 + i * 10, 660, { ownerId: host.id });
+
+      const killsBefore = wk.stats.kills;
+      const coinsBefore = wk.coins.length;
+      wk.damageEnemy(host, host.maxHp * 10);
+      const left = wk.enemies.filter((o) => !o.dead && o.ownerId === host.id).length;
+      const gained = wk.coins.length - coinsBefore;
+      const per = ENEMY_PARAMS.summoner.minionCoinPerAlive;
+      console.log(
+        `   본체 처치 · 하수인 ${want}마리 → ${left}마리 · 코인 +${gained} (기대 ${want * per} 이상) · 처치 수 ${killsBefore} → ${wk.stats.kills}`,
+      );
+      check('본체를 잡으면 하수인이 전부 사라진다', left === 0);
+      check('하수인 소멸은 처치로 안 세어진다', wk.stats.kills === killsBefore + 1, `${killsBefore} → ${wk.stats.kills}`);
+      // 소환적 자신의 코인 드랍(7% 확률)이 섞일 수 있어 하한으로 잽니다
+      check('살아 있던 하수인 수만큼 코인이 떨어진다', gained >= want * per, `${want}마리 → +${gained}개`);
+    }
 
     // 하수인은 화면의 적 상한에 안 셉니다. 세면 소환적 넷이 상한의 4분의 1을
     // 판이 끝날 때까지 붙들고 있어 후반에 다른 적이 안 나옵니다

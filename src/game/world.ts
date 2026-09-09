@@ -797,6 +797,16 @@ export class World {
       if (t.owner === e.id) t.dead = true;
     }
 
+    // 하수인(소환적이 부른 적)을 직접 잡은 경우입니다. **보상이 하나도 없습니다.**
+    // 경험치 · 처치 통계 · 업적 · 코인 전부 빠집니다. 5초마다 무한히 다시 채워지는
+    // 적이라 보상을 붙이면 소환적 하나를 방치하는 것이 무한 경험치 공급이 됩니다.
+    // 보상은 전부 본체 쪽에 있습니다 (아래 despawnMinions 의 코인).
+    if (e.ownerId !== 0) {
+      this.effects.burst(e.x, e.y, e.elite ? 16 : 9, e.def.color, 150, 3);
+      e.def.onDeath?.(e, this);
+      return;
+    }
+
     this.stats.kills++;
     if (this.blastKills >= 0 && !e.child) this.blastKills++;
     const key = e.defId;
@@ -827,21 +837,26 @@ export class World {
       this.dropCoin(e.x, e.y);
     }
 
-    // 이 적이 불러낸 하수인은 주인이 죽는 순간 한꺼번에 사라집니다 (소환적)
+    // 이 적이 불러낸 하수인은 주인이 죽는 순간 한꺼번에 사라지고, 그 수만큼 코인을 남깁니다 (소환적)
     this.despawnMinions(e);
 
     e.def.onDeath?.(e, this);
   }
 
   /**
-   * 주인이 죽을 때 하수인을 전부 지웁니다 (소환적의 무적 하수인).
+   * 주인이 죽을 때 하수인을 전부 지우고, **살아 있던 한 마리마다 코인을 떨어뜨립니다** (소환적).
    *
-   * **`killEnemy` 를 타지 않습니다.** 그쪽을 거치면 경험치 · 처치 통계 · 업적이
-   * 하수인 수만큼 붙어서, 소환적 하나가 다섯 마리 몫의 보상을 주게 됩니다.
-   * 보상은 확률로 떨어지는 코인뿐입니다.
+   * 이 코인이 소환적의 보상 전부입니다. 하수인을 직접 잡으면 아무것도 안 나오므로
+   * (`killEnemy` 의 하수인 갈래), 치우고 다니면 그만큼 몫이 줄어듭니다.
+   * **모아둔 채 근원을 끊는 쪽이 이득**이라, 무적을 뺀 뒤에도 "본체를 쫓아간다"는
+   * 이 적의 성격이 보상으로 유지됩니다.
+   *
+   * **`killEnemy` 를 타지 않습니다.** 그쪽을 거치면 소멸이 처치로 세어지고
+   * 코인 갈래가 한 번 더 돌아서 여기서 주는 몫과 겹칩니다.
    */
   private despawnMinions(owner: Enemy): void {
     if (owner.id === 0) return;
+    const per = ENEMY_PARAMS.summoner.minionCoinPerAlive;
     for (const m of this.enemies) {
       if (m.dead || m.ownerId !== owner.id) continue;
       m.dead = true;
@@ -849,7 +864,7 @@ export class World {
       for (const t of this.telegraphs) {
         if (t.owner === m.id) t.dead = true;
       }
-      if (this.rng.chance(ENEMY_PARAMS.summoner.minionCoinChance)) this.dropCoin(m.x, m.y);
+      for (let i = 0; i < per; i++) this.dropCoin(m.x, m.y);
     }
   }
 

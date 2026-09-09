@@ -147,7 +147,7 @@ export const ENEMY_DEFS: Record<EnemyId, EnemyDef> = {
     accent: '#c6f5ef',
     sides: 5,
     faceMove: false,
-    pattern: '도주하며 못 죽이는 하수인을 최대 5마리까지 부릅니다. 하수인은 이 적을 잡아야만 한꺼번에 사라집니다',
+    pattern: '도주하며 하수인을 부릅니다. 하수인은 잡아도 아무것도 나오지 않고, 이 적을 잡으면 한꺼번에 사라지면서 그때 살아 있던 수만큼 코인을 남깁니다',
     behavior: summoner,
     extraDraw: 'summoner',
   },
