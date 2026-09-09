@@ -160,6 +160,12 @@ export class World {
    */
   private blastKills = -1;
 
+  /**
+   * 참인 동안 일어난 처치에는 보상이 하나도 안 붙습니다 (하드 4 폭격기의 아군 오사).
+   * `explodeAll` 이 켜고 끄며, `killEnemy` 첫머리가 봅니다.
+   */
+  private noKillReward = false;
+
   private nextId = 1;
   private queryBuf: Enemy[] = [];
   /**
@@ -297,8 +303,28 @@ export class World {
       b.delay -= dt;
       if (b.delay > 0) continue;
       b.dead = true;
-      if (b.hitsAll) this.explodeAll(b.x, b.y, b.radius, b.damage, b.color, b.source);
+      if (b.hitsAll) this.explodeAll(b.x, b.y, b.radius, b.damage, b.color, b.source, b.noReward);
       else this.explode(b.x, b.y, b.radius, b.damage, false, b.color, b.source);
+
+      // 터진 자리에 남는 불 (하드 4 폭격기의 착화지점).
+      // **폭발이 아니라 폭발이 끝난 뒤의 자리**라 여기서 깝니다. 예고 단계에 깔면
+      // 아직 안 터진 자리가 이미 타고 있게 되어 예고의 뜻이 흐려집니다
+      if (b.scorch) {
+        this.addHazard({
+          x: b.x,
+          y: b.y,
+          radius: b.scorch.radius,
+          duration: b.scorch.duration,
+          // 착화지점은 감속을 안 겁니다. 폭격이 겹쳐 떨어지면 빠져나오기 전에
+          // 다음 폭격을 맞는 연쇄가 생겨서, 피할 수 있는 공격이 아니게 됩니다
+          slow: 1,
+          arm: b.scorch.arm,
+          tickInterval: b.scorch.tickInterval,
+          tickDamage: b.scorch.tickDamage,
+          color: b.scorch.color,
+          source: b.source,
+        });
+      }
     }
   }
 
@@ -797,11 +823,15 @@ export class World {
       if (t.owner === e.id) t.dead = true;
     }
 
-    // 하수인(소환적이 부른 적)을 직접 잡은 경우입니다. **보상이 하나도 없습니다.**
-    // 경험치 · 처치 통계 · 업적 · 코인 전부 빠집니다. 5초마다 무한히 다시 채워지는
-    // 적이라 보상을 붙이면 소환적 하나를 방치하는 것이 무한 경험치 공급이 됩니다.
-    // 보상은 전부 본체 쪽에 있습니다 (아래 despawnMinions 의 코인).
-    if (e.ownerId !== 0) {
+    // 보상이 하나도 안 붙는 처치입니다. 경험치 · 처치 통계 · 업적 · 코인 전부 빠집니다.
+    // 두 자리가 여기로 옵니다.
+    //
+    // - **하수인** (`ownerId !== 0`): 5초마다 무한히 다시 채워지는 적이라 보상을
+    //   붙이면 소환적 하나를 방치하는 것이 무한 경험치 공급이 됩니다. 보상은 전부
+    //   본체 쪽에 있습니다 (아래 despawnMinions 의 코인)
+    // - **하드 4 폭격기의 아군 오사** (`noKillReward`): 보스가 잡은 것이지 내가 잡은
+    //   것이 아닙니다. 보상을 주면 폭격 한가운데로 잡몹을 몰고 가는 것이 이득이 됩니다
+    if (e.ownerId !== 0 || this.noKillReward) {
       this.effects.burst(e.x, e.y, e.elite ? 16 : 9, e.def.color, 150, 3);
       e.def.onDeath?.(e, this);
       return;
@@ -1124,8 +1154,32 @@ export class World {
    * 편을 가리지 않으므로 잡몹 한가운데서 자폭적을 잡으면 그 자리가 통째로 정리됩니다.
    * 대신 내가 그 자리에 남아 있으면 나도 맞습니다.
    */
-  explodeAll(x: number, y: number, radius: number, damage: number, color: string, source?: KillerInfo | null): void {
+  /**
+   * 편을 가리지 않는 폭발 (자폭적 시체 · 하드 4 폭격기).
+   *
+   * `noReward` 는 **적이 낸 폭발**이라는 뜻입니다. 그 처치는 내 성과가 아니므로
+   * 보상도 업적 집계도 붙지 않고, 보스는 아예 안 맞습니다.
+   */
+  explodeAll(
+    x: number,
+    y: number,
+    radius: number,
+    damage: number,
+    color: string,
+    source?: KillerInfo | null,
+    noReward = false,
+  ): void {
     this.blastVisual(x, y, radius, color);
+
+    if (noReward) {
+      // 하드 4: 폭격기의 폭격은 적에게도 들어가지만 내가 잡은 것이 아닙니다.
+      // 보상도 "도구로 쓴다" 집계도 붙지 않습니다
+      this.noKillReward = true;
+      this.blastEnemies(x, y, radius, damage, true, true);
+      this.noKillReward = false;
+      this.blastPlayer(x, y, radius, damage, source);
+      return;
+    }
 
     // 업적: 이 한 번의 폭발로 몇 마리가 정리됐는가.
     // **분열체는 안 셉니다.** 분열적 하나를 터뜨리면 그 자리에서 3마리가 더 죽어
@@ -1150,11 +1204,24 @@ export class World {
     this.addTelegraph({ kind: 'blast', x, y, radius, life: 0.22, color });
   }
 
-  private blastEnemies(x: number, y: number, radius: number, damage: number, ignoreShield = true): void {
+  /**
+   * `skipBoss` 는 적이 낸 폭발에 씁니다 (하드 4 폭격기).
+   * 보스가 자기 폭격에 맞으면 **보스 옆에 붙어 있는 것이 최적**이 되어,
+   * 폭격을 피하라는 설계가 통째로 뒤집힙니다.
+   */
+  private blastEnemies(
+    x: number,
+    y: number,
+    radius: number,
+    damage: number,
+    ignoreShield = true,
+    skipBoss = false,
+  ): void {
     const near = this.grid.query(x, y, radius + 40, this.queryBuf);
 
     for (const e of near) {
       if (e.dead) continue;
+      if (skipBoss && e.boss) continue;
       if (dist(x, y, e.x, e.y) <= radius + e.radius) {
         // 폭발은 사방에서 덮치므로 기본적으로 방패를 무시합니다 (`explode` 주석 참고).
         // 방패를 존중하는 폭발은 **터진 자리에서 온 것**으로 봅니다. 미사일은 적의

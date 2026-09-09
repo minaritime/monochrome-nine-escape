@@ -48,6 +48,8 @@ export interface DifficultyMods {
   foolShotDirs: number | null;
   /** 포식자 보스가 거대 포식자가 됩니다 (하드 1) */
   bossPredatorHard: boolean;
+  /** 폭격기 보스의 폭격이 강화됩니다 (하드 4). 표는 `BOSS_BOMBARD_HARD` */
+  bossBombardHard: boolean;
   /** 방패적의 방패 내구도 배율 (하드 2) */
   shieldDurabilityMul: number;
   /** 은신적이 숨어 있는 동안 완전히 투명해집니다 (하드 3) */
@@ -152,6 +154,7 @@ function applyStep(mods: DifficultyMods, step: DifficultyStep): void {
   if (step.foolInvuln) mods.foolInvuln = true;
   if (step.foolShotDirs !== undefined) mods.foolShotDirs = step.foolShotDirs;
   if (step.bossPredatorHard) mods.bossPredatorHard = true;
+  if (step.bossBombardHard) mods.bossBombardHard = true;
   if (step.stealthDeep) mods.stealthDeep = true;
   if (step.enemyUnlock && !mods.extraEnemies.includes(step.enemyUnlock)) mods.extraEnemies.push(step.enemyUnlock);
 }
@@ -194,6 +197,7 @@ export function difficultyMods(level: number, hard = false): DifficultyMods {
     foolInvuln: false,
     foolShotDirs: null,
     bossPredatorHard: false,
+    bossBombardHard: false,
     stealthDeep: false,
     extraEnemies: [],
     coinMul: lv < 0 ? DIFFICULTY.easyCoinMul : 1 + lv * DIFFICULTY.coinMulPerLevel,

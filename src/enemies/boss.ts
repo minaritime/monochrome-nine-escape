@@ -2,6 +2,7 @@ import {
   ALL_BOSS_IDS,
   BOSS,
   BOSS_BOMBARD,
+  BOSS_BOMBARD_HARD,
   BOSS_PREDATOR,
   BOSS_PREDATOR_HARD,
   BOSS_SWARM,
@@ -431,15 +432,34 @@ const bombardBehavior: EnemyBehavior = (e, w, dt) => {
     w.effects.spray(e.x, e.y, base, 0.3, 8, ENEMY_BULLET.glow, 160);
   }
 
+  // 하드 4 부터는 폭격이 두 배로 늘고, 넓게 흩어지고, 간격이 벌어지고,
+  // 적에게도 들어가고, 터진 자리에 착화지점을 남깁니다. 표는 BOSS_BOMBARD_HARD 입니다
+  const H = w.diff.bossBombardHard ? BOSS_BOMBARD_HARD : null;
+
   e.state.timer -= dt;
   if (e.state.timer > 0) return;
-  e.state.timer = B.volleyInterval;
+  e.state.timer = B.volleyInterval * (H ? H.volleyIntervalMul : 1);
 
-  for (let i = 0; i < BOSS_BOMBARD.shots; i++) {
+  const shots = H ? H.shots : B.shots;
+  const spread = H ? H.spread : B.spread;
+  // 착화지점은 폭발이 아니라 폭발이 끝난 자리에 남는 불입니다.
+  // 자리는 폭발과 같으므로 예약에 실어 보내고 world 가 터질 때 깝니다
+  const scorch = H
+    ? {
+        radius: B.blastRadius * H.scorchRadiusMul,
+        duration: H.scorchDuration,
+        arm: H.scorchArm,
+        tickInterval: H.scorchTickInterval,
+        tickDamage: e.damage * H.scorchTickMul,
+        color: e.def.color,
+      }
+    : null;
+
+  for (let i = 0; i < shots; i++) {
     // 첫 발은 지금 서 있는 자리입니다. 가만히 있으면 반드시 맞습니다
-    const onPlayer = i === 0 && BOSS_BOMBARD.firstShotOnPlayer;
+    const onPlayer = i === 0 && B.firstShotOnPlayer;
     const a = w.rng.angle();
-    const d = onPlayer ? 0 : w.rng.range(40, BOSS_BOMBARD.spread);
+    const d = onPlayer ? 0 : w.rng.range(40, spread);
     const x = clamp(w.player.x + Math.cos(a) * d, 30, CANVAS.w - 30);
     const y = clamp(w.player.y + Math.sin(a) * d, 30, CANVAS.h - 30);
 
@@ -447,18 +467,22 @@ const bombardBehavior: EnemyBehavior = (e, w, dt) => {
       kind: 'incoming',
       x,
       y,
-      radius: BOSS_BOMBARD.blastRadius,
-      life: BOSS_BOMBARD.warning,
+      radius: B.blastRadius,
+      life: B.warning,
       color: e.def.color,
     });
     w.addPendingBlast({
       x,
       y,
-      radius: BOSS_BOMBARD.blastRadius,
-      damage: e.damage * BOSS_BOMBARD.blastDamageMul,
-      delay: BOSS_BOMBARD.warning,
+      radius: B.blastRadius,
+      damage: e.damage * B.blastDamageMul,
+      delay: B.warning,
       color: e.def.accent,
       source: killerOf(e),
+      // 적에게도 들어가되 그 처치에는 보상이 없습니다. 보스는 아예 안 맞습니다
+      hitsAll: H ? H.hitsEnemies : undefined,
+      noReward: H ? true : undefined,
+      scorch,
     });
   }
 

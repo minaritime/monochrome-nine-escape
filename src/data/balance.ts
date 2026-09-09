@@ -803,6 +803,12 @@ export interface DifficultyStep {
   /** 포식자 보스가 거대 포식자가 됩니다 (하드 1). 표는 `BOSS_PREDATOR_HARD` */
   bossPredatorHard?: boolean;
   /**
+   * 폭격기 보스의 폭격이 강화됩니다 (하드 4). 표는 `BOSS_BOMBARD_HARD`.
+   * 발수 · 흩뿌리는 반경 · 폭격 간격이 갈아끼워지고, 폭격이 적에게도 들어가며
+   * 터진 자리에 착화지점이 남습니다.
+   */
+  bossBombardHard?: boolean;
+  /**
    * 방패적의 방패 내구도 배율 (하드 2).
    *
    * **피해 배율이 아니라 내구도입니다.** 방패는 정면 피해를 통째로 흡수하고
@@ -1108,6 +1114,47 @@ export const BOSS_BOMBARD = {
   aimedCount: 3,
   aimedSpread: 0.26,
   aimedSpeedMul: 1.8,
+} as const;
+
+/**
+ * 하드 4 의 폭격기.
+ *
+ * **폭격이 두 배로 늘어나는 대신 넓게 흩어지고 간격이 벌어집니다.** 발수만 올리면
+ * 반경 250 원(넓이 약 196,000)에 반경 88 짜리(약 24,300)를 14발 뿌리는 셈이라
+ * 안전한 자리가 남지 않아 "예고를 보고 비킨다"가 무작위 즉사가 됩니다.
+ *
+ * 그래서 `spread` 를 380 으로 넓혔습니다. 넓이가 2.31배가 되므로 **밀도는 오히려
+ * 0.87배로 조금 내려갑니다** (덮는 비율 0.87 → 0.75). 즉 하드 4 의 폭격은 한 발
+ * 한 발을 피하기가 더 쉬워지는 대신 **판의 훨씬 넓은 부분을 한꺼번에 뺏습니다.**
+ * 국소적으로 더 맵게 하려면 `spread` 를 340 쪽으로 좁히십시오 (밀도 1.08배).
+ * **발수와 `spread` 는 짝입니다. 한쪽만 만지면 이 균형이 곧바로 깨집니다.**
+ * `smoke.ts` 22번이 밀도가 0.7 ~ 1.4배 안에 있는지 잽니다.
+ *
+ * 그 위에 둘이 붙습니다.
+ *
+ * - **폭격이 적에게도 들어갑니다** (`hitsEnemies`). 다만 **그 처치에는 보상이
+ *   하나도 없습니다** (경험치 · 코인 · 처치 통계 · 업적 전부). 보스가 잡은 것이지
+ *   내가 잡은 것이 아니고, 보상을 주면 폭격 한가운데로 잡몹을 몰고 가는 것이
+ *   이득이 되어 "폭격을 피하라"는 설계와 정면으로 부딪힙니다.
+ * - **터진 자리에 착화지점이 남습니다.** 절반 반경으로 3초간 타면서 지속 피해를
+ *   줍니다. 감속은 없습니다. 폭격은 "그 순간 그 자리"만 뺏는데, 착화지점이
+ *   붙으면 지나간 자리까지 3초간 못 쓰게 되어 동선 자체가 좁아집니다.
+ */
+export const BOSS_BOMBARD_HARD = {
+  shots: 14,
+  spread: 380,
+  /** 폭격 간격에 곱합니다. 1 보다 크면 덜 자주 떨어집니다 */
+  volleyIntervalMul: 1.25,
+  /** 폭격이 적에게도 피해를 줍니다 (보상 없음) */
+  hitsEnemies: true,
+  /** 착화지점 반경 = 폭발 반경 x 이 값 */
+  scorchRadiusMul: 0.5,
+  scorchDuration: 3,
+  /** 불이 붙기까지의 유예. 터진 자리에서 물러날 틈입니다 */
+  scorchArm: 0.4,
+  scorchTickInterval: 0.5,
+  /** 보스 공격력에 대한 한 틱 피해 배수 */
+  scorchTickMul: 0.35,
 } as const;
 
 /**
@@ -2206,7 +2253,7 @@ export const HARD_DIFFICULTY_STEPS: readonly DifficultyStep[] = [
   { label: '거대 포식자 등장, 적 공격력 +10%', bossPredatorHard: true, damageMul: 1.1 },
   { label: '방패적 능력 강화, 적 공격력 +10% · 체력 +10%', shieldDurabilityMul: 6, damageMul: 1.1, hpMul: 1.1 },
   { label: '사제적 등장, 은신적 능력 강화, 적 공격력 +20%', enemyUnlock: 'priest', stealthDeep: true, damageMul: 1.2 },
-  { label: '적 체력 +10% · 이동속도 +5%', hpMul: 1.1, speedMul: 1.05 },
+  { label: '폭격기 능력 강화, 적 공격력 +10%', bossBombardHard: true, damageMul: 1.1 },
   { label: '적 공격력 +10%', damageMul: 1.1 },
   { label: '적 체력 +15%', hpMul: 1.15 },
   { label: '충돌 데미지 +15% · 공격력 +10%', contactDamageMul: 1.15, damageMul: 1.1 },

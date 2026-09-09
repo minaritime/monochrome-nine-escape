@@ -456,8 +456,29 @@ export interface PendingBlast {
   delay: number;
   color: string;
   source: KillerInfo | null;
-  /** true 면 플레이어뿐 아니라 적에게도 피해가 들어갑니다 (자폭적 시체) */
+  /** true 면 플레이어뿐 아니라 적에게도 피해가 들어갑니다 (자폭적 시체 · 하드 4 폭격) */
   hitsAll?: boolean;
+  /**
+   * true 면 이 폭발로 죽은 적에게 보상이 하나도 안 붙습니다 (하드 4 폭격기).
+   * 경험치 · 코인 · 처치 통계 · 업적 전부입니다. 보스가 잡은 것이지 내가 잡은 것이
+   * 아니고, 보상을 주면 폭격 한가운데로 잡몹을 몰고 가는 것이 이득이 됩니다.
+   *
+   * **보스는 이 폭발에 아예 안 맞습니다.** 안 그러면 보스 옆에 붙어 있는 것이
+   * 최적이 되어 폭격을 피하라는 설계와 정면으로 부딪힙니다 (`blastEnemies`).
+   */
+  noReward?: boolean;
+  /**
+   * 터진 자리에 남길 장판 (하드 4 폭격기의 착화지점).
+   * 자리는 폭발과 같으므로 x/y 는 따로 안 들고 다닙니다.
+   */
+  scorch?: {
+    radius: number;
+    duration: number;
+    arm: number;
+    tickInterval: number;
+    tickDamage: number;
+    color: string;
+  } | null;
   dead: boolean;
 }
 

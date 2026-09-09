@@ -14,6 +14,8 @@ import {
   BOSS,
   BOSS_PREDATOR,
   BOSS_PREDATOR_HARD,
+  BOSS_BOMBARD,
+  BOSS_BOMBARD_HARD,
   SETTINGS,
   SKIP_UPGRADE,
   BOSS_SWARM,
@@ -3965,6 +3967,154 @@ console.log('\n21) 하드 3: 사제적');
       const [r, g, b] = [1, 3, 5].map((i) => parseInt(d.color.slice(i, i + 2), 16));
       return r - (g + b) / 2 < 0;
     })());
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 22) 하드 4: 폭격기 (2026-09-09)
+//
+// 여기서 어긋나기 쉬운 곳은 셋입니다. **발수와 흩뿌리는 반경이 짝을 이루는가**
+// (발수만 올리면 피할 자리가 없어집니다), **아군 오사에 보상이 안 붙는가**,
+// **보스가 자기 폭격에 안 맞는가**입니다. 뒤의 둘은 어기면 곧바로 최적 전략이
+// 뒤집히는데(폭격 한가운데로 잡몹 몰기 · 보스 옆에 붙어 있기) 화면에서는 안 보입니다.
+// ---------------------------------------------------------------------------
+console.log('\n22) 하드 4: 폭격기');
+{
+  const hardSave = (): SaveData => {
+    const s = emptySave();
+    s.hardMode = true;
+    s.hardUnlocked = true;
+    return s;
+  };
+
+  // --- 표의 짝이 맞는가 ---
+  {
+    const H = BOSS_BOMBARD_HARD;
+    const B = BOSS_BOMBARD;
+    // 발수만 올리면 반경 안에 안전한 자리가 안 남습니다. 넓이가 같이 늘어야 합니다
+    const densityBefore = (B.shots * B.blastRadius ** 2) / B.spread ** 2;
+    const densityAfter = (H.shots * B.blastRadius ** 2) / H.spread ** 2;
+    console.log(
+      `   ${B.shots}발/반경 ${B.spread} → ${H.shots}발/반경 ${H.spread} · 밀도 ${densityBefore.toFixed(2)} → ${densityAfter.toFixed(2)} · 쿨 ${B.volleyInterval.toFixed(1)} → ${(B.volleyInterval * H.volleyIntervalMul).toFixed(1)}초`,
+    );
+    check('발수가 늘었다', H.shots > B.shots);
+    check('흩뿌리는 반경도 같이 늘었다', H.spread > B.spread);
+    // **발수와 반경은 짝입니다.** 밀도가 지금과 크게 달라지면 안 됩니다.
+    // 크게 오르면 피할 자리가 없어져 무작위 즉사가 되고, 크게 내려가면
+    // "폭격이 늘었다"고 해놓고 국소적으로는 오히려 헐거워집니다
+    check(
+      '발수와 반경이 짝을 이뤄 밀도가 크게 안 변한다',
+      densityAfter > densityBefore * 0.7 && densityAfter < densityBefore * 1.4,
+      `x${(densityAfter / densityBefore).toFixed(2)}`,
+    );
+    check('쿨이 늘어 옮겨갈 틈이 생긴다', H.volleyIntervalMul > 1);
+  }
+
+  // --- 하드 4 에서만 켜집니다 ---
+  {
+    check('하드 4 는 켜진다', difficultyMods(4, true).bossBombardHard);
+    check('하드 3 은 아직 안 켜진다', !difficultyMods(3, true).bossBombardHard);
+    check('일반 15 에도 없다', !difficultyMods(15, false).bossBombardHard);
+  }
+
+  // --- 실제로 폭격이 두 배로 떨어지고 착화지점이 남는가 ---
+  {
+    const w = new World(hardSave(), input, 5150, 4);
+    w.spawner.enabled = false;
+    const boss = w.spawnBoss('bombard');
+    w.player.x = 640;
+    w.player.y = 360;
+
+    const plain = new World(emptySave(), input, 5150, 0);
+    plain.spawner.enabled = false;
+    plain.spawnBoss('bombard');
+    plain.player.x = 640;
+    plain.player.y = 360;
+
+    // 등장 연출이 끝나고 폭격이 몇 번 돌 때까지 돌립니다
+    let hardShots = 0;
+    let plainShots = 0;
+    step(w, 14, true, false, () => {
+      hardShots = Math.max(hardShots, w.pendingBlasts.filter((b) => !b.dead).length);
+    });
+    step(plain, 14, true, false, () => {
+      plainShots = Math.max(plainShots, plain.pendingBlasts.filter((b) => !b.dead).length);
+    });
+    console.log(
+      `   한 번에 예약된 폭격 · 일반 ${plainShots}발 → 하드 4 ${hardShots}발 · 착화지점 ${w.hazards.filter((h) => !h.dead).length}개`,
+    );
+    check('폭격이 실제로 더 많이 떨어진다', hardShots > plainShots, `${plainShots} → ${hardShots}`);
+    check('터진 자리에 착화지점이 남는다', w.hazards.some((h) => !h.dead));
+    check('일반모드에는 착화지점이 없다', plain.hazards.every((h) => h.dead));
+
+    const fire = w.hazards.find((h) => !h.dead);
+    if (fire) {
+      check(
+        '착화지점은 절반 반경이다',
+        Math.abs(fire.radius - BOSS_BOMBARD.blastRadius * BOSS_BOMBARD_HARD.scorchRadiusMul) < 0.01,
+        `${fire.radius}`,
+      );
+      check('착화지점은 피해를 준다', fire.tickDamage > 0, `${fire.tickDamage.toFixed(1)}`);
+      // 감속까지 걸면 빠져나오기 전에 다음 폭격을 맞는 연쇄가 생깁니다
+      check('착화지점은 감속을 안 건다', fire.slow === 1, `${fire.slow}`);
+      check('착화지점은 플레이어 쪽이다', fire.side === 'player');
+    } else {
+      check('착화지점이 하나는 있다', false);
+    }
+    void boss;
+  }
+
+  // --- 보스는 적이 낸 폭발에 안 맞습니다 ---
+  // 판 안에서 체력만 보면 플레이어의 기본공격이 섞이므로, 폭발 한 번을 직접 재봅니다
+  {
+    const w = new World(hardSave(), input, 5152, 4);
+    w.spawner.enabled = false;
+    const boss = w.spawnBoss('bombard');
+    step(w, 0.05, true, false);
+    const hp0 = boss.hp;
+    w.explodeAll(boss.x, boss.y, 200, 9999, '#ff7a1a', null, true);
+    check('보스는 적이 낸 폭발에 안 맞는다', boss.hp === hp0, `${hp0.toFixed(0)} → ${boss.hp.toFixed(0)}`);
+    // 대조군: 내가 낸 폭발에는 예전 그대로 맞습니다
+    w.explodeAll(boss.x, boss.y, 200, 300, '#ff7a1a', null);
+    check('내가 낸 폭발에는 맞는다', boss.hp < hp0, `${hp0.toFixed(0)} → ${boss.hp.toFixed(0)}`);
+  }
+
+  // --- 아군 오사에는 보상이 하나도 안 붙습니다 ---
+  {
+    const w = new World(hardSave(), input, 5151, 4);
+    w.spawner.enabled = false;
+    w.player.x = 100;
+    w.player.y = 100;
+
+    const victims = [];
+    for (let i = 0; i < 5; i++) victims.push(w.spawnEnemy('basic', 900 + i * 8, 400, {}));
+    // 폭발 판정은 공간 격자를 훑습니다. 한 프레임을 돌려 격자에 올려야 잡힙니다
+    step(w, 0.05, true, false);
+    for (const v of victims) v.hp = 1;
+
+    const k0 = w.stats.kills;
+    const xp0 = w.player.xp;
+    const c0 = w.coins.length;
+    const best0 = w.track.corpseBlastBest;
+    // 폭격기가 내는 것과 같은 폭발입니다 (편을 안 가리고 보상이 없음)
+    w.explodeAll(900, 400, 120, 9999, '#ff7a1a', null, true);
+    console.log(
+      `   폭격 아군 오사 · 잡몹 ${victims.filter((v) => v.dead).length}/5 처치 · 처치 수 ${k0} → ${w.stats.kills} · 경험치 ${xp0} → ${w.player.xp} · 코인 ${c0} → ${w.coins.length}`,
+    );
+    check('폭격이 적을 실제로 죽인다', victims.every((v) => v.dead));
+    check('그 처치는 처치 수에 안 들어간다', w.stats.kills === k0, `${k0} → ${w.stats.kills}`);
+    check('그 처치는 경험치를 안 준다', w.player.xp === xp0, `${xp0} → ${w.player.xp}`);
+    check('그 처치는 코인을 안 준다', w.coins.length === c0, `${c0} → ${w.coins.length}`);
+    // "도구로 쓴다" 는 내가 시체를 터뜨린 성과입니다. 보스의 폭격이 세면 안 됩니다
+    check('"도구로 쓴다" 집계에도 안 들어간다', w.track.corpseBlastBest === best0, `${best0} → ${w.track.corpseBlastBest}`);
+
+    // 자폭적 시체 폭발은 예전 그대로 보상이 붙습니다. 이 갈래가 섞이면 안 됩니다
+    const v2 = w.spawnEnemy('basic', 300, 300, {});
+    step(w, 0.05, true, false);
+    v2.hp = 1;
+    const k1 = w.stats.kills;
+    w.explodeAll(300, 300, 120, 9999, '#ff7a1a', null);
+    check('내가 낸 폭발은 예전대로 보상이 붙는다', w.stats.kills === k1 + 1, `${k1} → ${w.stats.kills}`);
   }
 }
 
