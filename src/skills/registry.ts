@@ -671,8 +671,7 @@ export const SKILL_DEFS: Record<SkillId, SkillDef> = {
     levelText: (l) =>
       `반경 ${Math.round(lv(S.knockback.radius, S.knockback.radiusPerLevel, l))}` +
       ` · 공격력 ${Math.round(lv(S.knockback.damage, S.knockback.damagePerLevel, l) * 100)}%` +
-      ` · 기절 ${S.knockback.stun.toFixed(1)}초 · 내 체력 ${Math.round(S.knockback.selfDamageRatio * 100)}% 소모` +
-      ` (체력 ${Math.round(S.knockback.selfDamageRatio * 100)}% 이하면 발동 안 함)`,
+      ` · 기절 ${S.knockback.stun.toFixed(1)}초 · 내 체력 ${Math.round(S.knockback.selfDamageRatio * 100)}% 소모`,
     activate: (w, slot) => {
       const p = w.player;
 
@@ -684,8 +683,10 @@ export const SKILL_DEFS: Record<SkillId, SkillDef> = {
       // 한쪽만 고쳐서 "쓸 수는 있는데 쓰면 죽는" 구간이 다시 생깁니다.
       //
       // 발동을 안 하므로 쿨도 안 돕니다 (`tickSlot` 이 false 면 쿨을 안 겁니다).
-      // 대신 **왜 안 나갔는지 알려줘야 합니다.** 누른 사람 입장에서는 눌렀는데
-      // 아무 일도 안 일어난 것과 구분되지 않습니다
+      //
+      // **알리는 자리는 `levelText` 가 아니라 눌렀을 때의 이 글자입니다.** 카드에
+      // 적어두면 판마다 안 바뀌는 설명이 늘 자리를 차지하는데(열세 번째 조정),
+      // 이건 실제로 막힌 그 순간에만 알면 되는 것입니다
       if (p.hp <= p.stats.maxHp * S.knockback.selfDamageRatio) {
         w.effects.text(p.x, p.y - 34, '체력 부족', '#ff6b6b', 16);
         return false;
