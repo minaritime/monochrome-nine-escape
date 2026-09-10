@@ -1791,7 +1791,10 @@ export const SKILL_BRANCHES = {
     {
       id: 'ricochetHeavy', name: '강화 도탄',
       desc: '더 아프게, 더 오래 튕겨 다닙니다',
-      damageMul: 1.9, pierceMul: 1.4, cooldownMul: 1.4, speedMul: 0.85,
+      // **`damageMul` 은 1.9 였습니다** (2026-09-10 하향). 그때 초당 배수가 x1.92 로
+      // 1번 갈래 중 혼자 튀어서(다른 스킬은 x0.96~1.47), 도탄의 2번은 무엇을 넣어도
+      // 죽은 선택지가 됐습니다. 지금은 x1.52 라 체인 강화(x1.47)와 나란합니다
+      damageMul: 1.5, pierceMul: 1.4, cooldownMul: 1.4, speedMul: 0.85,
     },
     {
       id: 'ricochetPierce', name: '관통 도탄',
@@ -1807,8 +1810,13 @@ export const SKILL_BRANCHES = {
       // 대신 3배로 빨라서 같은 시간에 훨씬 많이 지나갑니다.
       // **`pierceMul` 은 안 건드립니다.** 1번 강화 도탄이 이미 `pierceMul 1.4` 라
       // 여기서도 명중 횟수를 만지면 두 갈래가 같은 말을 하게 됩니다
+      // **`damageMul` 은 대가입니다.** `straight` 는 화력을 안 올립니다. 수명이 무한이라
+      // (2026-09-09) 유도가 있든 없든 12타는 결국 다 들어가고, 바뀌는 것은 언제
+      // 누구에게 들어가느냐뿐입니다. 그래서 다른 2번 갈래처럼 크게 깎지 않습니다.
+      // **1 로 두면 수치 대가가 하나도 없어져서** `smoke.ts` 3-0c 의 "갈래에는 대가가
+      // 있다"에 걸립니다 (유도를 버린 것은 대가지만 배율이 아니라 안 세어집니다)
       straight: true,
-      damageMul: 0.8, speedMul: 3.0,
+      damageMul: 0.9, speedMul: 3.0,
     },
   ],
   harpoon: [
