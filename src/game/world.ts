@@ -458,6 +458,16 @@ export class World {
     return !this.cleared && this.time >= this.diff.clearTime && this.clearBossId === 0;
   }
 
+  /**
+   * 클리어 시간에 닿아 타이머가 멈춰 있는 상태인가.
+   *
+   * **화면이 이것을 계속 알려야 합니다** (2026-09-10 사용자 지시). 시계 숫자만
+   * 안 움직이면 멈춘 것인지 고장인지 구분이 안 됩니다
+   */
+  awaitingClearBoss(): boolean {
+    return !this.cleared && this.time >= this.diff.clearTime;
+  }
+
   /** 클리어한 뒤 흐른 시간(분). 클리어 전에는 0 입니다 */
   overtimeMinutes(): number {
     if (!this.cleared) return 0;

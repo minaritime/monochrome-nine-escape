@@ -4433,6 +4433,31 @@ console.log('\n23) 클리어 뒤 급상승 (OVERTIME)');
     `   속도 3분 x${speedAt(3).toFixed(2)} · 6분 x${speedAt(6).toFixed(2)} · 상한 x${OVERTIME.speedMax} · 적 상한 ${OVERTIME.maxAliveCap}`,
   );
 
+  // --- 화면이 타이머 정지를 계속 알리는가 ---
+  {
+    const ww = new World(emptySave(), input, 5, 0);
+    ww.time = ww.diff.clearTime - 1;
+    step(ww, 3);
+
+    const texts: { s: string; x: number; y: number }[] = [];
+    drawHud(recordingRenderer(texts), ww, false);
+    check('타이머 정지를 알린다', texts.some((t) => t.s.includes('타이머 정지')), texts.map((t) => t.s).join(' | '));
+    check('클리어 대상을 짚어준다', texts.some((t) => t.s.includes('클리어 대상')));
+
+    // 앞 보스가 섞여 있어도 막대는 클리어 대상을 가리켜야 합니다
+    ww.spawnBoss();
+    const two: { s: string; x: number; y: number }[] = [];
+    drawHud(recordingRenderer(two), ww, false);
+    check('보스가 둘이어도 막대가 클리어 대상을 가리킨다', two.some((t) => t.s.includes('· 클리어 대상')));
+
+    const boss = ww.enemies.find((e) => e.id === ww.clearBossId)!;
+    ww.killEnemy(boss);
+    const after: { s: string; x: number; y: number }[] = [];
+    drawHud(recordingRenderer(after), ww, false);
+    check('클리어하면 안내가 사라진다', !after.some((t) => t.s.includes('타이머 정지')));
+    check('클리어하면 표시도 사라진다', !after.some((t) => t.s.includes('클리어 대상')));
+  }
+
   // --- 옛 저장 소급 ---
   {
     // 시간으로 깼던 판은 클리어로 읽어야 합니다. 안 하면 이미 15까지 깬 사람의

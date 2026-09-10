@@ -22,6 +22,7 @@ export function drawHud(r: Renderer, w: World, mobile = false): void {
   // 경기장 안에 그리는 것들
   r.begin(ARENA_X + w.effects.shakeX, w.effects.shakeY);
   drawTargetMarker(r, w);
+  drawClearBoss(r, w);
   r.end();
 
   r.begin(ARENA_X, 0);
@@ -99,18 +100,37 @@ function drawTopInfo(r: Renderer, w: World, mobile: boolean): void {
   const seconds = Math.floor(w.time % 60);
   const timeText = `${minutes}:${String(seconds).padStart(2, '0')}`;
 
-  r.text(timeText, CANVAS.w / 2, 40, { size: 30, align: 'center', color: '#e6ebf5', weight: 800 });
+  // **타이머가 멈춘 동안은 시계 자체가 그 사실을 말해야 합니다** (2026-09-10).
+  // 숫자만 안 움직이면 멈춘 것인지 고장인지 알 수 없습니다. 색을 바꾸고 그 아래에
+  // 무엇을 해야 풀리는지 적습니다. **판 중에 이 규칙을 알릴 자리가 여기뿐입니다**
+  const waiting = w.awaitingClearBoss();
+  r.text(timeText, CANVAS.w / 2, 40, {
+    size: 30,
+    align: 'center',
+    color: waiting ? '#ffd166' : '#e6ebf5',
+    weight: 800,
+  });
 
-  // 적은 처음부터 끝까지 같은 기울기로 계속 강해집니다. 그 사실을 숨기지 않고 보여줍니다.
-  // 1분까지는 안 띄웁니다. 시작하자마자 "x1.1" 이 떠 있으면 경고가 아니라 장식이 됩니다
-  const grow = w.timeMultiplier();
-  if (grow >= 1.2) {
-    r.text(`적 강화 x${grow.toFixed(1)} · 속도 x${w.lateSpeedMultiplier().toFixed(2)}`, CANVAS.w / 2, 60, {
+  if (waiting) {
+    r.text('타이머 정지 · 보스를 잡아야 클리어', CANVAS.w / 2, 60, {
       size: 14,
       align: 'center',
-      color: '#ff8f6b',
+      color: '#ffd166',
       weight: 800,
     });
+  } else {
+    // 적은 처음부터 끝까지 같은 기울기로 계속 강해집니다. 그 사실을 숨기지 않고 보여줍니다.
+    // 1분까지는 안 띄웁니다. 시작하자마자 "x1.1" 이 떠 있으면 경고가 아니라 장식이 됩니다
+    const grow = w.timeMultiplier();
+    if (grow >= 1.2) {
+      const speed = w.lateSpeedMultiplier() * w.overtimeSpeedMul();
+      r.text(`적 강화 x${grow.toFixed(1)} · 속도 x${speed.toFixed(2)}`, CANVAS.w / 2, 60, {
+        size: 14,
+        align: 'center',
+        color: w.cleared ? '#ff5d5d' : '#ff8f6b',
+        weight: 800,
+      });
+    }
   }
 
   // 지금 어떤 난이도로 버티는 중인지 항상 보이게 둡니다
@@ -134,7 +154,10 @@ function drawTopInfo(r: Renderer, w: World, mobile: boolean): void {
 }
 
 function drawBossBar(r: Renderer, w: World): void {
-  const boss = w.enemies.find((e) => e.boss && !e.dead);
+  // 클리어 대상이 있으면 그쪽을 먼저 보여줍니다. 보스가 둘일 때 막대가 엉뚱한
+  // 개체를 가리키면, 잡아야 할 보스의 체력이 얼마나 남았는지 알 수가 없습니다
+  const target = w.clearBossId !== 0 ? w.enemies.find((e) => e.id === w.clearBossId && !e.dead) : undefined;
+  const boss = target ?? w.enemies.find((e) => e.boss && !e.dead);
   if (!boss) return;
   const width = 520;
   const x = CANVAS.w / 2 - width / 2;
@@ -143,7 +166,31 @@ function drawBossBar(r: Renderer, w: World): void {
   r.rect(x, y, width, 12, '#2a1b1f');
   r.rect(x, y, width * Math.max(0, boss.hp / boss.maxHp), 12, boss.def.color);
   r.rectOutline(x, y, width, 12, '#5a2b36', 1);
-  r.text(boss.def.name, CANVAS.w / 2, y - 4, { size: 13, align: 'center', color: boss.def.accent, weight: 800 });
+  const label = boss.id === w.clearBossId ? `${boss.def.name} · 클리어 대상` : boss.def.name;
+  r.text(label, CANVAS.w / 2, y - 4, { size: 13, align: 'center', color: boss.def.accent, weight: 800 });
+}
+
+/**
+ * 경기장 안에서 클리어 대상 보스를 표시합니다.
+ *
+ * 앞 보스를 아직 못 잡았으면 화면에 보스가 둘인데 **조준 조작이 없어서 대상을 고를
+ * 수도 없습니다.** 무엇을 잡아야 끝나는지조차 안 보이면 그냥 막힌 판이 됩니다.
+ *
+ * **깜빡이지 않습니다.** 애니메이션을 붙이려면 시간이 필요한데 이 구간에는
+ * `w.time` 이 멈춰 있어서, 시계를 쓰면 표시가 그대로 굳습니다
+ */
+function drawClearBoss(r: Renderer, w: World): void {
+  if (w.clearBossId === 0) return;
+  const boss = w.enemies.find((e) => e.id === w.clearBossId && !e.dead);
+  if (!boss) return;
+  r.ring(boss.x, boss.y, boss.radius + 12, '#ffd166', 3, 0.9);
+  r.ring(boss.x, boss.y, boss.radius + 18, '#ffd166', 1.5, 0.45);
+  r.text('클리어 대상', boss.x, boss.y - boss.radius - 24, {
+    size: 14,
+    align: 'center',
+    color: '#ffd166',
+    weight: 800,
+  });
 }
 
 // ---------------------------------------------------------------------------
