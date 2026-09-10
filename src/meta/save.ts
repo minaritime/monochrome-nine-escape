@@ -1,5 +1,6 @@
 import { DIFFICULTY, PASSIVE, SETTINGS, SKILLS, STAT_DEFS, type StatKey } from '../data/balance';
 import type { SkillId } from '../skills/types';
+import { unlockTimeFor } from './difficulty';
 
 const STORAGE_KEY = 'dodge-game-save';
 const VERSION = 1;
@@ -18,6 +19,17 @@ export interface Records {
   totalKills: number;
   /** 난이도별 최고 생존 시간. key 는 난이도 숫자 */
   bestTimeByDifficulty: Record<string, number>;
+  /**
+   * 난이도별 클리어 여부 (2026-09-10). key 는 `difficultyKey` 와 같습니다.
+   *
+   * **`bestTimeByDifficulty` 로는 못 셉니다.** 클리어가 "클리어 시간에 나오는 보스를
+   * 잡는 것"으로 바뀌면서, 그 시간에 닿기만 한 판과 실제로 잡은 판이 갈렸습니다.
+   * 타이머가 클리어 시간에 멈추므로 시간만으로는 둘을 구분할 수 없습니다.
+   *
+   * **옛 저장은 소급 인정합니다** (`sanitize`). 시간으로 깬 것을 클리어로 안 읽으면
+   * 이미 15까지 깬 사람의 해금이 통째로 날아갑니다
+   */
+  clearedByDifficulty: Record<string, boolean>;
 }
 
 /**
@@ -171,6 +183,7 @@ export function emptySave(): SaveData {
       totalRuns: 0,
       totalKills: 0,
       bestTimeByDifficulty: {},
+      clearedByDifficulty: {},
     },
     achievements: {},
     achieveStats: emptyAchieveStats(),
@@ -279,6 +292,7 @@ function migrate(data: Partial<SaveData>): SaveData {
     }
   }
   const sealsOwned = clampInt(numberOr(data.sealsOwned, 0), 0, PASSIVE.sealCosts.length);
+  const bestTimes = numberMap(data.records?.bestTimeByDifficulty);
 
   return {
     version: VERSION,
@@ -300,7 +314,11 @@ function migrate(data: Partial<SaveData>): SaveData {
       bestBuild: knownSkills(data.records?.bestBuild),
       totalRuns: numberOr(data.records?.totalRuns, 0),
       totalKills: numberOr(data.records?.totalKills, 0),
-      bestTimeByDifficulty: numberMap(data.records?.bestTimeByDifficulty),
+      bestTimeByDifficulty: bestTimes,
+      // 옛 저장 소급: 클리어 칸이 아예 없던 판이면 시간으로 깬 것을 클리어로 읽습니다
+      clearedByDifficulty: isRecord(data.records?.clearedByDifficulty)
+        ? boolMap(data.records?.clearedByDifficulty)
+        : clearedFromTimes(bestTimes),
     },
     achievements: numberMap(data.achievements),
     achieveStats: {
@@ -336,6 +354,35 @@ function migrate(data: Partial<SaveData>): SaveData {
 }
 
 /** 값이 숫자인 항목만 남깁니다 (난이도별 기록처럼 키가 자유로운 맵) */
+function boolMap(v: unknown): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
+  if (!isRecord(v)) return out;
+  for (const [k, b] of Object.entries(v)) {
+    if (b === true) out[k] = true;
+  }
+  return out;
+}
+
+/**
+ * 옛 저장 소급 (2026-09-10).
+ *
+ * 클리어 판정이 시간에서 보스 처치로 바뀌기 전에 시간으로 깬 것은 클리어로 인정합니다.
+ * 안 하면 이미 15까지 깬 사람의 해금 사슬과 하드모드 스위치가 통째로 날아갑니다.
+ *
+ * **`unlockTimeFor` 를 쓰므로 `meta/difficulty.ts` 를 부릅니다.** 그쪽은 save 를
+ * 타입으로만 가져가므로 실행 시점에 순환이 생기지 않습니다
+ */
+function clearedFromTimes(times: Record<string, number>): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
+  for (const [key, t] of Object.entries(times)) {
+    const hard = key.startsWith('h');
+    const lv = Number(hard ? key.slice(1) : key);
+    if (!Number.isFinite(lv)) continue;
+    if (t >= unlockTimeFor(lv, hard)) out[key] = true;
+  }
+  return out;
+}
+
 function numberMap(v: unknown): Record<string, number> {
   const out: Record<string, number> = {};
   if (!isRecord(v)) return out;

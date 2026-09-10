@@ -44,6 +44,8 @@ import {
   STAT_DEFS,
   STAT_GAINS_PER_LEVEL,
   STATUS,
+  OVERTIME,
+  SPAWN,
   TIME_SCALING,
   VIEW,
   XP_UPGRADE,
@@ -64,7 +66,7 @@ import { createPlayer, ownedSlots } from '../src/game/player';
 import { rollStatGains } from '../src/progression/levelup';
 import { addStat, createStats } from '../src/game/stats';
 import { openSlots, setSealed, togglePassive } from '../src/meta/shop';
-import { clampDifficulty, clearedAllFrom, difficultyKey, difficultyMods, unlockTimeFor } from '../src/meta/difficulty';
+import { clampDifficulty, clearedAllFrom, difficultyKey, difficultyMods, hasCleared, unlockTimeFor } from '../src/meta/difficulty';
 import { commitRun } from '../src/meta/bestiary';
 import { emptySave, fromJSON, type SaveData } from '../src/meta/save';
 import {
@@ -2989,23 +2991,41 @@ console.log('11) 난이도 해금 시간 규칙');
   check('앞쪽 난이도는 15분', unlockTimeFor(0) === 900 && unlockTimeFor(2) === 900);
   check('3단계부터 30분', unlockTimeFor(3) === 1800 && unlockTimeFor(9) === 1800);
 
-  // 실제 해금 경로로도 확인합니다
-  const save = emptySave();
-  const w = new World(save, input, 1, 0);
-  w.time = 900;
-  commitRun(save, w);
-  check('난이도 0 으로 15분이면 1 이 열린다', save.maxDifficulty === 1, `${save.maxDifficulty}`);
+  // --- 클리어는 시계가 아니라 보스 처치입니다 (2026-09-10) ---
+  //
+  // 클리어 시간에 타이머가 멈추고 보스가 한 마리 나오며, **그 개체**를 잡아야 클리어입니다.
+  // 앞 보스를 잡는 것으로는 안 됩니다. 잡으면 그때부터 타이머가 다시 흐릅니다
+  {
+    const save = emptySave();
+    const w = new World(save, input, 1, 0);
+    w.time = unlockTimeFor(0) - 1;
+    step(w, 3);
 
-  const w3 = new World(save, input, 1, 3);
-  w3.time = 900;
-  save.maxDifficulty = 3;
-  commitRun(save, w3);
-  check('난이도 3 은 15분으로는 안 열린다', save.maxDifficulty === 3, `${save.maxDifficulty}`);
+    check('클리어 시간에 타이머가 멈춘다', Math.abs(w.time - unlockTimeFor(0)) < 1e-6, `${w.time.toFixed(2)}`);
+    check('클리어 보스가 나온다', w.clearBossId !== 0, `${w.clearBossId}`);
+    check('아직 클리어가 아니다', !w.cleared);
 
-  const w3b = new World(save, input, 1, 3);
-  w3b.time = 1800;
-  commitRun(save, w3b);
-  check('난이도 3 은 30분이면 열린다', save.maxDifficulty === 4, `${save.maxDifficulty}`);
+    // 앞 보스를 잡는 것으로는 안 됩니다
+    const other = w.spawnBoss();
+    w.killEnemy(other);
+    check('다른 보스를 잡아도 클리어가 아니다', !w.cleared);
+
+    // 시간만 채우고 끝내면 해금이 안 됩니다
+    const timeOnly = emptySave();
+    commitRun(timeOnly, w);
+    check('시간만 채운 판은 해금이 안 된다', timeOnly.maxDifficulty === 0, `${timeOnly.maxDifficulty}`);
+
+    const boss = w.enemies.find((e) => e.id === w.clearBossId)!;
+    w.killEnemy(boss);
+    check('그 보스를 잡으면 클리어', w.cleared);
+
+    step(w, 5);
+    check('클리어 뒤 타이머가 다시 흐른다', w.time > unlockTimeFor(0) + 4, `${w.time.toFixed(1)}`);
+
+    commitRun(save, w);
+    check('난이도 0 을 클리어하면 1 이 열린다', save.maxDifficulty === 1, `${save.maxDifficulty}`);
+    check('저장에 클리어가 남는다', save.records.clearedByDifficulty['0'] === true);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -3097,7 +3117,9 @@ console.log('13) 보스가 겹쳐서 등장하는가 (못 잡으면 쌓입니다
   // 상한을 넘지 않는지
   step(w, 1200, true, false, keepBossesAlive);
   const capped = w.enemies.filter((e) => e.boss).length;
-  check('동시 보스가 상한을 넘지 않는다', capped <= BOSS.maxAlive, `${capped} > ${BOSS.maxAlive}`);
+  // **클리어 보스만 상한 밖에서 한 마리 더 나옵니다** (2026-09-10). 상한에 막혀
+  // 안 나오면 잡을 대상이 없어서 판이 영영 안 끝납니다. 그 하나가 유일한 예외입니다
+  check('동시 보스가 상한 + 클리어 보스 안에 있다', capped <= BOSS.maxAlive + 1, `${capped} > ${BOSS.maxAlive + 1}`);
   console.log(`   ${Math.round(w.time / 60)}분 시점 동시 보스 ${capped}마리 (상한 ${BOSS.maxAlive})`);
 
   // 한 마리를 잡으면 자리가 나야 합니다
@@ -3181,15 +3203,15 @@ console.log('15) 업적');
     check('코인도 안 들어온다', save.coins === 0, `${save.coins}`);
   }
 
-  // 난이도 클리어는 예전 기록으로 소급됩니다
+  // 난이도 클리어 업적은 저장의 클리어 기록을 그대로 읽습니다
   {
     const save = emptySave();
-    save.records.bestTimeByDifficulty['0'] = 900;
-    save.records.bestTimeByDifficulty['1'] = 900;
+    save.records.clearedByDifficulty['0'] = true;
+    save.records.clearedByDifficulty['1'] = true;
     const got = checkAchievements(save, null, false);
     const names = got.map((g) => g.id);
-    check('난이도 0 클리어가 소급된다', names.includes('clear0'), names.join(','));
-    check('난이도 1 클리어가 소급된다', names.includes('clear1'));
+    check('난이도 0 클리어가 열린다', names.includes('clear0'), names.join(','));
+    check('난이도 1 클리어가 열린다', names.includes('clear1'));
     check('안 깬 난이도는 안 열린다', !names.includes('clear2'));
     check('코인이 실제로 들어온다', save.coins === 40 + 60, `${save.coins}`);
 
@@ -3266,8 +3288,8 @@ console.log('15) 업적');
     check('입문 난이도는 새 저장에도 보인다', visibleAchievements(save).some((a) => a.id === introId));
 
     // 입문을 건너뛴 채 0 과 1 을 깨도 다음 칸(2)이 제대로 나타납니다
-    save.records.bestTimeByDifficulty['0'] = 99999;
-    save.records.bestTimeByDifficulty['1'] = 99999;
+    save.records.clearedByDifficulty['0'] = true;
+    save.records.clearedByDifficulty['1'] = true;
     checkAchievements(save, null, false);
     const after = chainRows(save);
     check('깨면 다음 칸이 나타난다', after.length === 3, `${after.map((a) => a.id).join(',')}`);
@@ -3373,21 +3395,22 @@ console.log('16) 저장 데이터가 낡거나 망가졌을 때');
     check('새 저장은 하드모드가 꺼져 있다', nothing.hardMode === false);
 
     const all = emptySave();
-    for (let lv = 0; lv <= DIFFICULTY.max; lv++) all.records.bestTimeByDifficulty[String(lv)] = unlockTimeFor(lv);
+    for (let lv = 0; lv <= DIFFICULTY.max; lv++) all.records.clearedByDifficulty[String(lv)] = true;
     check('0~15 를 다 깨면 열린다', clearedAllFrom(all, 0));
     // 입문을 안 깼어도 열려야 합니다. 그게 이 조건의 전부입니다
-    check('입문(-1)은 안 봐도 열린다', (all.records.bestTimeByDifficulty['-1'] ?? 0) === 0);
+    check('입문(-1)은 안 봐도 열린다', all.records.clearedByDifficulty['-1'] !== true);
     // 반대로 업적 "완주" 는 입문까지 봐야 합니다. 둘이 같아지면 구분한 의미가 없습니다
     check('업적 완주는 입문까지 봐야 한다', !clearedAllFrom(all, DIFFICULTY.min));
 
     const oneShort = emptySave();
-    for (let lv = 0; lv < DIFFICULTY.max; lv++) oneShort.records.bestTimeByDifficulty[String(lv)] = unlockTimeFor(lv);
+    for (let lv = 0; lv < DIFFICULTY.max; lv++) oneShort.records.clearedByDifficulty[String(lv)] = true;
     check('한 단계라도 남으면 안 열린다', !clearedAllFrom(oneShort, 0));
 
-    // 시간이 모자라면 깬 것이 아닙니다
-    const short = emptySave();
-    for (let lv = 0; lv <= DIFFICULTY.max; lv++) short.records.bestTimeByDifficulty[String(lv)] = unlockTimeFor(lv) - 1;
-    check('1초라도 모자라면 안 열린다', !clearedAllFrom(short, 0));
+    // **시간만 채운 것은 클리어가 아닙니다** (2026-09-10). 클리어 시간에 닿으면
+    // 타이머가 멈추고 보스가 나오는데, 그 보스를 못 잡고 죽으면 기록만 남습니다
+    const timeOnly = emptySave();
+    for (let lv = 0; lv <= DIFFICULTY.max; lv++) timeOnly.records.bestTimeByDifficulty[String(lv)] = unlockTimeFor(lv);
+    check('시간만 채운 것으로는 안 열린다', !clearedAllFrom(timeOnly, 0));
 
     check('하드모드 값은 저장에 남는다', fromJSON({ hardMode: true }).hardMode === true);
   }
@@ -3883,7 +3906,7 @@ console.log('\n18) 하드모드 난이도');
     // 하드로 깬 기록이 일반 해금을 열어주면 안 됩니다 (그 반대도 마찬가지)
     const s = emptySave();
     for (let lv = 0; lv <= DIFFICULTY.max; lv++) {
-      s.records.bestTimeByDifficulty[difficultyKey(lv, true)] = unlockTimeFor(lv, true);
+      s.records.clearedByDifficulty[difficultyKey(lv, true)] = true;
     }
     check('하드 기록만으로는 일반 완주가 아니다', !clearedAllFrom(s, 0, false));
     check('하드 기록으로 하드 완주는 참', clearedAllFrom(s, 0, true));
@@ -4346,6 +4369,95 @@ console.log('\n22) 하드 4: 폭격기');
     const k1 = w.stats.kills;
     w.explodeAll(300, 300, 120, 9999, '#ff7a1a', null);
     check('내가 낸 폭발은 예전대로 보상이 붙는다', w.stats.kills === k1 + 1, `${k1} → ${w.stats.kills}`);
+  }
+}
+
+console.log('\n23) 클리어 뒤 급상승 (OVERTIME)');
+{
+  const save = emptySave();
+  const w = new World(save, input, 5, 0);
+  const ct = w.diff.clearTime;
+
+  // --- 클리어 전에는 아무것도 안 걸립니다 ---
+  w.time = ct;
+  check('클리어 전 급상승 시간은 0', w.overtimeMinutes() === 0, `${w.overtimeMinutes()}`);
+  check('클리어 전 속도 배율은 1', w.overtimeSpeedMul() === 1, `${w.overtimeSpeedMul()}`);
+  check('클리어 전 적 상한은 기본값', w.maxAliveNow() === SPAWN.maxAlive + w.diff.maxAliveAdd, `${w.maxAliveNow()}`);
+
+  // --- 속도는 가속이 붙습니다 (분당 증가량이 3분마다 한 단계 커집니다) ---
+  w.cleared = true;
+  const speedAt = (min: number) => {
+    w.time = ct + min * 60;
+    return w.overtimeSpeedMul();
+  };
+  const nearSpeed = (label: string, got: number, want: number) =>
+    check(label, Math.abs(got - want) < 0.01, `${got.toFixed(2)} (기대 ${want})`);
+
+  nearSpeed('3분에 x1.6', speedAt(3), 1.6);
+  nearSpeed('4분에 x2.0', speedAt(4), 2.0);
+  nearSpeed('5분에 x2.4', speedAt(5), 2.4);
+  nearSpeed('6분에 x2.8', speedAt(6), 2.8);
+  check('상한에서 멈춘다', speedAt(30) === OVERTIME.speedMax, `${speedAt(30)}`);
+
+  // **가속이 실제로 붙는가.** 같은 3분인데 뒤쪽 구간이 더 많이 올라야 합니다.
+  // 이 시험이 없으면 선형으로 되돌아가도 위 값들만으로는 안 잡힙니다
+  const first3 = speedAt(3) - speedAt(0);
+  const next3 = speedAt(6) - speedAt(3);
+  check('뒤 구간이 앞 구간보다 가파르다', next3 > first3 * 1.9, `${first3.toFixed(2)} → ${next3.toFixed(2)}`);
+
+  // --- 체력·공격력은 합연산으로 시간 강화 위에 더해집니다 ---
+  {
+    const before = new World(emptySave(), input, 5, 0);
+    before.time = ct;
+    const after = new World(emptySave(), input, 5, 0);
+    after.cleared = true;
+    after.time = ct + 300; // 5분
+    const gainHp = after.timeScale().hp - before.timeScale().hp;
+    // 5분이면 기본 시간 강화 +1.0 에 급상승 +2.0 이 더해집니다
+    const want = 5 * TIME_SCALING.hpPerMinute + 5 * OVERTIME.hpPerMinute;
+    check('체력이 합연산으로 오른다', Math.abs(gainHp - want) < 0.01, `${gainHp.toFixed(2)} (기대 ${want.toFixed(2)})`);
+    check('공격력도 같이 오른다', after.timeScale().dmg > before.timeScale().dmg);
+    check('속도는 곱연산이다', after.timeScale().speed > before.timeScale().speed * 1.9, `${after.timeScale().speed.toFixed(2)}`);
+  }
+
+  // --- 적 수도 늘고, 성능 점검 기준에서 멈춥니다 ---
+  {
+    const base = SPAWN.maxAlive + w.diff.maxAliveAdd;
+    w.time = ct + 120;
+    check('2분이면 적 상한이 는다', w.maxAliveNow() > base, `${base} → ${w.maxAliveNow()}`);
+    w.time = ct + 3600;
+    check('적 상한이 성능 점검 기준에서 멈춘다', w.maxAliveNow() === OVERTIME.maxAliveCap, `${w.maxAliveNow()}`);
+  }
+
+  console.log(
+    `   속도 3분 x${speedAt(3).toFixed(2)} · 6분 x${speedAt(6).toFixed(2)} · 상한 x${OVERTIME.speedMax} · 적 상한 ${OVERTIME.maxAliveCap}`,
+  );
+
+  // --- 옛 저장 소급 ---
+  {
+    // 시간으로 깼던 판은 클리어로 읽어야 합니다. 안 하면 이미 15까지 깬 사람의
+    // 해금 사슬과 하드모드 스위치가 통째로 날아갑니다
+    const old = fromJSON({
+      records: {
+        bestTimeByDifficulty: {
+          '0': unlockTimeFor(0),
+          '3': unlockTimeFor(3),
+          '4': unlockTimeFor(4) - 1,
+          h0: unlockTimeFor(0, true),
+        },
+      },
+    });
+    check('옛 시간 기록이 클리어로 소급된다', hasCleared(old, 0));
+    check('30분짜리도 소급된다', hasCleared(old, 3));
+    check('1초 모자란 것은 소급 안 된다', !hasCleared(old, 4));
+    check('하드 키도 소급된다', hasCleared(old, 0, true));
+
+    // 이미 클리어 칸이 있는 저장은 그대로 둡니다. 소급이 덮어쓰면
+    // "보스를 못 잡았는데 시간만 채운 판"이 클리어로 바뀝니다
+    const fresh = fromJSON({
+      records: { bestTimeByDifficulty: { '0': unlockTimeFor(0) }, clearedByDifficulty: {} },
+    });
+    check('클리어 칸이 있으면 소급하지 않는다', !hasCleared(fresh, 0));
   }
 }
 

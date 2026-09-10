@@ -271,10 +271,36 @@ export function difficultyKey(level: number, hard: boolean): string {
  */
 export function clearedAllFrom(save: SaveData, from: number, hard = false): boolean {
   for (let lv = from; lv <= DIFFICULTY.max; lv++) {
-    const best = save.records.bestTimeByDifficulty[difficultyKey(lv, hard)] ?? 0;
-    if (best < unlockTimeFor(lv, hard)) return false;
+    if (!hasCleared(save, lv, hard)) return false;
   }
   return true;
+}
+
+/**
+ * 그 난이도를 클리어했는가 (2026-09-10).
+ *
+ * **클리어를 묻는 곳은 전부 이 함수를 거쳐야 합니다.** 예전에는 `bestTimeByDifficulty`
+ * 와 `unlockTimeFor` 를 곳곳에서 직접 견줬는데, 판정이 "클리어 시간에 나오는 보스를
+ * 잡는 것"으로 바뀌면서 그 비교가 전부 틀린 답을 내게 됐습니다. 타이머가 클리어
+ * 시간에 멈추므로 **시간만으로는 닿기만 한 판과 실제로 잡은 판을 구분할 수 없습니다.**
+ */
+export function hasCleared(save: SaveData, level: number, hard = false): boolean {
+  return save.records.clearedByDifficulty[difficultyKey(level, hard)] === true;
+}
+
+/**
+ * 화면에 쓰는 난이도 이름.
+ *
+ * **한 곳에만 둡니다.** 난이도 화면과 일시정지 화면이 각자 적으면 "난이도 0" 과
+ * "기본" 처럼 같은 것을 다른 이름으로 부르게 됩니다
+ */
+export function difficultyName(level: number, hard = false): string {
+  // **하드에는 "기본"이 없습니다.** 하드 0 은 이미 일반 15 위에서 시작하므로
+  // 그 이름을 붙이면 들어가는 사람이 완전히 잘못된 기대를 하게 됩니다
+  if (hard) return `하드 ${level}`;
+  if (level < 0) return '입문';
+  if (level === 0) return '기본';
+  return `난이도 ${level}`;
 }
 
 /** 그 난이도에서 새로 붙는 효과 한 줄 */

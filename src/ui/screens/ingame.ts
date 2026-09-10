@@ -7,6 +7,7 @@ import { branchDef, branchMods, branchesFor, modsOf } from '../../skills/branche
 import { getSkillDef } from '../../skills/registry';
 import { SKILL_FAMILY_LABEL } from '../../skills/types';
 import type { SkillId } from '../../skills/types';
+import { difficultyName } from '../../meta/difficulty';
 import { enemyIcon } from './enemyIcon';
 import { applyBranchChoice, applySkillChoice, generateSkillChoices, type SkillChoice } from '../../progression/skillChoice';
 import type { SkillSlot } from '../../game/types';
@@ -213,10 +214,20 @@ export function showPause(w: World, onResume: () => void, onQuit: () => void, mo
     );
   }
 
+  // 클리어했으면 나가기 카드가 그 사실을 알립니다 (2026-09-10).
+  // 클리어 뒤에는 판을 끊는 화면이 따로 안 뜨고 그대로 이어지므로, 여기를 안 바꾸면
+  // 언제 깼는지 모른 채 계속 버티게 됩니다. **판 중에 알릴 자리가 여기뿐입니다**
   body.push(
     h('div', { class: 'rowlist' }, [
       card({ key: 'Esc', title: '계속하기', onClick: onResume }),
-      card({ key: 'Q', title: '포기하고 상점으로', desc: '지금까지 모은 코인은 그대로 저장됩니다', onClick: onQuit }),
+      w.cleared
+        ? card({
+            key: 'Q',
+            title: `${difficultyName(w.difficulty, w.hard)} 클리어!`,
+            desc: '나가도 클리어로 남습니다. 코인도 그대로입니다',
+            onClick: onQuit,
+          })
+        : card({ key: 'Q', title: '포기하고 상점으로', desc: '지금까지 모은 코인은 그대로 저장됩니다', onClick: onQuit }),
     ]),
   );
 

@@ -54,11 +54,15 @@ function runOnce(seed: number, minutes: number, tier: ShopTier, difficulty: numb
     killsAtLastMark = w.stats.kills;
   };
 
+  // 분 표시는 `w.time` 이 아니라 흘려보낸 프레임으로 셉니다. 클리어 시간에 닿으면
+  // 그 보스를 잡을 때까지 `w.time` 이 멈춰서, 그 뒤 눈금이 통째로 안 찍힙니다
+  let elapsed = 0;
   for (let i = 0; i < maxSteps; i++) {
     input.dir = decideMove(w);
     useSkills(w, ownedSlots(w.player));
 
     w.update(FIXED_DT);
+    elapsed += FIXED_DT;
 
     // 죽지 않게 되돌립니다. 생존 실력이 아니라 경험치 곡선을 보는 것이 목적입니다
     w.player.hp = w.player.stats.maxHp;
@@ -74,7 +78,7 @@ function runOnce(seed: number, minutes: number, tier: ShopTier, difficulty: numb
     }
     drainBranches(w);
 
-    if (w.time >= nextMark) {
+    if (elapsed >= nextMark) {
       mark();
       nextMark += 60;
     }

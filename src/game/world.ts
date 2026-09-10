@@ -19,6 +19,8 @@ import {
   REVIVE_UPGRADE,
   SETTINGS,
   STATUS,
+  OVERTIME,
+  SPAWN,
   TIME_SCALING,
   type BossId,
   type EnemyId,
@@ -124,6 +126,24 @@ export class World {
    */
   bossesAlive = 0;
   bossesSpawned = 0;
+  /**
+   * 이 판에서 클리어했는가 (2026-09-10).
+   *
+   * 클리어는 시계가 아니라 **클리어 시간에 나오는 보스를 잡는 것**입니다.
+   * 그 시간에 닿으면 타이머가 멈추고 보스가 한 마리 소환되며, 그 보스를 잡아야
+   * 타이머가 다시 흐르면서 `OVERTIME` 급상승이 시작됩니다.
+   *
+   * **클리어한 뒤에는 죽든 나가든 클리어입니다.** 판이 끝나는 시점에
+   * `recordRun` 이 이 값을 저장으로 옮깁니다
+   */
+  cleared = false;
+  /**
+   * 클리어 시간에 소환된 그 보스의 id. 잡으면 0 으로 돌아갑니다.
+   *
+   * **앞 보스(10분 보스 등)를 잡는 것은 클리어가 아닙니다** (2026-09-10 사용자 확정).
+   * 그래서 개체를 지목해야 하고, 그 지목을 여기 담습니다
+   */
+  clearBossId = 0;
 
   /** 죽는 순간 흩어지는 파편 */
   shards: Shard[] = [];
@@ -219,7 +239,12 @@ export class World {
     this.effects.update(dt);
     if (this.gameOver) return;
 
-    this.time += dt;
+    // **클리어 보스를 잡을 때까지 타이머가 멈춥니다** (2026-09-10).
+    // 멈춘 동안에도 스폰과 적 행동은 평소대로 돕니다. 멈추는 것은 시계뿐이라
+    // 그 보스전은 클리어 시간 시점의 난도로 고정된 채 치릅니다.
+    // 잡으면 `cleared` 가 켜지고 그때부터 다시 흐르며 `OVERTIME` 이 쌓입니다
+    if (this.cleared) this.time += dt;
+    else if (this.time < this.diff.clearTime) this.time = Math.min(this.diff.clearTime, this.time + dt);
 
     // 업적: "첫 보스까지 안 움직이기" 는 조작 여부를 봐야 합니다.
     // 위치로 재면 넉백이나 장판 감속에 밀린 것도 움직인 것이 됩니다
@@ -413,7 +438,7 @@ export class World {
    * 상한도 구간도 없이 분당 +0.2 로 쭉 오릅니다 (`TIME_SCALING` 주석 참고).
    */
   timeMultiplier(): number {
-    return 1 + (this.time / 60) * TIME_SCALING.hpPerMinute;
+    return 1 + (this.time / 60) * TIME_SCALING.hpPerMinute + this.overtimeMinutes() * OVERTIME.hpPerMinute;
   }
 
   /** 후반 속도 배율. 15분부터, 체력·공격력보다 훨씬 느리게 오릅니다 */
@@ -423,15 +448,72 @@ export class World {
   }
 
   /**
+   * 클리어 시간에 닿았는데 아직 그 보스가 안 나온 상태인가.
+   *
+   * **보스 주기(`BOSS.interval`)에 기대지 않고 그 자리에서 소환합니다.** 지금은
+   * 주기가 300초라 15분·30분과 마침 맞아떨어지지만, 하드 표를 짜면서 클리어 시간을
+   * 20분 같은 값으로 바꾸면 그 순간 보스가 안 나와 판이 영영 안 끝납니다
+   */
+  needsClearBoss(): boolean {
+    return !this.cleared && this.time >= this.diff.clearTime && this.clearBossId === 0;
+  }
+
+  /** 클리어한 뒤 흐른 시간(분). 클리어 전에는 0 입니다 */
+  overtimeMinutes(): number {
+    if (!this.cleared) return 0;
+    return Math.max(0, (this.time - this.diff.clearTime) / 60);
+  }
+
+  /**
+   * 클리어 뒤 속도 배율. **분당 증가량 자체가 단계마다 커집니다.**
+   *
+   * 0~3분은 분당 +0.2, 3~6분은 분당 +0.4, 6~9분은 분당 +0.6 입니다.
+   * 체력·공격력이 합연산인데도 충분한 이유가 여기 있습니다. 이동으로 피하는
+   * 게임이라 속도가 오르면 대응할 방법이 없고, 그것이 이 구간의 목적입니다.
+   */
+  overtimeSpeedMul(): number {
+    const t = this.overtimeMinutes();
+    if (t <= 0) return 1;
+    const step = OVERTIME.speedStepMinutes;
+    const rate = OVERTIME.speedPerMinuteStep;
+    const k = Math.floor(t / step);
+    // 다 지나온 단계들 + 지금 단계에서 흐른 만큼
+    const acc = rate * step * ((k * (k + 1)) / 2) + rate * (k + 1) * (t - k * step);
+    return Math.min(OVERTIME.speedMax, 1 + acc);
+  }
+
+  /**
+   * 지금 이 순간의 동시 등장 상한.
+   *
+   * **상한을 보는 곳은 전부 이 함수를 거쳐야 합니다.** `SPAWN.maxAlive` 를 직접
+   * 읽으면 그쪽에서만 클리어 뒤 증가가 빠져서, 평소 스폰과 웨이브가 서로 다른
+   * 상한을 보게 됩니다.
+   *
+   * 배율만 올리면 후반이 잘 안 움직입니다. 체력이 아무리 올라도 피할 자리가
+   * 그대로면 계속 버틸 수 있어서, 파밍을 막으려면 적 수가 같이 늘어야 합니다
+   */
+  maxAliveNow(): number {
+    const base = SPAWN.maxAlive + this.diff.maxAliveAdd;
+    const t = this.overtimeMinutes();
+    if (t <= 0) return base;
+    const grown = Math.round(base * (1 + t * OVERTIME.maxAlivePerMinute));
+    // 난이도가 이미 상한 위로 올려둔 판에서는 줄이지 않습니다
+    return Math.max(base, Math.min(OVERTIME.maxAliveCap, grown));
+  }
+
+  /**
    * 경과 시간에 따른 적 강화 배율. 스폰하는 순간에만 적용됩니다.
    * 난이도 배율도 여기서 함께 곱합니다 (난이도 0 이면 전부 1 이라 기존과 같습니다).
    */
   timeScale(): { hp: number; dmg: number; speed: number } {
     const minutes = this.time / 60;
+    // 클리어 뒤 급상승은 시간 강화 **위에 더합니다** (속도만 곱합니다).
+    // 여기서 곱하면 이미 x7 인 30분 체력에 다시 배율이 얹혀 한 칸에 몇 배씩 뜁니다
+    const over = this.overtimeMinutes();
     return {
-      hp: (1 + minutes * TIME_SCALING.hpPerMinute) * this.diff.hpMul,
-      dmg: (1 + minutes * TIME_SCALING.damagePerMinute) * this.diff.damageMul,
-      speed: this.lateSpeedMultiplier() * this.diff.speedMul,
+      hp: (1 + minutes * TIME_SCALING.hpPerMinute + over * OVERTIME.hpPerMinute) * this.diff.hpMul,
+      dmg: (1 + minutes * TIME_SCALING.damagePerMinute + over * OVERTIME.damagePerMinute) * this.diff.damageMul,
+      speed: this.lateSpeedMultiplier() * this.overtimeSpeedMul() * this.diff.speedMul,
     };
   }
 
@@ -866,6 +948,12 @@ export class World {
       for (let i = 0; i < bossCoins; i++) this.dropCoin(e.x, e.y, 1, 70);
       this.healPlayer(this.player.stats.maxHp * BOSS.healRatio);
       this.bossesAlive = Math.max(0, this.bossesAlive - 1);
+      // 클리어 판정. **그 개체여야 합니다.** 앞 보스가 아직 살아 있을 때
+      // 그쪽을 잡는 것으로는 안 됩니다 (2026-09-10 사용자 확정)
+      if (!this.cleared && e.id === this.clearBossId) {
+        this.cleared = true;
+        this.clearBossId = 0;
+      }
     } else if (e.elite && !e.child && !this.diff.allElite) {
       // 분열체는 정예라도 코인을 안 줍니다. 정예 분열적은 1 → 3 → 9 로 늘어나므로
       // 개체마다 확정 드랍을 주면 한 마리에서 코인이 13개씩 쏟아집니다.

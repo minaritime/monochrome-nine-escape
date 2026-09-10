@@ -1,4 +1,4 @@
-import { ARENA_X, BOSS, DEBUG, ENEMY_TABLE, SPAWN, VIEW, type EnemyId } from '../data/balance';
+import { ARENA_X, BOSS, DEBUG, ENEMY_TABLE, VIEW, type EnemyId } from '../data/balance';
 import { eliteRatio } from '../enemies/elite';
 import { ALL_ENEMY_IDS, getEnemyDef } from '../enemies/registry';
 import { formatStat } from './stats';
@@ -116,7 +116,7 @@ export class Debug {
     line(`적 ${w.enemies.length} · 투사체 ${w.projectiles.length} · 파티클 ${w.effects.particles.length}`);
     const rate = w.spawner.currentRate(w) / (w.bossesAlive > 0 ? BOSS.spawnSlow : 1);
     const elitePct = eliteRatio(w.time, w.diff.eliteRatioMul) * 100;
-    line(`스폰 ${rate.toFixed(2)}마리/초 · 상한 ${SPAWN.maxAlive + w.diff.maxAliveAdd} · 정예 ${elitePct.toFixed(0)}% · 시간 강화 x${w.timeMultiplier().toFixed(2)} (속도 x${w.lateSpeedMultiplier().toFixed(2)})`);
+    line(`스폰 ${rate.toFixed(2)}마리/초 · 상한 ${w.maxAliveNow()} · 정예 ${elitePct.toFixed(0)}% · 시간 강화 x${w.timeMultiplier().toFixed(2)} (속도 x${w.lateSpeedMultiplier().toFixed(2)})`);
     line(`난이도 ${w.difficulty} · 체력 x${w.diff.hpMul.toFixed(2)} · 공격력 x${w.diff.damageMul.toFixed(2)} · 속도 x${w.diff.speedMul.toFixed(2)} · 사거리 x${w.diff.rangeMul.toFixed(2)}`);
     line(`자동 스폰 ${w.spawner.enabled ? 'ON' : 'OFF'} (F4) · 무적 ${this.godMode ? 'ON' : 'OFF'} (G)`);
     y += 4;

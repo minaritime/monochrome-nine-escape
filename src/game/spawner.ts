@@ -46,7 +46,7 @@ export class Spawner {
 
   private atCap(w: World): boolean {
     // 무적 하수인은 상한에 안 셉니다 (`World.countedAlive` 주석 참고)
-    return w.countedAlive() >= SPAWN.maxAlive + w.diff.maxAliveAdd;
+    return w.countedAlive() >= w.maxAliveNow();
   }
 
   /**
@@ -87,7 +87,7 @@ export class Spawner {
     const ids = forceId ? [forceId] : this.unlockedIds(w);
     if (ids.length === 0) return;
 
-    const room = SPAWN.maxAlive + w.diff.maxAliveAdd - w.countedAlive();
+    const room = w.maxAliveNow() - w.countedAlive();
     const count = Math.min(spec.count, Math.max(0, room));
     for (let i = 0; i < count; i++) {
       const id = forceId ?? w.rng.pick(ids);
@@ -108,6 +108,16 @@ export class Spawner {
   private updateBoss(w: World, dt: number): void {
     if (!this.enabled) return;
     if (this.bossSpawnAge < Number.POSITIVE_INFINITY) this.bossSpawnAge += dt;
+
+    // **클리어 보스는 상한과 주기를 무시하고 반드시 나옵니다** (2026-09-10).
+    // 보스가 이미 셋이라 막히거나 주기가 클리어 시간과 안 맞으면 잡을 대상이
+    // 없어서 판이 영영 안 끝납니다. 이 한 마리만 예외로 둡니다
+    if (w.needsClearBoss()) {
+      this.bossTimer = BOSS.interval;
+      this.bossSpawnAge = 0;
+      w.clearBossId = w.spawnBoss().id;
+      return;
+    }
     // 상한까지 찼을 때만 카운트다운을 멈춥니다.
     // 예전에는 한 마리라도 살아 있으면 멈춰서, 못 잡으면 보스가 영영 안 나왔습니다.
     // 지금은 못 잡으면 다음 보스가 그 위에 겹칩니다

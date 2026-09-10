@@ -35,11 +35,16 @@ function runOnce(
   const w = new World(saveFor(tier), input as unknown as Input, seed, difficulty);
   const maxSteps = Math.round(maxMinutes * 60 / FIXED_DT);
 
+  // **`w.time` 이 아니라 흘려보낸 프레임으로 셉니다** (2026-09-10).
+  // 클리어 시간에 닿으면 그 보스를 잡을 때까지 `w.time` 이 멈추므로, 그것으로 재면
+  // 보스를 못 잡고 30분을 버틴 판이 "15분 생존"으로 찍혀 예전 값과 견줄 수 없습니다
+  let elapsed = 0;
   for (let i = 0; i < maxSteps; i++) {
     input.dir = decideMove(w);
     useSkills(w, ownedSlots(w.player));
 
     w.update(FIXED_DT);
+    elapsed += FIXED_DT;
 
     while (w.pendingSkillChoices > 0) {
       w.pendingSkillChoices--;
@@ -55,7 +60,7 @@ function runOnce(
   }
 
   return {
-    time: w.time,
+    time: elapsed,
     level: w.player.level,
     kills: w.stats.kills,
     enemies: w.enemies.length,

@@ -1,6 +1,6 @@
 import { BESTIARY_TIERS, BESTIARY_TIERS_BOSS, DIFFICULTY } from '../data/balance';
 import { isBossId } from '../enemies/boss';
-import { difficultyKey, unlockTimeFor } from './difficulty';
+import { difficultyKey } from './difficulty';
 import { ownedSlots } from '../game/player';
 import type { World } from '../game/world';
 import type { SkillId } from '../skills/types';
@@ -65,14 +65,19 @@ export function commitRun(save: SaveData, w: World): void {
   const key = difficultyKey(w.difficulty, w.hard);
   if (w.time > (r.bestTimeByDifficulty[key] ?? 0)) r.bestTimeByDifficulty[key] = w.time;
 
-  // 지금 난이도의 요구 시간을 채웠으면 다음 난이도가 열립니다.
+  // **클리어는 시계가 아니라 보스 처치입니다** (2026-09-10).
+  // 클리어 시간에 타이머가 멈추고 보스가 한 마리 나오며, 그 보스를 잡아야 켜집니다.
+  // 켜진 뒤에는 죽든 일시정지에서 나가든 여기를 지나므로 클리어로 남습니다
+  if (w.cleared) r.clearedByDifficulty[key] = true;
+
+  // 클리어했으면 다음 난이도가 열립니다.
   // -1 은 항상 고를 수 있으므로 해금 사슬은 0 에서 시작합니다.
   // 표는 15 에서 끝나므로 그 위로는 열리지 않습니다.
   //
   // **하드는 자기 사슬을 따로 탑니다** (`maxHardDifficulty`). 같은 칸을 쓰면
   // 일반에서 깬 것이 하드까지 열어 줍니다
   const next = Math.min(DIFFICULTY.max, w.difficulty + 1);
-  if (w.time >= unlockTimeFor(w.difficulty, w.hard)) {
+  if (w.cleared) {
     if (w.hard) {
       if (save.maxHardDifficulty < next) save.maxHardDifficulty = next;
     } else if (save.maxDifficulty < next) {

@@ -21,7 +21,7 @@ const NORMAL_ENEMY_IDS = ALL_ENEMY_IDS.filter((id) => !ENEMY_TABLE[id].hardOnly)
 import { eliteStatMul } from '../enemies/elite';
 import { isStatRollable } from '../game/stats';
 import { ownedSlots } from '../game/player';
-import { clearedAllFrom, unlockTimeFor } from '../meta/difficulty';
+import { clearedAllFrom, hasCleared, unlockTimeFor } from '../meta/difficulty';
 import { purchasedCount, purchasedCountAll, totalPurchasable, totalPurchasableAll } from '../meta/shop';
 import type { SaveData } from '../meta/save';
 import type { World } from '../game/world';
@@ -122,10 +122,14 @@ export function tierName(def: AchieveDef, tierIndex: number): string {
   return def.tiers[tierIndex]?.name ?? def.name;
 }
 
-/** 이번 판이 그 난이도의 요구 시간을 채웠는가 */
+/**
+ * 이번 판을 클리어했는가.
+ *
+ * **시간이 아니라 `World.cleared` 입니다** (2026-09-10). 클리어 시간에 타이머가
+ * 멈추고 보스가 나오므로, 시간으로 재면 그 보스를 못 잡고 죽은 판까지 클리어로 셉니다
+ */
 function clearedNow(c: AchieveCtx): boolean {
-  const w = c.w;
-  return !!w && c.runEnded && w.time >= unlockTimeFor(w.difficulty);
+  return !!c.w && c.runEnded && c.w.cleared;
 }
 
 /**
@@ -171,7 +175,7 @@ for (let lv = DIFFICULTY.min; lv <= DIFFICULTY.max; lv++) {
   difficultyClears.push({
     id: `clear${lv}`,
     name: `난이도 ${lv} 클리어`,
-    desc: `난이도 ${lv} 에서 ${Math.round(unlockTimeFor(lv) / 60)}분을 버팁니다`,
+    desc: `난이도 ${lv} 에서 ${Math.round(unlockTimeFor(lv) / 60)}분 보스를 잡습니다`,
     /**
      * **입문(-1)만 사슬 밖입니다.** 해금 사슬은 0 에서 시작하므로 -1 을 건너뛴 채
      * 0, 1, 2 … 를 깨는 것이 정상 경로입니다. -1 을 사슬 맨 앞에 두면 그 한 칸이
@@ -179,8 +183,9 @@ for (let lv = DIFFICULTY.min; lv <= DIFFICULTY.max; lv++) {
      */
     chain: lv === DIFFICULTY.min ? undefined : 'clear',
     tiers: [{ coin }],
-    // 저장에 남은 난이도별 최고 기록으로 봅니다. 예전 판도 그대로 인정됩니다
-    check: (c) => (c.save.records.bestTimeByDifficulty[String(lv)] ?? 0) >= unlockTimeFor(lv),
+    // 저장에 남은 난이도별 클리어 기록으로 봅니다.
+    // 시간으로 깼던 예전 판은 저장을 읽을 때 클리어로 소급됩니다 (`save.ts` 의 `clearedFromTimes`)
+    check: (c) => hasCleared(c.save, lv),
   });
 }
 

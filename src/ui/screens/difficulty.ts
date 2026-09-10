@@ -1,5 +1,5 @@
 import { DIFFICULTY } from '../../data/balance';
-import { difficultyEffects, difficultyStepLabel } from '../../meta/difficulty';
+import { difficultyEffects, difficultyKey, difficultyName, difficultyStepLabel, hasCleared } from '../../meta/difficulty';
 import type { SaveData } from '../../meta/save';
 import { bindKeys, clearOverlay, formatTime, h, overlayEl, screen } from './dom';
 
@@ -53,7 +53,7 @@ export function showDifficultySelect(
     // 가운데 정렬 때문에 다이얼과 버튼이 매번 위아래로 튑니다. 누르려던 버튼이 도망갑니다
     const top = h('div', { class: 'diff-top' }, [
       dial(lv, min, highest, hard, move),
-      h('div', { class: 'diff-sub' }, [subtitleOf(lv, save, locked)]),
+      h('div', { class: 'diff-sub' }, [subtitleOf(lv, save, hard, locked)]),
       startButton(locked, start),
     ]);
 
@@ -103,7 +103,7 @@ function dial(lv: number, min: number, max: number, hard: boolean, move: (delta:
     arrow(-1, '◀', '더 쉽게'),
     h('div', { class: 'diff-value' }, [
       h('div', { class: `diff-num${lv < 0 ? ' easy' : ''}` }, [String(lv)]),
-      h('div', { class: 'diff-name' }, [nameOf(lv, hard)]),
+      h('div', { class: 'diff-name' }, [difficultyName(lv, hard)]),
     ]),
     arrow(1, '▶', '더 어렵게'),
   ]);
@@ -153,20 +153,14 @@ function newBox(lv: number, hard: boolean): HTMLElement | null {
   ]);
 }
 
-function nameOf(lv: number, hard: boolean): string {
-  // **하드에는 "기본"이 없습니다.** 하드 0 은 이미 일반 15 위에서 시작하므로
-  // 그 이름을 붙이면 들어가는 사람이 완전히 잘못된 기대를 하게 됩니다
-  if (hard) return `하드 ${lv}`;
-  if (lv < 0) return '입문';
-  if (lv === 0) return '기본';
-  return `난이도 ${lv}`;
-}
-
 /** 그 난이도의 내 기록. 해금 조건은 안 적습니다 (`적용되는 효과` 목록이 3단계부터 알려줍니다) */
-function subtitleOf(lv: number, save: SaveData, locked: boolean): string {
+function subtitleOf(lv: number, save: SaveData, hard: boolean, locked: boolean): string {
   if (locked) return '';
-  const best = save.records.bestTimeByDifficulty[String(lv)] ?? 0;
-  return best > 0 ? `최고 ${formatTime(best)}` : '기록 없음';
+  // **`difficultyKey` 를 거쳐야 합니다.** 예전에는 `String(lv)` 를 그대로 써서
+  // 하드에서도 일반 기록이 보이고 있었습니다
+  const best = save.records.bestTimeByDifficulty[difficultyKey(lv, hard)] ?? 0;
+  const done = hasCleared(save, lv, hard) ? '클리어 · ' : '';
+  return best > 0 ? `${done}최고 ${formatTime(best)}` : '기록 없음';
 }
 
 function clamp(v: number, lo: number, hi: number): number {
