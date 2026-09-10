@@ -361,8 +361,8 @@ export interface Projectile {
   cluster: ClusterDef | null;
   /**
    * 명중할 때마다 갈라지는 규칙 (분열 도탄·분열 미사일).
-   * `splitsLeft` 는 그 탄에 남은 분열 예산입니다. 갈라진 자식이 예산을 나눠 가지므로
-   * 총 개수가 `max` 를 넘지 않습니다. 안 두면 적이 많을 때 화면이 탄으로 덮입니다
+   * `splitsLeft` 는 그 탄에 **남은 세대 수**입니다. 갈라질 때마다 자식이 하나씩 덜
+   * 들고 나가므로 0 이 되면 거기서 끝납니다. 안 두면 적이 많을 때 화면이 탄으로 덮입니다
    */
   splitOnHit: SplitOnHitDef | null;
   splitsLeft: number;

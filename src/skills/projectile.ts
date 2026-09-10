@@ -283,30 +283,39 @@ function moveEnemyBullet(w: World, p: Projectile, dt: number): void {
 /**
  * 명중한 자리에서 탄을 갈라냅니다 (분열 도탄·분열 미사일).
  *
- * **예산제입니다.** 부모의 남은 분열 횟수를 자식들이 나눠 가지므로, 적이 아무리
- * 많아도 한 발에서 나오는 탄이 `max` 를 못 넘습니다. 예산이 없으면 적이 몰린 곳에서
- * 기하급수로 불어나 화면이 탄으로 덮이고 프레임이 무너집니다.
+ * **세대 예산제입니다.** 자식은 부모보다 한 세대 적게 들고 나가므로 0 이 되면
+ * 거기서 끝납니다. 한 발에서 나오는 탄은 `count^0 + ... + count^generations` 로
+ * 표만 보고 셀 수 있습니다. 안 두면 적이 몰린 곳에서 기하급수로 불어나 화면이
+ * 탄으로 덮이고 프레임이 무너집니다.
+ *
+ * **치명타는 자식마다 다시 굴립니다** (2026-09-10). 그대로 물려주면 발사할 때
+ * 한 번 굴린 치명타가 자식 전부에 복사되어, 치명타 배율 상한 4.0 과 곱한 판이
+ * 통째로 널뜁니다. 갈라지는 탄이 많을수록 그 진폭이 커지므로 반드시 다시 굴립니다.
  */
 function splitProjectile(w: World, p: Projectile, hit: Enemy): void {
   const rule = p.splitOnHit!;
-  const budget = Math.floor(p.splitsLeft / rule.count);
+  const left = p.splitsLeft - 1;
   const speed = Math.hypot(p.vx, p.vy) || 1;
   const base = Math.atan2(p.vy, p.vx);
+  const st = w.player.stats;
+  // 부모의 피해에서 치명타를 걷어낸 값. 자식은 여기서 다시 굴립니다
+  const raw = p.crit && st.critMult > 0 ? p.damage / st.critMult : p.damage;
 
   for (let i = 0; i < rule.count; i++) {
     const a = base + (i - (rule.count - 1) / 2) * 0.7;
     // 다음 대상을 물고 있으면 유도탄은 그쪽으로 이어집니다
     const next = p.kind === 'homing' ? nearestEnemy(w, p.x, p.y) : null;
+    const crit = w.rng.chance(st.critChance);
     w.addProjectile({
       kind: p.kind,
       x: p.x, y: p.y,
       vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
-      radius: p.radius, damage: p.damage, crit: p.crit, color: p.color,
+      radius: p.radius, damage: raw * (crit ? st.critMult : 1), crit, color: p.color,
       life: Math.max(0.6, p.life), blast: p.blast, turnRate: p.turnRate,
       targetId: next && next.id !== hit.id ? next.id : 0,
       pierce: p.pierce, ignoreShield: p.ignoreShield,
-      splitOnHit: budget > 0 ? rule : null,
-      splitsLeft: budget,
+      splitOnHit: left > 0 ? rule : null,
+      splitsLeft: left,
     });
   }
   p.splitsLeft = 0;

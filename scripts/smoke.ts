@@ -725,6 +725,54 @@ console.log('3-0c) 6레벨 강화 갈래');
   }
 }
 
+console.log('3-0d) 분열 갈래가 반대편 갈래를 압도하지 않는가');
+{
+  const L = SKILL_MAX_LEVEL;
+  const at = (b: number, p: number) => b + p * (L - 1);
+  const table = SKILL_BRANCHES as unknown as Record<string, readonly SkillBranchDef[]>;
+
+  /** 한 발이 결국 몇 발이 되는가. count^0 + ... + count^generations */
+  const fanOut = (count: number, generations: number) => {
+    let n = 0;
+    for (let g = 0; g <= generations; g++) n += count ** g;
+    return n;
+  };
+
+  // 분열은 **탄 수가 곱해지는** 갈래라, 카드에 적힌 `damageMul` 만 보면 약해 보이는데
+  // 실제로는 그 배수에 갈라진 발수가 통째로 곱해집니다. 미사일이 `max: 24` 하나로
+  // 한 발이 40발이 되어 반대편 갈래의 11.4배이던 것을 못 잡고 있던 자리입니다.
+  // **부등호를 재는 시험이 없으면 이 종류의 과잉은 화면에 안 드러납니다.**
+  const missile = table.missile;
+  const mHeavy = missile[0];
+  const mSplit = missile[1];
+  check('분열 미사일이 한 번만 갈라진다', mSplit.splitOnHit?.generations === 1, `${mSplit.splitOnHit?.generations}세대`);
+  check('분열 미사일의 갈래 수가 3이다', mSplit.splitOnHit?.count === 3, `${mSplit.splitOnHit?.count}갈래`);
+
+  const mCount = (b: SkillBranchDef) => Math.max(1, Math.round(at(SKILLS.missile.count, SKILLS.missile.countPerLevel) * (b.countMul ?? 1)));
+  const mDmg = (b: SkillBranchDef) => at(SKILLS.missile.damage, SKILLS.missile.damagePerLevel) * (b.damageMul ?? 1);
+  const heavyTotal = mCount(mHeavy) * mDmg(mHeavy);
+  const splitFan = fanOut(mSplit.splitOnHit!.count, mSplit.splitOnHit!.generations);
+  const splitTotal = mCount(mSplit) * mDmg(mSplit) * splitFan;
+  const ratio = splitTotal / heavyTotal;
+  check(
+    '분열 미사일 총합이 증폭 탄두의 1.5배 이내',
+    ratio <= 1.5,
+    `분열 ${splitTotal.toFixed(1)} (${mCount(mSplit)}발 x ${splitFan}) vs 증폭 ${heavyTotal.toFixed(1)} = x${ratio.toFixed(2)}`,
+  );
+  console.log(`   미사일 만렙 총합: 증폭 ${heavyTotal.toFixed(1)} · 분열 ${splitTotal.toFixed(1)} (한 발이 ${splitFan}발) = x${ratio.toFixed(2)}`);
+
+  // ⚠ 도탄은 아직 4세대(31발)라 같은 종류의 과잉이 남아 있습니다. 사용자가 정하기 전이라
+  // 여기서는 시험으로 막지 않고 숫자만 찍습니다. 정해지면 위와 같은 부등호를 걸어야 합니다
+  const rHeavy = table.ricochet[0];
+  const rSplit = table.ricochet[1];
+  const rHits = (b: SkillBranchDef) => Math.max(1, Math.round(at(SKILLS.ricochet.bounces, SKILLS.ricochet.bouncesPerLevel) * (b.pierceMul ?? 1)));
+  const rDmg = (b: SkillBranchDef) => at(SKILLS.ricochet.damage, SKILLS.ricochet.damagePerLevel) * (b.damageMul ?? 1);
+  const rFan = fanOut(rSplit.splitOnHit!.count, rSplit.splitOnHit!.generations);
+  const rHeavyTotal = rHits(rHeavy) * rDmg(rHeavy);
+  const rSplitTotal = rHits(rSplit) * rDmg(rSplit) * rFan;
+  console.log(`   ⚠ 도탄 만렙 총합: 강화 ${rHeavyTotal.toFixed(1)} · 분열 ${rSplitTotal.toFixed(1)} (한 발이 ${rFan}발) = x${(rSplitTotal / rHeavyTotal).toFixed(2)} (아직 안 정했습니다)`);
+}
+
 console.log(`3-1) 만렙(Lv.${SKILL_MAX_LEVEL}) 위력이 정해둔 자리에 있는가`);
 {
   const L = SKILL_MAX_LEVEL;

@@ -303,7 +303,7 @@ export const SKILL_DEFS: Record<SkillId, SkillDef> = {
           life: S.missile.life, targetId: t.id,
           turnRate: S.missile.turnRate * b.turnRateMul, blast: S.missile.blast * b.sizeMul,
           splitOnHit: b.splitOnHit,
-          splitsLeft: b.splitOnHit ? b.splitOnHit.max : 0,
+          splitsLeft: b.splitOnHit ? b.splitOnHit.generations : 0,
           // 방패를 뚫지 않습니다 (2026-08-12). 산탄·화염과 함께 셋뿐입니다.
           // 나머지가 전부 방패를 무시하면 방패적이라는 적 자체가 무의미해집니다
         });
@@ -411,7 +411,7 @@ export const SKILL_DEFS: Record<SkillId, SkillDef> = {
         life: Infinity,
         ignoreShield: true,
         splitOnHit: b.splitOnHit,
-        splitsLeft: b.splitOnHit ? b.splitOnHit.max : 0,
+        splitsLeft: b.splitOnHit ? b.splitOnHit.generations : 0,
       });
       return true;
     },

@@ -1588,8 +1588,18 @@ export interface SkillBranchDef {
   execute?: { hpRatio: number; mul: number };
   /** 착탄 뒤 주변에 터지는 자탄 */
   cluster?: { count: number; radiusMul: number; damageMul: number; spreadMul: number };
-  /** 명중할 때마다 갈라지는 수. 총 개수 상한도 같이 둡니다 */
-  splitOnHit?: { count: number; max: number };
+  /**
+   * 명중할 때마다 갈라지는 규칙.
+   *
+   * `generations` 는 **갈라질 수 있는 횟수**입니다. 1 이면 원본이 한 번만 갈라지고
+   * 그 자식은 더 안 갈라집니다 (1 -> 3 으로 끝). 2 면 1 -> 3 -> 9 입니다.
+   *
+   * 예전에는 `max` 라는 **예산**이었고 자식이 그것을 나눠 가졌습니다. 그 방식은
+   * 세대 수가 값에서 안 읽혀서, 미사일이 `max: 24` 하나로 **1 -> 3 -> 9 -> 27,
+   * 즉 한 발이 40발**이 되고 있었습니다 (2026-09-10 에 잡았습니다). 세대로 적으면
+   * 표만 보고 몇 발이 되는지 압니다: 총 개수는 `count^0 + ... + count^generations` 입니다.
+   */
+  splitOnHit?: { count: number; generations: number };
   /** 궤도 구체가 때릴 때 터지는 작은 폭발 */
   orbFragment?: { radius: number; damageMul: number };
   /** 지속이 끝날 때 반경 전체에 터지는 폭발. 피해 = 초당 피해 x 이 값 */
@@ -1711,7 +1721,9 @@ export const SKILL_BRANCHES = {
     {
       id: 'missileSplit', name: '분열 미사일',
       desc: '명중하면 세 발로 갈라져 다시 쫓아갑니다',
-      splitOnHit: { count: 3, max: 24 },
+      // **한 번만 갈라집니다** (2026-09-10 사용자 확정). 한 발이 4발이 되고, 그 4발은
+      // 더 안 갈라집니다. 레벨업으로 느는 것은 발수(`countPerLevel`)뿐이고 갈래는 늘 3입니다
+      splitOnHit: { count: 3, generations: 1 },
       damageMul: 0.45, countMul: 0.7,
     },
   ],
@@ -1737,7 +1749,9 @@ export const SKILL_BRANCHES = {
     {
       id: 'ricochetSplit', name: '분열 도탄',
       desc: '적을 맞을 때마다 탄이 갈라집니다',
-      splitOnHit: { count: 2, max: 8 },
+      // ⚠ 4세대라 탄 31발이 됩니다. 미사일과 같은 구조의 과잉인데 아직 안 정했습니다
+      // (2026-09-10). 손볼 때는 `generations` 만 내리면 됩니다
+      splitOnHit: { count: 2, generations: 4 },
       damageMul: 0.45, pierceMul: 0.6,
     },
   ],
