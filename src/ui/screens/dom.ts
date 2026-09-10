@@ -109,9 +109,30 @@ export function backButton(onBack: () => void): HTMLElement {
  * 자리인데, 설정은 게임의 내용이 아니라 그 바깥이라 같은 무게로 보이면 안 됩니다.
  */
 export function gearButton(onClick: () => void): HTMLElement {
-  return h('button', { class: 'gear-btn', title: '설정 (6)', 'aria-label': '설정', onclick: onClick }, [
+  return h('button', { class: 'head-btn gear-btn', title: '설정 (6)', 'aria-label': '설정', onclick: onClick }, [
     h('span', { class: 'gear' }, ['⚙']),
   ]);
+}
+
+/**
+ * 우측 상단 패치로그 버튼 (톱니바퀴 왼쪽).
+ *
+ * 톱니와 같은 무게의 "게임 바깥" 항목이라 카드 목록에는 안 넣습니다.
+ *
+ * `unread` 면 점이 하나 붙습니다. **새 저장에도 붙습니다.** 처음 켠 사람이
+ * 그 버튼이 무엇인지 알 길이 아이콘 하나뿐이라, 한 번은 눈에 띄어야 합니다.
+ */
+export function patchButton(unread: boolean, onClick: () => void): HTMLElement {
+  const kids: Node[] = [h('span', { class: 'gear' }, ['🗒'])];
+  if (unread) kids.push(h('span', { class: 'dot' }, []));
+  // **`gear-btn` 을 같이 달면 안 됩니다.** 그 클래스로 버튼을 찾는 곳이 있는데
+  // 패치 버튼이 톱니보다 앞에 서 있어서, `.gear-btn` 을 찾으면 이쪽이 먼저 잡힙니다.
+  // 실제로 부팅 점검의 "톱니를 눌러본다"가 조용히 패치로그를 열고 있었습니다
+  return h(
+    'button',
+    { class: 'head-btn patch-btn', title: '패치로그', 'aria-label': '패치로그', onclick: onClick },
+    kids,
+  );
 }
 
 /**

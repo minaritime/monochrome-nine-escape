@@ -98,6 +98,13 @@ export interface SaveData {
    */
   shopHelpSeen: boolean;
   /**
+   * 마지막으로 읽은 패치로그 버전. 최신과 다르면 버튼에 점이 붙습니다.
+   *
+   * **빈 문자열이 "한 번도 안 봤다"입니다.** 새 저장에도 점이 붙어야 처음 켠 사람이
+   * 그 버튼이 무엇인지 알게 됩니다
+   */
+  patchSeen: string;
+  /**
    * 개발자 모드. 디버그 잠금을 푼 적이 있는가.
    *
    * **탭이 아니라 브라우저 단위로 남습니다.** `?unlock` 은 페이지가 열릴 때,
@@ -190,6 +197,7 @@ export function emptySave(): SaveData {
     maxDifficulty: 0,
     lastDifficulty: 0,
     shopHelpSeen: false,
+    patchSeen: '',
     devMode: false,
     shakeLevel: SETTINGS.shake.default,
     particleLevel: SETTINGS.particles.default,
@@ -336,6 +344,7 @@ function migrate(data: Partial<SaveData>): SaveData {
       Math.max(DIFFICULTY.min, Math.floor(numberOr(data.lastDifficulty, 0))),
     ),
     shopHelpSeen: data.shopHelpSeen === true,
+    patchSeen: typeof data.patchSeen === 'string' ? data.patchSeen : '',
     devMode: data.devMode === true,
     // 단계 표가 줄어든 뒤에 옛 저장을 열어도 없는 자리를 가리키면 안 됩니다
     shakeLevel: clampInt(numberOr(data.shakeLevel, SETTINGS.shake.default), 0, SETTINGS.shake.levels.length - 1),

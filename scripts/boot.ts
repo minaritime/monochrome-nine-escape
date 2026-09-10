@@ -384,6 +384,26 @@ async function main(): Promise<void> {
   press('Escape');
   check('다시 메인으로 돌아온다', overlayText().includes('게임 시작'));
 
+  // **패치로그** (2026-09-10). 톱니 왼쪽 버튼입니다
+  {
+    const patch = findByClass(overlay, 'patch-btn');
+    check('패치로그 버튼이 있다', patch !== null);
+    check('새 저장에는 안 읽음 점이 붙는다', findByClass(overlay, 'dot') !== null);
+
+    patch?.click();
+    frames(2);
+    check('패치로그가 열린다', overlayText().includes('패치로그'), overlayText().trim().slice(0, 40));
+    check('최신 버전이 펼쳐져 있다', overlayText().includes('클리어 조건'), overlayText().trim().slice(0, 120));
+    // **하드 항목은 안 보여야 합니다.** 하드모드는 히든이라 안 연 사람에게
+    // 존재를 알리면 안 됩니다
+    check('하드 항목은 안 보인다', !overlayText().includes('폭격기'), overlayText().trim().slice(0, 200));
+
+    press('Escape');
+    frames(2);
+    check('패치로그에서 메인으로 돌아온다', overlayText().includes('게임 시작'));
+    check('한 번 열면 점이 사라진다', findByClass(overlay, 'dot') === null);
+  }
+
   console.log('3) 난이도 선택 후 게임 시작');
   press('Digit1');
   check('난이도 선택 화면이 떴다', overlayText().includes('난이도 선택'));

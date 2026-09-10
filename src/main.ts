@@ -17,6 +17,8 @@ import { showBestiary } from './ui/screens/bestiary';
 import { showShop } from './ui/screens/shop';
 import { showDifficultySelect } from './ui/screens/difficulty';
 import { showMainMenu, showRecords } from './ui/screens/menus';
+import { showPatchNotes } from './ui/screens/patchnotes';
+import { LATEST_PATCH } from './data/patchnotes';
 import { showAchievements } from './ui/screens/achievements';
 import { showSettings } from './ui/screens/settings';
 import { showBranchChoice, showGameOver, showPause, showSkillChoice } from './ui/screens/ingame';
@@ -40,6 +42,7 @@ type Screen =
   | 'dying'
   | 'achievements'
   | 'settings'
+  | 'patchnotes'
   /** 디버그 잠금. 무엇을 여는 화면인지 적지 않습니다 (`debugGate.ts`) */
   | 'debugauth'
   | 'gameover';
@@ -291,6 +294,7 @@ function goMain(): void {
       records: goRecords,
       achievements: goAchievements,
       settings: goSettings,
+      patchNotes: goPatchNotes,
     }),
   );
 }
@@ -328,6 +332,20 @@ function goBestiary(): void {
 
 function goRecords(): void {
   open('records', () => showRecords(save, goMain));
+}
+
+/**
+ * 패치로그. **여는 순간 읽은 것으로 칩니다.**
+ *
+ * 나갈 때 표시하면 새로고침이나 창 닫기로 나간 경우에 점이 그대로 남고, 그러면
+ * 무엇을 해야 점이 사라지는지 알 수 없게 됩니다
+ */
+function goPatchNotes(): void {
+  if (save.patchSeen !== LATEST_PATCH) {
+    save.patchSeen = LATEST_PATCH;
+    saveGame(save);
+  }
+  open('patchnotes', () => showPatchNotes(save, goMain));
 }
 
 function goAchievements(): void {

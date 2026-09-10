@@ -1,7 +1,8 @@
 import { getSkillDef } from '../../skills/registry';
 import { achieveProgress } from '../../meta/achievements';
+import { LATEST_PATCH } from '../../data/patchnotes';
 import type { SaveData } from '../../meta/save';
-import { bindKeys, card, clearOverlay, formatTime, gearButton, h, helpButton, overlayEl, screen } from './dom';
+import { bindKeys, card, clearOverlay, formatTime, gearButton, h, helpButton, overlayEl, patchButton, screen } from './dom';
 
 export interface MainActions {
   start: () => void;
@@ -10,6 +11,7 @@ export interface MainActions {
   records: () => void;
   achievements: () => void;
   settings: () => void;
+  patchNotes: () => void;
 }
 
 export function showMainMenu(save: SaveData, actions: MainActions): () => void {
@@ -37,7 +39,11 @@ export function showMainMenu(save: SaveData, actions: MainActions): () => void {
   // **함수를 그대로 넘기면 안 됩니다.** onclick 은 클릭 이벤트를 첫 인자로 넣어
   // 부르는데, `goSettings` 의 첫 인자는 "방금 무엇을 했는지" 적는 알림 줄입니다.
   // 그대로 넘기면 그 자리에 MouseEvent 가 들어가 `[object MouseEvent]` 가 찍혔습니다
-  el.querySelector('.screen-head')?.append(gearButton(() => actions.settings()));
+  // 패치로그는 톱니 왼쪽에 나란히 섭니다. 둘 다 "게임 바깥"이라 카드 목록에는 안 넣습니다
+  el.querySelector('.screen-head')?.append(
+    patchButton(save.patchSeen !== LATEST_PATCH, () => actions.patchNotes()),
+    gearButton(() => actions.settings()),
+  );
   overlayEl().append(el);
 
   return bindKeys((code) => {

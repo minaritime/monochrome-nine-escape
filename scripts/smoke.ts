@@ -93,6 +93,7 @@ import {
   visibleAchievements,
 } from '../src/meta/achievements';
 import { ALL_ENEMY_IDS, getEnemyDef } from '../src/enemies/registry';
+import { LATEST_PATCH, PATCH_NOTES, visiblePatchNotes } from '../src/data/patchnotes';
 import { ALL_SKILL_IDS, getSkillDef, lv, makeSlot, slotCooldown } from '../src/skills/registry';
 import { ATTACK_SKILL_IDS, UTILITY_SKILL_IDS } from '../src/skills/registry';
 import { SKILL_FAMILY_LABEL, type SkillFamily } from '../src/skills/types';
@@ -4558,6 +4559,51 @@ console.log('\n23) 클리어 뒤 급상승 (OVERTIME)');
     });
     check('클리어 칸이 있으면 소급하지 않는다', !hasCleared(fresh, 0));
   }
+}
+
+console.log('\n24) 패치로그');
+{
+  check('버전이 하나 이상 있다', PATCH_NOTES.length > 0);
+  check('최신이 맨 앞이다', LATEST_PATCH === PATCH_NOTES[0].version, `${LATEST_PATCH} vs ${PATCH_NOTES[0].version}`);
+
+  const vers = PATCH_NOTES.map((n) => n.version);
+  check('버전이 겹치지 않는다', new Set(vers).size === vers.length, vers.join(','));
+
+  for (const n of PATCH_NOTES) {
+    check(`${n.version} 에 날짜가 있다`, /^\d{4}-\d{2}-\d{2}$/.test(n.date), n.date);
+    check(`${n.version} 에 내용이 있다`, n.groups.length > 0);
+    for (const g of n.groups) {
+      check(`${n.version} ${g.title} 에 항목이 있다`, g.items.length > 0);
+      for (const it of g.items) {
+        check(`${n.version} ${it.title} 에 줄이 있다`, it.lines.length > 0);
+        // **수치는 안 적습니다** (2026-09-10 사용자 지시). 반경 380 이 아니라 "범위 증가"입니다.
+        // 판마다 배율이 달라 그 숫자가 화면에서 뜻을 갖지 않고, 다음에 손볼 때 여기까지
+        // 고쳐야 합니다. 배율·단위 표기만 막고 "난이도 3" 같은 것은 그대로 둡니다
+        for (const line of it.lines) {
+          check(
+            `"${line}" 에 수치가 없다`,
+            !/(x\s*\d|\d\s*(배|초|%|px))/.test(line),
+            line,
+          );
+        }
+      }
+    }
+  }
+
+  // --- 하드 항목은 하드모드를 연 사람에게만 ---
+  const hidden = visiblePatchNotes(false);
+  const shown = visiblePatchNotes(true);
+  const titles = (list: ReturnType<typeof visiblePatchNotes>) =>
+    list.flatMap((n) => n.groups.flatMap((g) => g.items.map((it) => it.title)));
+  const hardTitles = PATCH_NOTES.flatMap((n) => n.groups.flatMap((g) => g.items.filter((it) => it.hardOnly).map((it) => it.title)));
+
+  check('하드 전용 항목이 실제로 있다', hardTitles.length > 0, hardTitles.join(','));
+  check('잠긴 저장에는 하드 항목이 안 보인다', hardTitles.every((t) => !titles(hidden).includes(t)), titles(hidden).join(','));
+  check('연 저장에는 보인다', hardTitles.every((t) => titles(shown).includes(t)));
+  // 하드 항목만 있던 묶음이 빈 껍데기로 남으면 안 됩니다
+  check('빈 묶음이 안 남는다', hidden.every((n) => n.groups.every((g) => g.items.length > 0)));
+
+  console.log(`   ${PATCH_NOTES.length}개 버전 · 최신 ${LATEST_PATCH} · 하드 전용 ${hardTitles.length}개`);
 }
 
 console.log(failures === 0 ? '\n전부 통과했습니다' : `\n실패 ${failures}건`);
