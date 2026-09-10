@@ -55,6 +55,7 @@ export interface BranchMods {
   execute: SkillBranchDef['execute'] | null;
   cluster: SkillBranchDef['cluster'] | null;
   splitOnHit: SkillBranchDef['splitOnHit'] | null;
+  straight: boolean | null;
   orbFragment: SkillBranchDef['orbFragment'] | null;
   endBlast: SkillBranchDef['endBlast'] | null;
 }
@@ -87,6 +88,7 @@ export const NEUTRAL_MODS: Readonly<BranchMods> = Object.freeze({
   execute: null,
   cluster: null,
   splitOnHit: null,
+  straight: null,
   orbFragment: null,
   endBlast: null,
 });

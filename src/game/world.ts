@@ -732,6 +732,7 @@ export class World {
       cluster: null,
       splitOnHit: null,
       splitsLeft: 0,
+      straight: false,
       orbFragment: null,
       source: null,
       dead: false,

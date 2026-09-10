@@ -366,6 +366,11 @@ export interface Projectile {
    */
   splitOnHit: SplitOnHitDef | null;
   splitsLeft: number;
+  /**
+   * 도탄이 다음 적 쪽으로 안 틉니다 (관통 도탄).
+   * 벽 튕김은 그대로라 계속 살아서 화면을 돌아다닙니다
+   */
+  straight: boolean;
   /** 구체가 스칠 때마다 터지는 작은 폭발 (파편 궤도) */
   orbFragment: OrbFragmentDef | null;
   /** 적탄을 쏜 상대. 게임오버 화면에 사인을 띄우는 데만 씁니다 */

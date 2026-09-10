@@ -460,7 +460,7 @@ console.log('3-0c) 6레벨 강화 갈래');
   // 덮어쓰기 항목 = "없던 동작". 2번 갈래에만 있어야 합니다
   const SET_KEYS = [
     'spread', 'falloff', 'slow', 'stunOnHit', 'burn', 'blastHazard', 'execute',
-    'cluster', 'splitOnHit', 'orbFragment', 'endBlast',
+    'cluster', 'splitOnHit', 'straight', 'orbFragment', 'endBlast',
   ] as const;
 
   check('갈래 레벨이 상한보다 낮다', SKILL_BRANCH_LEVEL < SKILL_MAX_LEVEL, `${SKILL_BRANCH_LEVEL}/${SKILL_MAX_LEVEL}`);
@@ -763,30 +763,89 @@ console.log('3-0d) 분열 갈래가 반대편 갈래를 압도하지 않는가')
   );
   console.log(`   미사일 만렙 총합: 증폭 ${heavyTotal.toFixed(1)} · 분열 ${splitTotal.toFixed(1)} (한 발이 ${splitFan}발) = x${ratio.toFixed(2)}`);
 
-  // 도탄도 한 번만 갈라집니다. **곱셈 축이 미사일보다 하나 많습니다.**
-  // 갈라진 자식이 `pierce` 를 그대로 복사하므로 (탄 수) x (명중 횟수) 가 됩니다
+  // 도탄의 2번은 이제 분열이 아니라 관통입니다 (2026-09-10).
+  // **미사일도 분열이라 갈래 24개 중 둘이 같은 말을 하고 있었습니다.**
   const rHeavy = table.ricochet[0];
-  const rSplit = table.ricochet[1];
-  check('분열 도탄도 한 번만 갈라진다', rSplit.splitOnHit?.generations === 1, `${rSplit.splitOnHit?.generations}세대`);
+  const rPierce = table.ricochet[1];
+  check('관통 도탄은 안 튼다', rPierce.straight === true, `${rPierce.straight}`);
+  check('관통 도탄은 분열하지 않는다', rPierce.splitOnHit === undefined);
+  check('분열은 미사일 하나뿐이다', !rPierce.splitOnHit && !!mSplit.splitOnHit);
+  // 1번이 이미 `pierceMul 1.4` 라, 2번도 명중 횟수를 만지면 두 갈래가 같은 말을 합니다
+  check('관통 도탄은 명중 횟수를 안 건드린다', rPierce.pierceMul === undefined, `${rPierce.pierceMul}`);
 
   const rHits = (b: SkillBranchDef) => Math.max(1, Math.round(at(SKILLS.ricochet.bounces, SKILLS.ricochet.bouncesPerLevel) * (b.pierceMul ?? 1)));
   const rDmg = (b: SkillBranchDef) => at(SKILLS.ricochet.damage, SKILLS.ricochet.damagePerLevel) * (b.damageMul ?? 1);
   const rCool = (b: SkillBranchDef) => SKILLS.ricochet.cooldown * (b.cooldownMul ?? 1);
-  const rFan = fanOut(rSplit.splitOnHit!.count, rSplit.splitOnHit!.generations);
-  const rHeavyTotal = rHits(rHeavy) * rDmg(rHeavy);
-  const rSplitTotal = rHits(rSplit) * rDmg(rSplit) * rFan;
-  check(
-    '분열 도탄 총합이 강화 도탄의 1.5배 이내',
-    rSplitTotal / rHeavyTotal <= 1.5,
-    `분열 ${rSplitTotal.toFixed(1)} (${rHits(rSplit)}타 x ${rFan}발) vs 강화 ${rHeavyTotal.toFixed(1)}`,
-  );
+  const dpsOf = (b: SkillBranchDef) => (rHits(b) * rDmg(b)) / rCool(b);
+  const rBase = (rHits({} as SkillBranchDef) * rDmg({} as SkillBranchDef)) / SKILLS.ricochet.cooldown;
 
   // **쿨다운이 다르면 총합만으로는 세기를 못 견줍니다.** 강화 도탄은 쿨이 1.4배라
-  // 총합이 커도 초당으로는 줄어듭니다. 어느 갈래가 죽은 선택지인지는 이 줄로 봅니다
-  const rHeavyDps = rHeavyTotal / rCool(rHeavy);
-  const rSplitDps = rSplitTotal / rCool(rSplit);
+  // 총합이 커도 초당으로는 줄어듭니다
+  const rHeavyDps = dpsOf(rHeavy);
+  const rPierceDps = dpsOf(rPierce);
+  check('관통 도탄이 강화 도탄의 1.5배 이내', rPierceDps / rHeavyDps <= 1.5, `x${(rPierceDps / rHeavyDps).toFixed(2)}`);
+  // **아래쪽도 봅니다.** 분열이던 시절 한 세대로 줄이면서 기본보다도 약해진 적이
+  // 있었습니다. 위쪽만 재면 그런 식으로 반대로 기우는 것을 못 잡습니다
+  check('관통 도탄이 갈래 없는 도탄의 0.6배 밑으로 안 내려간다', rPierceDps / rBase >= 0.6, `x${(rPierceDps / rBase).toFixed(2)}`);
+
+  // --- 관통이 실제로 안 트는가 (표가 아니라 판으로 잽니다) ---
+  //
+  // 표만 보면 `straight: true` 가 들어갔는지만 알 수 있습니다. 그 값이 실제로
+  // `updateRicochet` 까지 닿는지는 쏴봐야 압니다
+  {
+    const fire = (branch: SkillBranchId | null) => {
+      const ww = new World(emptySave(), input, 4321);
+      ww.spawner.enabled = false;
+      ww.player.x = 200;
+      ww.player.y = 360;
+      ww.player.stats.critChance = 0;
+      // 정면에 하나, 옆으로 크게 벗어난 자리에 하나.
+      // 기본 도탄은 맞은 뒤 옆의 적 쪽으로 틀고, 관통 도탄은 가던 방향 그대로 갑니다
+      const front = ww.spawnEnemy('tank', 500, 360, {});
+      front.maxHp = 1e9;
+      front.hp = 1e9;
+      const side = ww.spawnEnemy('tank', 560, 120, {});
+      side.maxHp = 1e9;
+      side.hp = 1e9;
+
+      const slot = makeSlot('ricochet', SKILL_BRANCH_LEVEL, branch);
+      getSkillDef('ricochet').activate(ww, slot);
+      const shot = ww.projectiles[0];
+      const before = Math.atan2(shot.vy, shot.vx);
+      // **명중은 `pierce` 가 줄었는지로 봅니다.** 적 체력으로 보면 플레이어의
+      // 기본공격이 같은 적을 때려서 첫 프레임에 이미 줄어 있습니다.
+      // 그리고 **판을 통째로 돌려야 합니다.** 충돌은 `w.grid` 를 쓰는데 그 격자는
+      // `world.update` 가 채우므로, 투사체만 갱신하면 아무것도 안 맞습니다
+      const p0 = shot.pierce;
+      for (let i = 0; i < 200 && !shot.dead && shot.pierce === p0; i++) step(ww, FIXED_DT);
+      const hit = shot.pierce < p0;
+      for (let i = 0; i < 3 && !shot.dead; i++) step(ww, FIXED_DT);
+      return { before, after: Math.atan2(shot.vy, shot.vx), hit, speed: Math.hypot(shot.vx, shot.vy) };
+    };
+
+    const plain = fire(null);
+    const pierced = fire('ricochetPierce');
+    check('기본 도탄이 정면의 적을 맞힌다', plain.hit);
+    check('관통 도탄도 정면의 적을 맞힌다', pierced.hit);
+    check(
+      '기본 도탄은 맞은 뒤 옆의 적 쪽으로 튼다',
+      Math.abs(plain.after - plain.before) > 0.2,
+      `${plain.before.toFixed(2)} → ${plain.after.toFixed(2)}`,
+    );
+    check(
+      '관통 도탄은 맞아도 안 튼다',
+      Math.abs(pierced.after - pierced.before) < 1e-6,
+      `${pierced.before.toFixed(2)} → ${pierced.after.toFixed(2)}`,
+    );
+    check(
+      '관통 도탄이 훨씬 빠르다',
+      pierced.speed > SKILLS.ricochet.speed * 2,
+      `${pierced.speed.toFixed(0)} vs ${SKILLS.ricochet.speed}`,
+    );
+  }
+
   console.log(
-    `   도탄 만렙: 강화 ${rHeavyTotal.toFixed(1)} (초당 ${rHeavyDps.toFixed(1)}) · 분열 ${rSplitTotal.toFixed(1)} (한 발이 ${rFan}발, 초당 ${rSplitDps.toFixed(1)}) = 초당 x${(rSplitDps / rHeavyDps).toFixed(2)}`,
+    `   도탄 만렙 초당: 갈래 없음 ${rBase.toFixed(1)} · 강화 ${rHeavyDps.toFixed(1)} (x${(rHeavyDps / rBase).toFixed(2)}) · 관통 ${rPierceDps.toFixed(1)} (x${(rPierceDps / rBase).toFixed(2)}) · 관통/강화 x${(rPierceDps / rHeavyDps).toFixed(2)}`,
   );
 }
 

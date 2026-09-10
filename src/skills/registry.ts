@@ -387,7 +387,7 @@ export const SKILL_DEFS: Record<SkillId, SkillDef> = {
     levelText: (l, m = NEUTRAL_MODS) =>
       `공격력 ${Math.round(lv(S.ricochet.damage, S.ricochet.damagePerLevel, l) * m.damageMul * 100)}%` +
       ` · ${Math.max(1, Math.round(lv(S.ricochet.bounces, S.ricochet.bouncesPerLevel, l) * m.pierceMul))}회 명중` +
-      (m.splitOnHit ? ` · 맞을 때마다 ${m.splitOnHit.count}갈래` : ''),
+      (m.straight ? ' · 관통' : ''),
     activate: (w, slot) => {
       const p = w.player;
       const b = branchMods(slot);
@@ -410,8 +410,8 @@ export const SKILL_DEFS: Record<SkillId, SkillDef> = {
         // `blast` 가 0 이라 수명이 다해도 터지지 않고, 애초에 다할 일이 없습니다
         life: Infinity,
         ignoreShield: true,
-        splitOnHit: b.splitOnHit,
-        splitsLeft: b.splitOnHit ? b.splitOnHit.generations : 0,
+        // 관통 도탄. 쏠 때 실어 보냅니다 (`updateRicochet` 에는 슬롯이 없습니다)
+        straight: b.straight ?? false,
       });
       return true;
     },
