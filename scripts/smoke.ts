@@ -763,16 +763,31 @@ console.log('3-0d) 분열 갈래가 반대편 갈래를 압도하지 않는가')
   );
   console.log(`   미사일 만렙 총합: 증폭 ${heavyTotal.toFixed(1)} · 분열 ${splitTotal.toFixed(1)} (한 발이 ${splitFan}발) = x${ratio.toFixed(2)}`);
 
-  // ⚠ 도탄은 아직 4세대(31발)라 같은 종류의 과잉이 남아 있습니다. 사용자가 정하기 전이라
-  // 여기서는 시험으로 막지 않고 숫자만 찍습니다. 정해지면 위와 같은 부등호를 걸어야 합니다
+  // 도탄도 한 번만 갈라집니다. **곱셈 축이 미사일보다 하나 많습니다.**
+  // 갈라진 자식이 `pierce` 를 그대로 복사하므로 (탄 수) x (명중 횟수) 가 됩니다
   const rHeavy = table.ricochet[0];
   const rSplit = table.ricochet[1];
+  check('분열 도탄도 한 번만 갈라진다', rSplit.splitOnHit?.generations === 1, `${rSplit.splitOnHit?.generations}세대`);
+
   const rHits = (b: SkillBranchDef) => Math.max(1, Math.round(at(SKILLS.ricochet.bounces, SKILLS.ricochet.bouncesPerLevel) * (b.pierceMul ?? 1)));
   const rDmg = (b: SkillBranchDef) => at(SKILLS.ricochet.damage, SKILLS.ricochet.damagePerLevel) * (b.damageMul ?? 1);
+  const rCool = (b: SkillBranchDef) => SKILLS.ricochet.cooldown * (b.cooldownMul ?? 1);
   const rFan = fanOut(rSplit.splitOnHit!.count, rSplit.splitOnHit!.generations);
   const rHeavyTotal = rHits(rHeavy) * rDmg(rHeavy);
   const rSplitTotal = rHits(rSplit) * rDmg(rSplit) * rFan;
-  console.log(`   ⚠ 도탄 만렙 총합: 강화 ${rHeavyTotal.toFixed(1)} · 분열 ${rSplitTotal.toFixed(1)} (한 발이 ${rFan}발) = x${(rSplitTotal / rHeavyTotal).toFixed(2)} (아직 안 정했습니다)`);
+  check(
+    '분열 도탄 총합이 강화 도탄의 1.5배 이내',
+    rSplitTotal / rHeavyTotal <= 1.5,
+    `분열 ${rSplitTotal.toFixed(1)} (${rHits(rSplit)}타 x ${rFan}발) vs 강화 ${rHeavyTotal.toFixed(1)}`,
+  );
+
+  // **쿨다운이 다르면 총합만으로는 세기를 못 견줍니다.** 강화 도탄은 쿨이 1.4배라
+  // 총합이 커도 초당으로는 줄어듭니다. 어느 갈래가 죽은 선택지인지는 이 줄로 봅니다
+  const rHeavyDps = rHeavyTotal / rCool(rHeavy);
+  const rSplitDps = rSplitTotal / rCool(rSplit);
+  console.log(
+    `   도탄 만렙: 강화 ${rHeavyTotal.toFixed(1)} (초당 ${rHeavyDps.toFixed(1)}) · 분열 ${rSplitTotal.toFixed(1)} (한 발이 ${rFan}발, 초당 ${rSplitDps.toFixed(1)}) = 초당 x${(rSplitDps / rHeavyDps).toFixed(2)}`,
+  );
 }
 
 console.log(`3-1) 만렙(Lv.${SKILL_MAX_LEVEL}) 위력이 정해둔 자리에 있는가`);
