@@ -286,6 +286,15 @@ function killerBadge(w: World): HTMLElement | null {
   const killer = w.killedBy;
   if (!killer) return null;
 
+  // 적이 아니라 판의 장치에 죽었으면 그림 없이 이름만 띄웁니다 (하드 5 레이저).
+  // 억지로 적 그림을 붙이면 있지도 않은 적에게 죽은 것으로 읽힙니다
+  if (!killer.id) {
+    return h('div', { class: 'killer' }, [
+      h('div', { class: 'killer-label' }, ['나를 쓰러뜨린 것']),
+      h('div', { class: 'killer-name' }, [killer.device ?? '알 수 없음']),
+    ]);
+  }
+
   const def = getEnemyDef(killer.id);
   const name = `${killer.elite ? '정예 ' : ''}${def.name}`;
 

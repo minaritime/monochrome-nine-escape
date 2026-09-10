@@ -12,6 +12,7 @@ import {
   ELITE,
   ELITE_TRAITS,
   ENEMY_BASE,
+  HARD_LASER,
   ENEMY_PARAMS,
   ENEMY_TABLE,
   LEVEL,
@@ -47,6 +48,7 @@ import type {
   Coin,
   Enemy,
   Hazard,
+  ArenaLaser,
   KillerInfo,
   LevelNotice,
   PendingBlast,
@@ -83,6 +85,12 @@ export interface DamageOptions {
 }
 
 /** 엔티티 컨테이너 + 업데이트 순서 */
+/**
+ * 레이저에 죽었을 때의 사인. **적이 아니라 판의 장치라 `id` 가 null 입니다.**
+ * 게임오버 화면이 그림 없이 이름만 띄우고, "사인 수집가" 업적에도 안 들어갑니다
+ */
+const LASER_KILLER: KillerInfo = { id: null, elite: false, device: '경기장 레이저' };
+
 export class World {
   time = 0;
   rng: Rng;
@@ -144,6 +152,13 @@ export class World {
    * 그래서 개체를 지목해야 하고, 그 지목을 여기 담습니다
    */
   clearBossId = 0;
+
+  /**
+   * 하드 5의 경기장 레이저. 주인이 없어서 적 목록이 아니라 여기 따로 둡니다
+   */
+  lasers: ArenaLaser[] = [];
+  /** 다음 레이저까지 남은 시간 */
+  private laserTimer = 0;
 
   /** 죽는 순간 흩어지는 파편 */
   shards: Shard[] = [];
@@ -270,6 +285,7 @@ export class World {
     this.updateHazards(dt);
     this.updateTelegraphs(dt);
     this.updatePendingBlasts(dt);
+    this.updateLasers(dt);
     this.updateNotices(dt);
     this.collidePlayer(dt);
 
@@ -280,6 +296,92 @@ export class World {
     compact(this.hazards, (h) => !h.dead);
     compact(this.telegraphs, (t) => !t.dead);
     compact(this.pendingBlasts, (b) => !b.dead);
+    compact(this.lasers, (l) => !l.dead);
+  }
+
+  /**
+   * 하드 5의 경기장 레이저 (2026-09-10).
+   *
+   * 10~15초마다 가로 또는 세로로 한 줄이 그어집니다. **플레이어를 겨누지 않고**
+   * 자리도 무작위입니다. 예고가 다 차는 그 프레임에 한 번 때리고 끝입니다.
+   *
+   * **적은 안 맞습니다.** 잡는 데 보태주면 "레이저 자리로 적을 몰고 간다"가 이득이
+   * 되어, 피하라고 만든 장치가 도구가 됩니다. 폭격기의 아군 오사에 보상을 안 준
+   * 것과 같은 자리입니다.
+   */
+  private updateLasers(dt: number): void {
+    if (this.diff.arenaLaser) {
+      this.laserTimer -= dt;
+      if (this.laserTimer <= 0) {
+        this.laserTimer = this.rng.range(HARD_LASER.intervalMin, HARD_LASER.intervalMax);
+        this.spawnLaser();
+      }
+    }
+
+    for (const l of this.lasers) {
+      if (l.dead) continue;
+      if (!l.fired) {
+        l.warn -= dt;
+        if (l.warn <= 0) this.fireLaser(l);
+        continue;
+      }
+      l.linger -= dt;
+      if (l.linger <= 0) l.dead = true;
+    }
+  }
+
+  /** 무작위 축과 자리로 한 줄 예약합니다. 예고는 `line` 텔레그래프를 씁니다 */
+  spawnLaser(): ArenaLaser {
+    const axis: 'h' | 'v' = this.rng.chance(0.5) ? 'h' : 'v';
+    const half = HARD_LASER.width / 2;
+    // 가장자리에 딱 붙으면 벽에 몰린 사람이 피할 자리가 없습니다. 폭만큼 안쪽으로 들입니다
+    const pos =
+      axis === 'h'
+        ? this.rng.range(half, CANVAS.h - half)
+        : this.rng.range(half, CANVAS.w - half);
+
+    const l: ArenaLaser = {
+      axis,
+      pos,
+      warn: HARD_LASER.telegraph,
+      linger: HARD_LASER.linger,
+      fired: false,
+      dead: false,
+    };
+    this.lasers.push(l);
+
+    // 통로가 한쪽 끝에서부터 차오르고 다 차는 순간 쏩니다.
+    // **어느 끝에서 차오를지는 무작위입니다.** 늘 같은 쪽이면 "왼쪽부터 찬다"를
+    // 외워서 다 차기 전에 반대쪽으로 걸어가는 것이 정답이 됩니다
+    const flip = this.rng.chance(0.5);
+    const a = axis === 'h' ? { x: 0, y: pos, x2: CANVAS.w, y2: pos } : { x: pos, y: 0, x2: pos, y2: CANVAS.h };
+    this.addTelegraph({
+      kind: 'line',
+      x: flip ? a.x2 : a.x,
+      y: flip ? a.y2 : a.y,
+      x2: flip ? a.x : a.x2,
+      y2: flip ? a.y : a.y2,
+      width: HARD_LASER.width,
+      life: HARD_LASER.telegraph,
+      color: HARD_LASER.color,
+    });
+    return l;
+  }
+
+  /** 쏘는 순간 한 번만 때립니다. 잔상은 그림일 뿐이라 피해가 없습니다 */
+  private fireLaser(l: ArenaLaser): void {
+    l.fired = true;
+    l.warn = 0;
+    const p = this.player;
+    const reach = HARD_LASER.width / 2 + p.radius;
+    const gap = l.axis === 'h' ? Math.abs(p.y - l.pos) : Math.abs(p.x - l.pos);
+
+    this.effects.addShake(7);
+    if (gap <= reach) {
+      // 시간·난이도 배율을 그대로 탑니다. 후반에도 무시할 만한 피해가 되면 안 됩니다
+      const dmg = ENEMY_BASE.damage * HARD_LASER.damage * this.timeScale().dmg;
+      this.damagePlayer(dmg, false, LASER_KILLER);
+    }
   }
 
   /**

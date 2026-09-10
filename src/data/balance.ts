@@ -862,6 +862,12 @@ export interface DifficultyStep {
    */
   stealthDeep?: boolean;
   /**
+   * 하드 5. 10~15초마다 **플레이어에게만 닿는 레이저**가 경기장을 가로지릅니다.
+   *
+   * 적은 안 맞습니다. 잡는 데 보태주는 것이 아니라 **설 자리를 빼앗는** 장치입니다
+   */
+  arenaLaser?: boolean;
+  /**
    * 이 단계부터 나오기 시작하는 하드 전용 적.
    *
    * `ENEMY_TABLE` 에서 `hardOnly` 인 적은 평소 스폰 표에 아예 없습니다.
@@ -2357,12 +2363,45 @@ export const HARD = {
  * 배율만 더 올리는 표로 두면 "숫자만 큰 같은 게임"이 되므로, 새 장치를 정한 뒤
  * 이 표에 섞어 넣으십시오.
  */
+/**
+ * 하드 5의 경기장 레이저.
+ *
+ * **플레이어를 겨누지 않습니다.** 자리도 방향도 무작위입니다. 겨누면 "피할 수 없는
+ * 것을 피하라"가 되고, 그건 예고를 아무리 길게 줘도 안 풀립니다. 안 겨누므로
+ * **비켜서기만 하면 되지만, 비킬 자리를 찾는 동안 적을 계속 상대해야** 합니다.
+ *
+ * **가로와 세로뿐입니다** (2026-09-10 사용자 확정). 45도를 빼서 경기장의 축과
+ * 같은 방향만 씁니다. 직사각형 경기장에서 축에 맞은 선이 가장 빨리 읽힙니다.
+ *
+ * **한 줄입니다.** 늘리는 것은 만들어놓고 직접 해본 뒤에 정합니다.
+ */
+export const HARD_LASER = {
+  /** 다음 레이저까지의 간격(초). 이 사이에서 무작위로 뽑습니다 */
+  intervalMin: 10,
+  intervalMax: 15,
+  /**
+   * 예고 시간(초). 통로가 한쪽 끝에서부터 차오르고 **다 차는 순간 쏩니다.**
+   *
+   * 기본 이동속도(205)로 1.2초면 246px 를 갑니다. 폭이 34 라 절반인 17px 만
+   * 벗어나면 되므로 여유가 큽니다. 이 장치의 값어치는 맞히는 것이 아니라
+   * **그 자리를 비우게 만드는 것**입니다
+   */
+  telegraph: 1.2,
+  /** 빔의 폭 */
+  width: 34,
+  /** 쏜 뒤 빔이 남아 있는 시간. 그림일 뿐이고 피해는 쏘는 그 순간 한 번입니다 */
+  linger: 0.18,
+  /** 기본 적 공격력(`ENEMY_BASE.damage`)의 배수. 시간·난이도 배율이 위에 곱해집니다 */
+  damage: 2.5,
+  color: '#ff4d6d',
+} as const;
+
 export const HARD_DIFFICULTY_STEPS: readonly DifficultyStep[] = [
   { label: '거대 포식자 등장, 적 공격력 +10%', bossPredatorHard: true, damageMul: 1.1 },
   { label: '방패적 능력 강화, 적 공격력 +10% · 체력 +10%', shieldDurabilityMul: 6, damageMul: 1.1, hpMul: 1.1 },
   { label: '사제적 등장, 은신적 능력 강화, 적 공격력 +20%', enemyUnlock: 'priest', stealthDeep: true, damageMul: 1.2 },
   { label: '폭격기 능력 강화, 적 공격력 +10%', bossBombardHard: true, damageMul: 1.1 },
-  { label: '적 공격력 +10%', damageMul: 1.1 },
+  { label: '경기장 레이저 등장, 적 공격력 +10% · 체력 +10%', arenaLaser: true, damageMul: 1.1, hpMul: 1.1 },
   { label: '적 체력 +15%', hpMul: 1.15 },
   { label: '충돌 데미지 +15% · 공격력 +10%', contactDamageMul: 1.15, damageMul: 1.1 },
   { label: '적 체력 +10% · 스폰율 +10%', hpMul: 1.1, spawnRateMul: 1.1 },

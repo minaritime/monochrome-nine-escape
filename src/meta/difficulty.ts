@@ -3,6 +3,7 @@ import {
   DIFFICULTY_EASY,
   DIFFICULTY_STEPS,
   HARD,
+  HARD_LASER,
   HARD_DIFFICULTY_STEPS,
   type DifficultyStep,
   type EnemyId,
@@ -54,6 +55,8 @@ export interface DifficultyMods {
   shieldDurabilityMul: number;
   /** 은신적이 숨어 있는 동안 완전히 투명해집니다 (하드 3) */
   stealthDeep: boolean;
+  /** 하드 5. 10~15초마다 플레이어에게만 닿는 레이저가 경기장을 가로지릅니다 */
+  arenaLaser: boolean;
   /** 이 판에서 추가로 나오는 하드 전용 적 */
   extraEnemies: EnemyId[];
   /** 판 종료 시 주운 코인에 곱해집니다 */
@@ -156,6 +159,7 @@ function applyStep(mods: DifficultyMods, step: DifficultyStep): void {
   if (step.bossPredatorHard) mods.bossPredatorHard = true;
   if (step.bossBombardHard) mods.bossBombardHard = true;
   if (step.stealthDeep) mods.stealthDeep = true;
+  if (step.arenaLaser) mods.arenaLaser = true;
   if (step.enemyUnlock && !mods.extraEnemies.includes(step.enemyUnlock)) mods.extraEnemies.push(step.enemyUnlock);
 }
 
@@ -199,6 +203,7 @@ export function difficultyMods(level: number, hard = false): DifficultyMods {
     bossPredatorHard: false,
     bossBombardHard: false,
     stealthDeep: false,
+    arenaLaser: false,
     extraEnemies: [],
     coinMul: lv < 0 ? DIFFICULTY.easyCoinMul : 1 + lv * DIFFICULTY.coinMulPerLevel,
     // 보스 코인은 난이도 3당 +20%p. 다른 배율과 같이 합으로 쌓습니다 (3당 x1.2 를 곱하면 15단계에서 2.49 가 됩니다).
@@ -394,6 +399,10 @@ export function difficultyEffects(level: number, hard = false): DifficultyEffect
   // 이것만은 접지 않습니다. 강화된 적이 아니라 판 내내 남는 못 죽이는 장애물이라,
   // 있는 줄 모르고 들어가면 대응 자체가 달라집니다
   if (m.foolInvuln) device('무적 바보적', '1마리가 판 내내 남음');
+  // **레이저는 적이 아니라 판의 규칙이라 따로 알립니다.** 적 강화는 "OO 능력 강화"
+  // 한 줄로 접지만, 이건 들어가서 겪기 전에 알아야 대응이 달라지는 종류입니다
+  // (무적 바보적을 예외로 둔 것과 같은 이유)
+  if (m.arenaLaser) device('경기장 레이저', `${fmtSec(HARD_LASER.intervalMin)}~${fmtSec(HARD_LASER.intervalMax)}마다 가로 또는 세로로`);
 
   if (m.clearTime !== DIFFICULTY.baseClearTime) {
     device('다음 난이도 해금', `${Math.round(m.clearTime / 60)}분 생존`);

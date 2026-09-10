@@ -16,8 +16,34 @@ export type StatBlock = Record<StatKey, number>;
 
 /** 플레이어를 죽인 상대. 게임오버 화면에 생김새를 띄우는 데 씁니다 */
 export interface KillerInfo {
-  id: EnemyId | BossId;
+  /**
+   * 나를 죽인 적. **`null` 이면 적이 아니라 판의 장치입니다** (하드 5 레이저).
+   * 그때는 `device` 에 이름이 들어가고, 화면은 적 그림 없이 이름만 띄웁니다.
+   */
+  id: EnemyId | BossId | null;
   elite: boolean;
+  /** 적이 아닌 사인의 이름. 있으면 `id` 는 반드시 null 입니다 */
+  device?: string;
+}
+
+/**
+ * 하드 5의 경기장 레이저.
+ *
+ * 주인이 없습니다. 적이 깐 것이 아니라 **판이 거는 것**이라, 적이 죽어도 안 사라지고
+ * 적을 맞히지도 않습니다. 수치는 `HARD_LASER` 한 곳에 있습니다.
+ */
+export interface ArenaLaser {
+  /** 'h' = 가로선(y 고정), 'v' = 세로선(x 고정) */
+  axis: 'h' | 'v';
+  /** 가로면 y, 세로면 x */
+  pos: number;
+  /** 남은 예고 시간. 0 이 되는 프레임에 쏩니다 */
+  warn: number;
+  /** 쏜 뒤 빔이 남아 있는 시간. 그림일 뿐입니다 */
+  linger: number;
+  /** 이미 쐈는가. 피해는 한 번뿐이라 이 값으로 막습니다 */
+  fired: boolean;
+  dead: boolean;
 }
 
 /**

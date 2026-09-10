@@ -134,7 +134,9 @@ export function commitAchieveStats(save: SaveData, w: World): void {
 
   // 사인 수집가: 나를 죽인 적의 종류를 모읍니다. 보스는 세지 않습니다
   const killer = w.killedBy;
-  if (killer && !s.deathCauses.includes(killer.id)) s.deathCauses.push(killer.id);
+  // **적이 아닌 사인(하드 5 레이저)은 안 셉니다.** "사인 수집가"는 적 종류를 모으는
+  // 업적이라, 적이 아닌 것이 목록에 끼면 그 뜻이 흐려집니다
+  if (killer?.id && !s.deathCauses.includes(killer.id)) s.deathCauses.push(killer.id);
 }
 
 /**

@@ -93,6 +93,7 @@ import {
   visibleAchievements,
 } from '../src/meta/achievements';
 import { ALL_ENEMY_IDS, getEnemyDef } from '../src/enemies/registry';
+import { HARD_LASER } from '../src/data/balance';
 import { LATEST_PATCH, PATCH_NOTES, visiblePatchNotes } from '../src/data/patchnotes';
 import { ALL_SKILL_IDS, getSkillDef, lv, makeSlot, slotCooldown } from '../src/skills/registry';
 import { ATTACK_SKILL_IDS, UTILITY_SKILL_IDS } from '../src/skills/registry';
@@ -4604,6 +4605,109 @@ console.log('\n24) 패치로그');
   check('빈 묶음이 안 남는다', hidden.every((n) => n.groups.every((g) => g.items.length > 0)));
 
   console.log(`   ${PATCH_NOTES.length}개 버전 · 최신 ${LATEST_PATCH} · 하드 전용 ${hardTitles.length}개`);
+}
+
+console.log('\n25) 하드 5: 경기장 레이저');
+{
+  const hardSave = (): SaveData => {
+    const s = emptySave();
+    s.hardMode = true;
+    s.hardUnlocked = true;
+    return s;
+  };
+
+  // --- 하드 5 부터만 열립니다 ---
+  check('하드 4 에는 없다', !difficultyMods(4, true).arenaLaser);
+  check('하드 5 부터 열린다', difficultyMods(5, true).arenaLaser);
+  check('하드 15 까지 유지된다', difficultyMods(15, true).arenaLaser);
+  check('일반모드에는 없다', !difficultyMods(15, false).arenaLaser);
+
+  // --- 가로 또는 세로. 45도는 없습니다 ---
+  {
+    const w = new World(hardSave(), input, 11, 5);
+    w.spawner.enabled = false;
+    const seen = new Set<string>();
+    for (let i = 0; i < 60; i++) {
+      const l = w.spawnLaser();
+      seen.add(l.axis);
+      const limit = l.axis === 'h' ? CANVAS.h : CANVAS.w;
+      check('레이저가 경기장 안에 있다', l.pos >= 0 && l.pos <= limit, `${l.axis} ${l.pos.toFixed(0)}`);
+    }
+    check('가로와 세로가 둘 다 나온다', seen.has('h') && seen.has('v'), [...seen].join(','));
+    check('그 밖의 방향은 없다', seen.size === 2, [...seen].join(','));
+  }
+
+  // --- 예고가 다 차야 쏩니다 ---
+  {
+    const w = new World(hardSave(), input, 12, 5);
+    w.spawner.enabled = false;
+    const l = w.spawnLaser();
+    check('예고가 같이 뜬다', w.telegraphs.some((t) => t.kind === 'line' && !t.dead));
+
+    // 선 위에 세워 둡니다
+    if (l.axis === 'h') w.player.y = l.pos;
+    else w.player.x = l.pos;
+
+    // **매 프레임 다시 세워야 합니다.** 점검용 입력이 플레이어를 계속 움직여서
+    // 그냥 두면 저절로 비켜나고, 그러면 "안 맞았다"가 아니라 "안 서 있었다"가 됩니다
+    const pin = (ww: World) => {
+      if (l.axis === 'h') ww.player.y = l.pos;
+      else ww.player.x = l.pos;
+    };
+    const hp0 = w.player.hp;
+    step(w, HARD_LASER.telegraph * 0.5, false, false, pin);
+    check('다 차기 전에는 안 맞는다', w.player.hp === hp0, `${hp0} → ${w.player.hp}`);
+
+    step(w, HARD_LASER.telegraph, false, false, pin);
+    check('다 차면 맞는다', w.player.hp < hp0, `${hp0} → ${w.player.hp}`);
+    check('사인이 판의 장치로 남는다', w.lastDamageSource?.id === null, `${w.lastDamageSource?.id}`);
+    check('사인에 이름이 있다', !!w.lastDamageSource?.device, `${w.lastDamageSource?.device}`);
+
+    // 한 번만 때립니다. 잔상은 그림일 뿐입니다
+    const hp1 = w.player.hp;
+    w.player.invuln = 0;
+    step(w, HARD_LASER.linger * 2, false, false, pin);
+    check('잔상에는 피해가 없다', w.player.hp === hp1, `${hp1} → ${w.player.hp}`);
+  }
+
+  // --- 비키면 안 맞고, 적은 아예 안 맞습니다 ---
+  {
+    const w = new World(hardSave(), input, 13, 5);
+    w.spawner.enabled = false;
+    const l = w.spawnLaser();
+    const off = HARD_LASER.width / 2 + w.player.radius + 30;
+    const limit = l.axis === 'h' ? CANVAS.h : CANVAS.w;
+    const safe = l.pos + off < limit - 20 ? l.pos + off : l.pos - off;
+    const stand = (ww: World) => {
+      if (l.axis === 'h') ww.player.y = safe;
+      else ww.player.x = safe;
+    };
+    stand(w);
+
+    // 선 한가운데에 적을 세웁니다. 레이저는 적을 안 건드려야 합니다.
+    // **기본공격을 꺼야 합니다.** 안 끄면 그 피해가 섞여서 레이저를 잰 것이 안 됩니다
+    w.player.stats.attack = 0;
+    const e = l.axis === 'h' ? w.spawnEnemy('tank', 400, l.pos, {}) : w.spawnEnemy('tank', l.pos, 300, {});
+    e.hp = 1e9;
+    e.maxHp = 1e9;
+
+    const hp0 = w.player.hp;
+    step(w, HARD_LASER.telegraph + 0.2, false, false, stand);
+    check('비키면 안 맞는다', w.player.hp === hp0, `${hp0} → ${w.player.hp}`);
+    check('적은 레이저에 안 맞는다', e.hp === 1e9, `${e.hp}`);
+  }
+
+  // --- 일반모드에서는 저절로 안 나옵니다 ---
+  {
+    const w = new World(emptySave(), input, 14, 15);
+    w.spawner.enabled = false;
+    step(w, HARD_LASER.intervalMax + 5, true, false);
+    check('일반모드에서는 레이저가 안 생긴다', w.lasers.length === 0, `${w.lasers.length}개`);
+  }
+
+  console.log(
+    `   ${HARD_LASER.intervalMin}~${HARD_LASER.intervalMax}초마다 · 예고 ${HARD_LASER.telegraph}초 · 폭 ${HARD_LASER.width} · 공격력 배수 ${HARD_LASER.damage}`,
+  );
 }
 
 console.log(failures === 0 ? '\n전부 통과했습니다' : `\n실패 ${failures}건`);

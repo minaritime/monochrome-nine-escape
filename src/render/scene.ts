@@ -1,4 +1,4 @@
-import { ARENA_X, CANVAS, DEATH_BURST, ELITE, ENEMY_BULLET, ENEMY_PARAMS, PLAYER } from '../data/balance';
+import { ARENA_X, CANVAS, DEATH_BURST, ELITE, ENEMY_BULLET, ENEMY_PARAMS, HARD_LASER, PLAYER } from '../data/balance';
 import { TAU } from '../core/math';
 import { bomberBlastRadius, cowardEnraged, rangedAimTime } from '../enemies/behaviors/special';
 import { priestRadius } from '../enemies/behaviors/advanced';
@@ -46,6 +46,7 @@ export function drawWorld(r: Renderer, w: World): void {
   drawPlayer(r, w);
   drawShards(r, w);
   drawProjectiles(r, w, true);
+  drawLasers(r, w);
   drawParticles(r, w);
 
   r.end();
@@ -97,6 +98,29 @@ function drawHazards(r: Renderer, w: World): void {
       const pulse = 0.5 + 0.5 * Math.sin(w.time * 9);
       r.circle(h.x, h.y, h.radius, h.color, (0.1 + pulse * 0.1) * fade);
       r.ring(h.x, h.y, h.radius - 5, h.color, 1.5, (0.3 + pulse * 0.4) * fade);
+    }
+  }
+}
+
+/**
+ * 하드 5의 경기장 레이저 (쏜 뒤의 빔).
+ *
+ * **예고는 여기서 안 그립니다.** 그건 `line` 텔레그래프가 맡습니다. 여기는 쏜 뒤
+ * 짧게 남는 잔상뿐이고 판정은 이미 끝나 있습니다.
+ *
+ * 플레이어 위에 그립니다. 아래에 깔면 몸에 가려서 "맞았나 비켰나"가 안 보입니다
+ */
+function drawLasers(r: Renderer, w: World): void {
+  for (const l of w.lasers) {
+    if (l.dead || !l.fired) continue;
+    const k = Math.max(0, l.linger / HARD_LASER.linger);
+    const half = (HARD_LASER.width / 2) * k;
+    if (l.axis === 'h') {
+      r.rect(0, l.pos - half, CANVAS.w, half * 2, HARD_LASER.color, 0.75 * k);
+      r.rect(0, l.pos - half * 0.35, CANVAS.w, half * 0.7, '#ffffff', 0.9 * k);
+    } else {
+      r.rect(l.pos - half, 0, half * 2, CANVAS.h, HARD_LASER.color, 0.75 * k);
+      r.rect(l.pos - half * 0.35, 0, half * 0.7, CANVAS.h, '#ffffff', 0.9 * k);
     }
   }
 }
