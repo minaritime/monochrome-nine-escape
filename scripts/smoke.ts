@@ -3613,8 +3613,8 @@ console.log('16) 저장 데이터가 낡거나 망가졌을 때');
     }) as unknown as Renderer;
 
     // **같은 판을 두 번 그립니다.** 저장의 hardMode 를 바꿔서 World 를 새로 만들면
-    // 난이도까지 달라져서(하드 0 은 전원 정예입니다) 적 수가 달라지고, 그러면
-    // 그리기 차이가 아니라 판 차이를 재게 됩니다
+    // 난이도까지 달라져서(하드 0 은 일반 15 의 장치를 들고 옵니다) 적 수가 달라지고,
+    // 그러면 그리기 차이가 아니라 판 차이를 재게 됩니다
     const sv = emptySave();
     const w = new World(sv, input, 909, 0);
     for (let i = 0; i < 120; i++) w.update(FIXED_DT);
@@ -3931,7 +3931,13 @@ console.log('\n18) 하드모드 난이도');
   check('하드 표가 일반과 같은 칸 수다', HARD_DIFFICULTY_STEPS.length === DIFFICULTY.max, `${HARD_DIFFICULTY_STEPS.length}`);
 
   // --- 장치는 전부 가져옵니다 ---
-  check('하드 0 은 전원 정예', hard0.allElite === normal15.allElite && hard0.allElite);
+  // **전원 정예만 예외입니다** (2026-09-08 사용자 확정). 하드 0 은 일반 15 의 장치를
+  // 전부 들고 오되 이것 하나만 빼고, 하드 6 에서 다시 켜집니다. 그래야 0~5 가
+  // "정예가 없는 하드"라는 다른 판이 되고, "15칸에 켤 장치가 안 남는다"가 풀립니다
+  check('하드 0 은 전원 정예가 아니다', !hard0.allElite && normal15.allElite);
+  check('대신 정예 비율이 오른다', hard0.eliteRatioMul > normal15.eliteRatioMul, `${hard0.eliteRatioMul}`);
+  check('하드 6 에서 다시 켜진다', difficultyMods(6, true).allElite);
+  check('하드 5 까지는 안 켜진다', !difficultyMods(5, true).allElite);
   check('하드 0 은 무적 바보적', hard0.foolInvuln === normal15.foolInvuln && hard0.foolInvuln);
   check('하드 0 은 선택지 2장', hard0.skillChoices === normal15.skillChoices, `${hard0.skillChoices}`);
   check('하드 0 은 돌진 쿨 없음', hard0.chargerNoCooldown === normal15.chargerNoCooldown);
@@ -4707,6 +4713,77 @@ console.log('\n25) 하드 5: 경기장 레이저');
 
   console.log(
     `   ${HARD_LASER.intervalMin}~${HARD_LASER.intervalMax}초마다 · 예고 ${HARD_LASER.telegraph}초 · 폭 ${HARD_LASER.width} · 공격력 배수 ${HARD_LASER.damage}`,
+  );
+}
+
+console.log('\n26) 하드 6: 모두 정예 (배율 없이 능력만)');
+{
+  const hardSave = (): SaveData => {
+    const s = emptySave();
+    s.hardMode = true;
+    s.hardUnlocked = true;
+    return s;
+  };
+
+  check('하드 5 까지는 배율이 남는다', !difficultyMods(5, true).eliteStatsOff);
+  check('하드 6 부터 배율이 빠진다', difficultyMods(6, true).eliteStatsOff);
+  check('하드 6 은 전원 정예', difficultyMods(6, true).allElite);
+  check('일반 15 는 배율이 그대로', !difficultyMods(15, false).eliteStatsOff && difficultyMods(15, false).allElite);
+
+  // --- 배율은 사라지고 능력은 남는가 ---
+  {
+    const w = new World(hardSave(), input, 21, 6);
+    w.spawner.enabled = false;
+    const plain = w.spawnEnemy('tank', 300, 300, { elite: false });
+    const elite = w.spawnEnemy('tank', 500, 300, { elite: true });
+
+    check('정예 체력이 같다', elite.maxHp === plain.maxHp, `${elite.maxHp.toFixed(0)} vs ${plain.maxHp.toFixed(0)}`);
+    check('정예 공격력이 같다', elite.damage === plain.damage, `${elite.damage.toFixed(1)} vs ${plain.damage.toFixed(1)}`);
+    check('정예 이동속도가 같다', elite.speed === plain.speed, `${elite.speed.toFixed(0)} vs ${plain.speed.toFixed(0)}`);
+    check('정예 크기가 같다', elite.radius === plain.radius, `${elite.radius.toFixed(1)} vs ${plain.radius.toFixed(1)}`);
+    check('정예 경험치가 같다', elite.xp === plain.xp, `${elite.xp} vs ${plain.xp}`);
+    check('그래도 정예이긴 하다', elite.elite && !plain.elite);
+
+    // **능력은 남습니다.** 탱커 정예의 재생이 살아 있어야 합니다.
+    // 기본공격을 꺼야 그 피해가 안 섞입니다
+    w.player.stats.attack = 0;
+    elite.hp = elite.maxHp * 0.5;
+    const before = elite.hp;
+    step(w, 1.2, true, false);
+    check('정예 탱커 재생은 남는다', elite.hp > before, `${before.toFixed(0)} → ${elite.hp.toFixed(0)}`);
+  }
+
+  // --- 방패 받피 x0.5 는 배율이 아니라 능력입니다 (2026-09-10 사용자 확정) ---
+  {
+    const w = new World(hardSave(), input, 22, 6);
+    w.spawner.enabled = false;
+    const plain = w.spawnEnemy('shield', 300, 300, { elite: false });
+    const elite = w.spawnEnemy('shield', 600, 300, { elite: true });
+    check('방패 정예도 체력이 같다', elite.maxHp === plain.maxHp, `${elite.maxHp.toFixed(0)} vs ${plain.maxHp.toFixed(0)}`);
+
+    // 방패를 안 거치는 자리(뒤)에서 때려 본체 피해만 잽니다
+    const hitBack = (e: typeof plain) => {
+      const hp0 = e.hp;
+      w.damageEnemy(e, 100, { fromX: e.x, fromY: e.y + 400 });
+      return hp0 - e.hp;
+    };
+    const dPlain = hitBack(plain);
+    const dElite = hitBack(elite);
+    check('정예 방패적은 절반만 받는다', Math.abs(dElite * 2 - dPlain) < 0.01, `${dElite.toFixed(1)} vs ${dPlain.toFixed(1)}`);
+  }
+
+  // --- 하드 5 에서는 배율이 그대로여야 합니다 (비교군) ---
+  {
+    const w = new World(hardSave(), input, 23, 5);
+    w.spawner.enabled = false;
+    const plain = w.spawnEnemy('tank', 300, 300, { elite: false });
+    const elite = w.spawnEnemy('tank', 500, 300, { elite: true });
+    check('하드 5 정예는 더 단단하다', elite.maxHp > plain.maxHp, `${elite.maxHp.toFixed(0)} vs ${plain.maxHp.toFixed(0)}`);
+    check('하드 5 정예는 경험치가 많다', elite.xp > plain.xp, `${elite.xp} vs ${plain.xp}`);
+  }
+
+  console.log(
+    `   하드 0 정예 비율 x${difficultyMods(0, true).eliteRatioMul.toFixed(2)} · 하드 6 부터 전원 정예 (배율 없음)`,
   );
 }
 

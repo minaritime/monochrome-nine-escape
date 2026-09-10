@@ -42,6 +42,11 @@ export interface DifficultyMods {
   wave: WaveSpec | null;
   bomberWave: WaveSpec | null;
   allElite: boolean;
+  /**
+   * 하드 6. 정예의 배율(체력 · 공격력 · 이동속도 · 크기 · 경험치)을 지우고
+   * **고유 능력만** 남깁니다
+   */
+  eliteStatsOff: boolean;
   chargerNoStun: boolean;
   chargerNoCooldown: boolean;
   splitterShoot: boolean;
@@ -151,6 +156,7 @@ function applyStep(mods: DifficultyMods, step: DifficultyStep): void {
   if (step.bomberWave) mods.bomberWave = step.bomberWave;
 
   if (step.allElite) mods.allElite = true;
+  if (step.eliteStatsOff) mods.eliteStatsOff = true;
   if (step.chargerNoStun) mods.chargerNoStun = true;
   if (step.chargerNoCooldown) mods.chargerNoCooldown = true;
   if (step.splitterShoot) mods.splitterShoot = true;
@@ -195,6 +201,7 @@ export function difficultyMods(level: number, hard = false): DifficultyMods {
     wave: null,
     bomberWave: null,
     allElite: false,
+    eliteStatsOff: false,
     chargerNoStun: false,
     chargerNoCooldown: false,
     splitterShoot: false,
@@ -232,6 +239,13 @@ function hardMods(level: number): DifficultyMods {
   const lv = clampDifficulty(level, true);
   const mods = difficultyMods(DIFFICULTY.max);
   softenMuls(mods, HARD.startMul);
+
+  // **하드 0 은 일반 15 의 장치를 전부 들고 오되 전원 정예만 뺍니다**
+  // (2026-09-08 사용자 확정). 하드 6 에서 다시 켜지고, 그 사이 0~5 는 "정예가 없는
+  // 하드"라는 다른 판이 됩니다. 이게 "15칸에 켤 장치가 안 남는다"는 걸림돌을
+  // 스스로 풉니다. 대신 정예 비율이 올라갑니다
+  mods.allElite = false;
+  mods.eliteRatioMul = addMul(mods.eliteRatioMul, HARD.eliteRatioMul);
 
   mods.level = lv;
   // 하드 0 이 x3.5, 하드 15 가 x7.25 입니다. 일반과 같은 배율로는 하드 상점을
@@ -395,7 +409,7 @@ export function difficultyEffects(level: number, hard = false): DifficultyEffect
     device('자폭병 웨이브', `${fmtMin(m.bomberWave.startTime)}부터 ${fmtSec(m.bomberWave.interval)}마다 ${m.bomberWave.count}마리`);
   }
   if (m.skillChoices !== BASE_SKILL_CHOICES) device('레벨업 선택지', `${m.skillChoices}개`);
-  if (m.allElite) device('정예', '모든 적이 정예');
+  if (m.allElite) device('정예', m.eliteStatsOff ? '모든 적이 정예 (배율 없이 능력만)' : '모든 적이 정예');
   // 이것만은 접지 않습니다. 강화된 적이 아니라 판 내내 남는 못 죽이는 장애물이라,
   // 있는 줄 모르고 들어가면 대응 자체가 달라집니다
   if (m.foolInvuln) device('무적 바보적', '1마리가 판 내내 남음');

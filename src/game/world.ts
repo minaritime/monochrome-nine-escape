@@ -634,7 +634,9 @@ export class World {
     const bal = ENEMY_TABLE[id];
     const scaling = this.timeScale();
     const elite = opts.elite ?? false;
-    const scale = (opts.scale ?? 1) * eliteStatMul(id, elite, 'sizeMul');
+    // 하드 6: 정예의 배율만 지웁니다. 고유 능력은 그대로 남습니다
+    const off = this.diff.eliteStatsOff;
+    const scale = (opts.scale ?? 1) * eliteStatMul(id, elite, 'sizeMul', off);
     // 난이도 12 의 자폭병 전용 조정. 다른 적에게는 1 입니다
     const bomberMul =
       id === 'bomber'
@@ -643,7 +645,7 @@ export class World {
 
     // 체력 · 속도 · 공격력 · 크기 모두 종류별 정예 값이 있으면 그것으로 대체됩니다
     const maxHp =
-      ENEMY_BASE.hp * bal.hp * scaling.hp * eliteStatMul(id, elite, 'hpMul') * (opts.hpMul ?? 1);
+      ENEMY_BASE.hp * bal.hp * scaling.hp * eliteStatMul(id, elite, 'hpMul', off) * (opts.hpMul ?? 1);
     // 하드 2 는 내구도만 올립니다. 본체가 받는 피해는 안 건드리므로
     // 관통·폭발·화상·장판은 지금과 똑같고, 방패에 막히는 화력만 버려집니다
     const shieldRatio = def.hasShield
@@ -663,10 +665,10 @@ export class World {
       hp: maxHp,
       maxHp,
       speed:
-        ENEMY_BASE.speed * bal.speed * eliteStatMul(id, elite, 'speedMul') * scaling.speed * bomberMul.speed,
+        ENEMY_BASE.speed * bal.speed * eliteStatMul(id, elite, 'speedMul', off) * scaling.speed * bomberMul.speed,
       damage:
-        ENEMY_BASE.damage * bal.damage * scaling.dmg * eliteStatMul(id, elite, 'damageMul') * bomberMul.damage,
-      xp: ENEMY_BASE.xp * bal.xpMul * (elite ? ELITE.xpMul : 1) * (opts.child ? 0.4 : 1),
+        ENEMY_BASE.damage * bal.damage * scaling.dmg * eliteStatMul(id, elite, 'damageMul', off) * bomberMul.damage,
+      xp: ENEMY_BASE.xp * bal.xpMul * (elite && !off ? ELITE.xpMul : 1) * (opts.child ? 0.4 : 1),
       elite,
       boss: false,
       child: opts.child ?? false,

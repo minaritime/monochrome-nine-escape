@@ -39,8 +39,15 @@ export function eliteStatMul(
   id: string,
   elite: boolean,
   key: 'hpMul' | 'speedMul' | 'damageMul' | 'sizeMul',
+  statsOff = false,
 ): number {
-  if (!elite) return 1;
+  // 하드 6 은 정예의 **배율**만 지웁니다. 고유 능력은 `eliteMul` · `eliteHas` ·
+  // `eliteValue` 로 읽히므로 여기를 꺼도 그대로 남습니다.
+  //
+  // **기본값이 false 여야 합니다.** 업적의 `fastestEnemySpeed` 는 판이 아니라
+  // 적 표 전체를 재는 자리라 판의 규칙을 넣으면 안 됩니다 (판마다 달라지는 기준은
+  // 업적이 될 수 없다는 규칙, 열다섯 번째 조정)
+  if (!elite || statsOff) return 1;
   return ELITE_TRAITS[id as EnemyId]?.[key] ?? ELITE[key];
 }
 

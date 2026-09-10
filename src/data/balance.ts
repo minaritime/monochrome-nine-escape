@@ -868,6 +868,16 @@ export interface DifficultyStep {
    */
   arenaLaser?: boolean;
   /**
+   * 하드 6. 정예의 **배율**을 지우고 고유 능력만 남깁니다.
+   *
+   * 지우는 것은 `eliteStatMul` 이 다루는 넷(체력 · 공격력 · 이동속도 · 크기)과
+   * 경험치 배율입니다. **`eliteMul` · `eliteHas` · `eliteValue` 로 읽는 능력은
+   * 전부 남습니다** (2026-09-10 사용자 확정). 능력 중에도 배수로 적힌 것이 많은데
+   * (조준 x0.4 · 예고 x0.4 · 방패 받피 x0.5 · 드러나는 거리 x0.5) 숫자 모양이
+   * 아니라 **그 적을 그 적답게 만드는가**로 가릅니다.
+   */
+  eliteStatsOff?: boolean;
+  /**
    * 이 단계부터 나오기 시작하는 하드 전용 적.
    *
    * `ENEMY_TABLE` 에서 `hardOnly` 인 적은 평소 스폰 표에 아예 없습니다.
@@ -2342,6 +2352,19 @@ export const HARD = {
    */
   startMul: 0.7,
   /**
+   * 하드 0 의 정예 비율 배율.
+   *
+   * **하드 0 은 일반 15 의 장치를 전부 들고 오되 전원 정예만 뺍니다**
+   * (2026-09-08 사용자 확정). 하드 6 에서 다시 켜지고, 그 사이 0~5 는
+   * "정예가 없는 하드"라는 다른 판이 됩니다.
+   *
+   * **이게 "15칸에 켤 장치가 안 남는다"는 걸림돌을 스스로 풉니다.** 전원 정예를
+   * 빼두면 6 이라는 분수령이 생깁니다.
+   *
+   * 전체 스폰율이 아니라 **정예 비율**입니다. 10분 이후 40% 이던 것이 50% 가 됩니다
+   */
+  eliteRatioMul: 1.25,
+  /**
    * 코인은 일반 15(x3.25) 위에서 이어집니다. 하드 0 이 x3.5, 하드 15 가 x7.25 입니다.
    *
    * 하드 상점이 34만 코인이라 일반과 같은 배율로는 300판이 걸립니다.
@@ -2402,7 +2425,7 @@ export const HARD_DIFFICULTY_STEPS: readonly DifficultyStep[] = [
   { label: '사제적 등장, 은신적 능력 강화, 적 공격력 +20%', enemyUnlock: 'priest', stealthDeep: true, damageMul: 1.2 },
   { label: '폭격기 능력 강화, 적 공격력 +10%', bossBombardHard: true, damageMul: 1.1 },
   { label: '경기장 레이저 등장, 적 공격력 +10% · 체력 +10%', arenaLaser: true, damageMul: 1.1, hpMul: 1.1 },
-  { label: '적 체력 +15%', hpMul: 1.15 },
+  { label: '모든 적이 정예 (배율 없이 능력만), 적 공격력 +20% · 체력 +20%', allElite: true, eliteStatsOff: true, damageMul: 1.2, hpMul: 1.2 },
   { label: '충돌 데미지 +15% · 공격력 +10%', contactDamageMul: 1.15, damageMul: 1.1 },
   { label: '적 체력 +10% · 스폰율 +10%', hpMul: 1.1, spawnRateMul: 1.1 },
   { label: '적 공격력 +10% · 이동속도 +5%', damageMul: 1.1, speedMul: 1.05 },
