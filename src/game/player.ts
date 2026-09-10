@@ -120,6 +120,12 @@ function tickSlot(w: World, slot: SkillSlot | null, dt: number, fire: boolean): 
   if (!slot) return;
   const def = getSkillDef(slot.id);
 
+  // 봉인 (봉인적, 하드 7). **쿨다운은 그대로 돕니다.** 봉인은 "발동 금지"이지
+  // "시간 정지"가 아니라, 풀리는 순간 바로 나가는 것이 맞습니다.
+  // **이미 나간 지속형은 안 끊습니다.** 아래 `active` 갈래보다 위에 두면
+  // 돌아가던 오라가 봉인 한 번에 꺼져서, 봉인이 아니라 해제가 됩니다
+  if (slot.sealed > 0) slot.sealed -= dt;
+
   if (slot.active > 0) {
     slot.active -= dt;
     def.sustain?.(w, slot, dt);
@@ -129,7 +135,7 @@ function tickSlot(w: World, slot: SkillSlot | null, dt: number, fire: boolean): 
     slot.cooldown -= dt;
     return;
   }
-  if (fire && def.activate(w, slot)) {
+  if (fire && slot.sealed <= 0 && def.activate(w, slot)) {
     // 갈래 배율까지 여기서 걸립니다. `def.cooldown` 을 직접 읽지 마십시오
     slot.cooldown = slotCooldown(w.player.stats, slot);
   }

@@ -87,6 +87,14 @@ export interface SkillSlot {
    * 화염 지뢰를 고른 사람이 거대 지뢰가 되는데 **아무 오류도 안 납니다.**
    */
   branch: SkillBranchId | null;
+  /**
+   * 남은 봉인 시간(초). 0 보다 크면 **발동하지 않습니다** (봉인적, 하드 7).
+   *
+   * 쿨다운은 그대로 돕니다. 봉인은 "발동 금지"이지 "시간 정지"가 아니라,
+   * 풀리는 순간 바로 나가는 것이 맞습니다.
+   * 이미 나간 지속형(오라 · 화염방사기)도 안 끊습니다.
+   */
+  sealed: number;
 }
 
 export interface Player {
@@ -399,6 +407,11 @@ export interface Projectile {
   straight: boolean;
   /** 구체가 스칠 때마다 터지는 작은 폭발 (파편 궤도) */
   orbFragment: OrbFragmentDef | null;
+  /**
+   * 맞으면 스킬 하나를 이만큼 봉인합니다 (봉인적, 하드 7). 0 이면 안 겁니다.
+   * **적탄에만 씁니다.**
+   */
+  seal: number;
   /** 적탄을 쏜 상대. 게임오버 화면에 사인을 띄우는 데만 씁니다 */
   source: KillerInfo | null;
   dead: boolean;

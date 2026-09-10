@@ -272,6 +272,9 @@ function drawSkillPanel(r: Renderer, w: World): void {
  * 타겟팅 설명을 빼면서 134 → 92 로 줄었습니다. 카드 넷이 세로를 거의 다 채우고 있어서
  * 기본공격 칸이 바닥에 붙어 있었는데, 그만큼 여유가 생깁니다.
  */
+/** 봉인 표시 색. 봉인적(#6f4de0)보다 밝게 잡아 어두운 카드 위에서 읽힙니다 */
+const SEAL_COLOR = '#b08bff';
+
 const CARD_H = 92;
 const CARD_STEP = CARD_H + 8;
 
@@ -289,7 +292,12 @@ function drawSkillCard(r: Renderer, w: World, x0: number, y: number, slot: Skill
   }
 
   const def = getSkillDef(slot.id);
-  const ready = slot.cooldown <= 0 && slot.active <= 0;
+  const sealed = slot.sealed > 0;
+  const ready = !sealed && slot.cooldown <= 0 && slot.active <= 0;
+
+  // 봉인 (봉인적, 하드 7). **카드 테두리째 물들입니다.** 막대만 바꾸면 난전 중에
+  // 안 보여서, 왜 그 스킬이 안 나가는지 모른 채 판이 흘러갑니다
+  if (sealed) r.rectOutline(left, y, width, CARD_H, SEAL_COLOR, 2);
 
   r.circle(left + 22, y + 24, 10, def.color, ready ? 1 : 0.4);
   r.text(`${def.name}`, left + 40, y + 22, { size: 14, color: '#e6ebf5', weight: 800 });
@@ -311,7 +319,12 @@ function drawSkillCard(r: Renderer, w: World, x0: number, y: number, slot: Skill
   // 갈래가 쿨을 바꾸므로 `def.cooldown` 을 직접 읽으면 막대와 실제가 어긋납니다
   const maxCd = slotCooldown(p.stats, slot);
   r.rect(left + 12, barY, width - 24, 6, '#1c2331');
-  if (slot.active > 0) {
+  if (sealed) {
+    // 봉인이 쿨다운보다 위에 옵니다. 봉인 중에도 쿨은 도는데, 그 숫자를 보여주면
+    // 다 찼는데 안 나가는 것으로 읽힙니다. 지금 못 쓰는 이유 하나만 적습니다
+    r.rect(left + 12, barY, width - 24, 6, SEAL_COLOR);
+    r.text(`봉인 ${slot.sealed.toFixed(1)}초`, left + 12, barY + 22, { size: 11.5, color: SEAL_COLOR, weight: 700 });
+  } else if (slot.active > 0) {
     r.rect(left + 12, barY, width - 24, 6, def.color);
     r.text(`발동 중 ${slot.active.toFixed(1)}초`, left + 12, barY + 22, { size: 11.5, color: def.color });
   } else if (slot.cooldown > 0) {

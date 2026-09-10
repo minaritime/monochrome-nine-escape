@@ -286,7 +286,11 @@ function moveEnemyBullet(w: World, p: Projectile, dt: number): void {
   if (!pl.alive) return;
   if (dist(p.x, p.y, pl.x, pl.y) <= p.radius + pl.radius) {
     p.dead = true;
+    const hpBefore = pl.hp;
     w.damagePlayer(p.damage, false, p.source);
+    // 봉인은 **실제로 맞았을 때만** 겁니다 (봉인적, 하드 7).
+    // 무적으로 튕겨낸 탄에도 걸면 대시 무적이 절반만 일하는 셈이 됩니다
+    if (p.seal > 0 && pl.hp < hpBefore) w.sealRandomSkill(p.seal);
   }
 }
 

@@ -769,7 +769,7 @@ export function getSkillDef(id: SkillId): SkillDef {
 }
 
 export function makeSlot(id: SkillId, level = 1, branch: SkillBranchId | null = null): SkillSlot {
-  return { id, level: clamp(level, 1, SKILL_MAX_LEVEL), cooldown: 0, active: 0, tick: 0, branch };
+  return { id, level: clamp(level, 1, SKILL_MAX_LEVEL), cooldown: 0, active: 0, tick: 0, branch, sealed: 0 };
 }
 
 /**

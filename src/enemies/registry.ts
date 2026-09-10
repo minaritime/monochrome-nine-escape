@@ -1,7 +1,7 @@
 import type { BossId, EnemyId } from '../data/balance';
 import { BOSS_DEFS, isBossId } from './boss';
 import { bounce, chase, mummy, mummyOnLethal, puddleChase, puddleOnDeath, shieldBlocks, shielded } from './behaviors/simple';
-import { bomber, bomberIgnite, bomberInit, bomberOnDeath, coward, ranged, splitter, splitterOnDeath } from './behaviors/special';
+import { bomber, bomberIgnite, bomberInit, bomberOnDeath, coward, ranged, sealer, splitter, splitterOnDeath } from './behaviors/special';
 import { charger, priest, stealth, summoner } from './behaviors/advanced';
 import type { EnemyDef } from './types';
 
@@ -204,6 +204,21 @@ export const ENEMY_DEFS: Record<EnemyId, EnemyDef> = {
     pattern: '가까이 가면 도망갑니다. 주변의 적에게 체력 재생을 겁니다',
     behavior: priest,
     extraDraw: 'priest',
+  },
+  sealer: {
+    id: 'sealer',
+    name: '봉인',
+    // 접촉 피해가 낮은 축이라 차분한 한색입니다.
+    // 보라 계열이 이미 둘(바보 #b06bff · 분열 #8f7fd8) 있지만 그 둘보다 훨씬
+    // 어둡고 푸른 쪽이라 색거리가 60 이상 벌어집니다
+    color: '#6f4de0',
+    accent: '#d0c2ff',
+    // 구각형은 이 적만 씁니다 (사제 7 · 장판 8 다음의 빈 자리)
+    sides: 9,
+    faceMove: false,
+    pattern: '멈춰 조준한 뒤 3갈래로 쏩니다. 맞으면 스킬 하나가 잠깐 봉인됩니다',
+    behavior: sealer,
+    extraDraw: 'sealer',
   },
 };
 

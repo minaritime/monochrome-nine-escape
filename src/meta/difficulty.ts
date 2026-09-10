@@ -9,6 +9,7 @@ import {
   type EnemyId,
   type WaveSpec,
 } from '../data/balance';
+import { getEnemyDef } from '../enemies/registry';
 import type { SaveData } from './save';
 
 /** 레벨업에 기본으로 뜨는 선택지 수 */
@@ -413,6 +414,16 @@ export function difficultyEffects(level: number, hard = false): DifficultyEffect
   // 이것만은 접지 않습니다. 강화된 적이 아니라 판 내내 남는 못 죽이는 장애물이라,
   // 있는 줄 모르고 들어가면 대응 자체가 달라집니다
   if (m.foolInvuln) device('무적 바보적', '1마리가 판 내내 남음');
+  // 하드 1~4 의 장치 (2026-09-10 에 채웠습니다). 예전에는 이 넷이 목록에 아예 없어서,
+  // 하드 6 을 골라도 거대 포식자와 사제적이 켜져 있다는 것을 화면에서 알 수 없었습니다.
+  // 그 단계를 고른 순간의 `새로 붙은 것` 상자에만 나왔습니다
+  if (m.bossPredatorHard) device('거대 포식자', '포식자 보스가 경기장 절반을 훑음');
+  if (m.shieldDurabilityMul > 1) device('방패적 강화', `방패 내구도 x${m.shieldDurabilityMul.toFixed(0)}`);
+  if (m.bossBombardHard) device('폭격기 강화', '발수와 범위 증가 · 터진 자리에 불');
+  if (m.stealthDeep) device('은신적 강화', '숨어 있는 동안 완전히 투명');
+  // **이름은 `getEnemyDef` 에서 가져옵니다.** 여기 따로 적으면 적 이름을 바꿀 때
+  // 난이도 화면만 옛 이름으로 남습니다. 호출 시점에만 쓰므로 순환 참조가 안 생깁니다
+  for (const id of m.extraEnemies) device('새 적', `${getEnemyDef(id).name}적 등장`);
   // **레이저는 적이 아니라 판의 규칙이라 따로 알립니다.** 적 강화는 "OO 능력 강화"
   // 한 줄로 접지만, 이건 들어가서 겪기 전에 알아야 대응이 달라지는 종류입니다
   // (무적 바보적을 예외로 둔 것과 같은 이유)

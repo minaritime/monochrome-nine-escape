@@ -32,6 +32,7 @@ import { createPlayer, ownedSlots, updatePlayer } from './player';
 import { Spawner } from './spawner';
 import { updateEnemies } from '../enemies/update';
 import { updateProjectiles } from '../skills/projectile';
+import { getSkillDef } from '../skills/registry';
 import type { SkillId } from '../skills/types';
 import { updateCoins } from './coin';
 import { getEnemyDef } from '../enemies/registry';
@@ -57,6 +58,7 @@ import type {
   RunStats,
   RunTrack,
   Shard,
+  SkillSlot,
   Telegraph,
 } from './types';
 
@@ -837,6 +839,7 @@ export class World {
       splitOnHit: null,
       splitsLeft: 0,
       straight: false,
+      seal: 0,
       orbFragment: null,
       source: null,
       dead: false,
@@ -1189,6 +1192,29 @@ export class World {
     this.killedBy = source ?? this.lastDamageSource;
     this.gameOver = true;
     this.startDeathBurst();
+  }
+
+  /**
+   * 아직 안 봉인된 스킬 하나를 무작위로 봉인합니다 (봉인적, 하드 7).
+   *
+   * **기본공격은 안 겁니다.** 그건 슬롯이 아니고, 봉인되면 조준도 화력도 통째로
+   * 사라져서 "잠깐 하나가 안 나간다"는 크기를 넘습니다.
+   *
+   * **전부 이미 봉인돼 있으면 아무 일도 안 합니다.** 겹쳐 걸어 시간을 늘리면
+   * 봉인적 셋에게 둘러싸였을 때 판이 통째로 멈춥니다.
+   */
+  sealRandomSkill(time: number): SkillSlot | null {
+    const p = this.player;
+    const open: SkillSlot[] = [];
+    for (const s of p.attacks) if (s && s.sealed <= 0) open.push(s);
+    if (p.utility && p.utility.sealed <= 0) open.push(p.utility);
+    if (open.length === 0) return null;
+
+    const slot = this.rng.pick(open);
+    slot.sealed = time;
+    // 무엇이 봉인됐는지 그 자리에서 알려줍니다. 안 알리면 화력이 왜 줄었는지 모릅니다
+    this.effects.text(p.x, p.y - 34, `봉인 · ${getSkillDef(slot.id).name}`, '#b08bff', 15);
+    return slot;
   }
 
   /**

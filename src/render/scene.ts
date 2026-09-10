@@ -1,6 +1,6 @@
 import { ARENA_X, CANVAS, DEATH_BURST, ELITE, ENEMY_BULLET, ENEMY_PARAMS, HARD_LASER, PLAYER } from '../data/balance';
 import { TAU } from '../core/math';
-import { bomberBlastRadius, cowardEnraged, rangedAimTime } from '../enemies/behaviors/special';
+import { bomberBlastRadius, cowardEnraged, rangedAimTime, sealerAimTime, sealerAttackRange } from '../enemies/behaviors/special';
 import { priestRadius } from '../enemies/behaviors/advanced';
 import { eliteMul } from '../enemies/elite';
 import { mummyReviveDelay } from '../enemies/update';
@@ -526,6 +526,26 @@ function drawEnemyExtras(r: Renderer, e: Enemy, w: World, alpha: number): void {
       const h = e.radius * 0.5;
       r.line(e.x - h, e.y, e.x + h, e.y, e.def.accent, 2.5, 0.85 * alpha);
       r.line(e.x, e.y - h, e.x, e.y + h, e.def.accent, 2.5, 0.85 * alpha);
+      break;
+    }
+    case 'sealer': {
+      // 조준선. 원거리적과 같은 규칙이라 플레이어를 계속 따라갑니다.
+      // **부채꼴 3갈래를 그대로 그립니다.** 가운데 한 줄만 그리면 실제로 날아오는
+      // 폭과 어긋나서, 비켰는데 옆 갈래에 맞는 일이 생깁니다
+      if (e.state.phase === 1) {
+        const P = ENEMY_PARAMS.sealer;
+        const t = 1 - Math.max(0, e.state.timer) / sealerAimTime(e);
+        const reach = sealerAttackRange(w) * 1.2;
+        for (let i = 0; i < P.bulletCount; i++) {
+          const a = e.state.angle + (i - (P.bulletCount - 1) / 2) * P.spread;
+          r.line(e.x, e.y, e.x + Math.cos(a) * reach, e.y + Math.sin(a) * reach, e.def.accent, 1 + t * 1.8, 0.14 + t * 0.36);
+        }
+        r.ring(e.x, e.y, e.radius + 6, e.def.accent, 2, 0.8);
+      }
+      // 봉인 표식. 구각형 안의 사선 두 줄(X)이라 실루엣만으로도 읽힙니다
+      const h = e.radius * 0.45;
+      r.line(e.x - h, e.y - h, e.x + h, e.y + h, e.def.accent, 2.5, 0.85 * alpha);
+      r.line(e.x + h, e.y - h, e.x - h, e.y + h, e.def.accent, 2.5, 0.85 * alpha);
       break;
     }
     case 'mummy': {

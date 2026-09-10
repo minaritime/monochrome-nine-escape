@@ -67,6 +67,7 @@ export function eliteValue(
     | 'hazardSlow'
     | 'hazardDamageMul'
     | 'shieldRatio'
+    | 'sealTime'
     | 'shieldedDamageTaken'
     | 'brokenDamageTaken'
     | 'instantHealRatio',

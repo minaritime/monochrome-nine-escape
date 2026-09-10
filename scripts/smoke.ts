@@ -55,7 +55,7 @@ import {
   type StatKey,
 } from '../src/data/balance';
 import { dist } from '../src/core/math';
-import { bomberIgnite, cowardEnraged, rangedAimTime, rangedAttackRange } from '../src/enemies/behaviors/special';
+import { bomberIgnite, cowardEnraged, rangedAimTime, rangedAttackRange, sealerSealTime } from '../src/enemies/behaviors/special';
 import { chargerTelegraphTime } from '../src/enemies/behaviors/advanced';
 import { bossIdForSpawn } from '../src/enemies/boss';
 import { eliteMul, rollElite } from '../src/enemies/elite';
@@ -66,7 +66,7 @@ import { createPlayer, ownedSlots } from '../src/game/player';
 import { rollStatGains } from '../src/progression/levelup';
 import { addStat, createStats } from '../src/game/stats';
 import { openSlots, setSealed, togglePassive } from '../src/meta/shop';
-import { clampDifficulty, clearedAllFrom, difficultyKey, difficultyMods, hasCleared, unlockTimeFor } from '../src/meta/difficulty';
+import { clampDifficulty, clearedAllFrom, difficultyEffects, difficultyKey, difficultyMods, hasCleared, unlockTimeFor } from '../src/meta/difficulty';
 import { commitRun } from '../src/meta/bestiary';
 import { emptySave, fromJSON, type SaveData } from '../src/meta/save';
 import {
@@ -291,7 +291,8 @@ console.log('1) 14분 자동 플레이 (무적 · 스킬 자동 사용)');
 }
 
 // ---------------------------------------------------------------------------
-console.log('2) 적 14종 단독 동작');
+// 적 수는 표에서 셉니다. 손으로 적으면 적을 추가할 때마다 여기만 옛 숫자로 남습니다
+console.log(`2) 적 ${ALL_ENEMY_IDS.length}종 단독 동작`);
 for (const id of ALL_ENEMY_IDS) {
   const w = new World(emptySave(), input, 777);
   w.spawner.enabled = false;
@@ -4684,16 +4685,23 @@ console.log('\n25) 하드 5: 경기장 레이저');
     const off = HARD_LASER.width / 2 + w.player.radius + 30;
     const limit = l.axis === 'h' ? CANVAS.h : CANVAS.w;
     const safe = l.pos + off < limit - 20 ? l.pos + off : l.pos - off;
+    // **두 축을 다 붙들어야 합니다.** 한 축만 고정하면 점검용 입력이 나머지 축으로
+    // 플레이어를 몰고 다니다가 적에게 부딪혀서, 레이저가 아니라 접촉으로 맞습니다
     const stand = (ww: World) => {
-      if (l.axis === 'h') ww.player.y = safe;
-      else ww.player.x = safe;
+      if (l.axis === 'h') {
+        ww.player.x = 200;
+        ww.player.y = safe;
+      } else {
+        ww.player.x = safe;
+        ww.player.y = 200;
+      }
     };
     stand(w);
 
     // 선 한가운데에 적을 세웁니다. 레이저는 적을 안 건드려야 합니다.
     // **기본공격을 꺼야 합니다.** 안 끄면 그 피해가 섞여서 레이저를 잰 것이 안 됩니다
     w.player.stats.attack = 0;
-    const e = l.axis === 'h' ? w.spawnEnemy('tank', 400, l.pos, {}) : w.spawnEnemy('tank', l.pos, 300, {});
+    const e = l.axis === 'h' ? w.spawnEnemy('tank', 1100, l.pos, {}) : w.spawnEnemy('tank', l.pos, 650, {});
     e.hp = 1e9;
     e.maxHp = 1e9;
 
@@ -4784,6 +4792,109 @@ console.log('\n26) 하드 6: 모두 정예 (배율 없이 능력만)');
 
   console.log(
     `   하드 0 정예 비율 x${difficultyMods(0, true).eliteRatioMul.toFixed(2)} · 하드 6 부터 전원 정예 (배율 없음)`,
+  );
+}
+
+console.log('\n27) 하드 7: 봉인적');
+{
+  const hardSave = (): SaveData => {
+    const s = emptySave();
+    s.hardMode = true;
+    s.hardUnlocked = true;
+    return s;
+  };
+
+  check('하드 6 까지는 안 나온다', !difficultyMods(6, true).extraEnemies.includes('sealer'));
+  check('하드 7 부터 나온다', difficultyMods(7, true).extraEnemies.includes('sealer'));
+  check('일반모드에는 없다', !difficultyMods(15, false).extraEnemies.includes('sealer'));
+  check('하드 전용으로 표시돼 있다', ENEMY_TABLE.sealer.hardOnly === true);
+  check('3분부터 나온다', ENEMY_TABLE.sealer.unlockTime === 180, `${ENEMY_TABLE.sealer.unlockTime}`);
+  // "적 N종 전부"를 세는 업적에서 빠져야 합니다. 안 빼면 하드를 안 연 사람은 영영 못 깹니다
+  const normalIds = ALL_ENEMY_IDS.filter((id) => !ENEMY_TABLE[id].hardOnly);
+  check('적 N종 업적에서 빠진다', !normalIds.includes('sealer'), normalIds.join(','));
+
+  // --- 탄 구조와 속도는 원거리적과 같은가 ---
+  {
+    const w = new World(hardSave(), input, 31, 7);
+    w.spawner.enabled = false;
+    w.player.stats.attack = 0;
+    const e = w.spawnEnemy('sealer', w.player.x + 120, w.player.y, {});
+    e.hp = 1e9;
+    e.maxHp = 1e9;
+    step(w, ENEMY_PARAMS.sealer.aimTime + 0.3, true, false);
+
+    const shots = w.projectiles.filter((p) => !p.friendly && !p.dead);
+    check('3갈래로 쏜다', shots.length === ENEMY_PARAMS.sealer.bulletCount, `${shots.length}발`);
+    const speed = shots.length > 0 ? Math.hypot(shots[0].vx, shots[0].vy) : 0;
+    check(
+      '탄속이 원거리적과 같다',
+      Math.abs(speed - ENEMY_PARAMS.ranged.bulletSpeed * w.diff.bulletSpeedMul) < 1,
+      `${speed.toFixed(0)}`,
+    );
+    check('탄에 봉인이 실려 있다', shots.every((p) => p.seal > 0), `${shots[0]?.seal}`);
+    // 갈래가 실제로 벌어져 있어야 합니다. 전부 같은 각이면 3갈래가 아니라 1발입니다
+    const angles = shots.map((p) => Math.atan2(p.vy, p.vx));
+    check('갈래가 벌어져 있다', Math.max(...angles) - Math.min(...angles) > 0.3, `${(Math.max(...angles) - Math.min(...angles)).toFixed(2)}`);
+  }
+
+  // --- 맞으면 스킬 하나가 봉인되고, 그동안 안 나갑니다 ---
+  {
+    const w = new World(hardSave(), input, 32, 7);
+    w.spawner.enabled = false;
+    const slot = makeSlot('shotgun', 5);
+    w.player.attacks[0] = slot;
+
+    const sealed = w.sealRandomSkill(ENEMY_PARAMS.sealer.sealTime);
+    check('봉인이 걸린다', sealed === slot, `${sealed?.id}`);
+    check('남은 시간이 들어간다', slot.sealed === ENEMY_PARAMS.sealer.sealTime, `${slot.sealed}`);
+
+    // 봉인 중에는 발동하지 않습니다
+    w.spawnEnemy('basic', w.player.x + 60, w.player.y, {});
+    slot.cooldown = 0;
+    const before = w.projectiles.filter((p) => p.friendly).length;
+    step(w, 0.2, true, false);
+    const during = w.projectiles.filter((p) => p.friendly).length;
+    check('봉인 중에는 안 나간다', during === before, `${before} → ${during}`);
+    // **쿨다운은 그대로 돕니다.** 봉인은 발동 금지이지 시간 정지가 아닙니다
+    check('쿨다운은 안 멈춘다', slot.cooldown <= 0, `${slot.cooldown}`);
+
+    step(w, ENEMY_PARAMS.sealer.sealTime, true, false);
+    check('풀리면 다시 나간다', slot.sealed <= 0 && w.projectiles.filter((p) => p.friendly).length > during);
+  }
+
+  // --- 이미 봉인된 것에 겹쳐 걸지 않습니다 ---
+  {
+    const w = new World(hardSave(), input, 33, 7);
+    w.spawner.enabled = false;
+    const only = makeSlot('shotgun', 5);
+    w.player.attacks = [only];
+    w.player.utility = null;
+
+    check('첫 번째는 걸린다', w.sealRandomSkill(1.2) === only);
+    only.sealed = 0.5;
+    check('이미 봉인된 것에는 안 건다', w.sealRandomSkill(1.2) === null);
+    check('남은 시간이 안 늘어난다', only.sealed === 0.5, `${only.sealed}`);
+  }
+
+  // --- 정예는 봉인이 더 깁니다 ---
+  {
+    const w = new World(hardSave(), input, 34, 7);
+    w.spawner.enabled = false;
+    const plain = w.spawnEnemy('sealer', 300, 300, { elite: false });
+    const elite = w.spawnEnemy('sealer', 600, 300, { elite: true });
+    check('정예 봉인이 더 길다', sealerSealTime(elite) > sealerSealTime(plain), `${sealerSealTime(elite)} vs ${sealerSealTime(plain)}`);
+  }
+
+  // --- 하드 1~4 의 장치가 난이도 화면에 뜨는가 (2026-09-10 에 채웠습니다) ---
+  {
+    const labels = difficultyEffects(7, true).filter((e) => e.device).map((e) => e.label);
+    for (const want of ['거대 포식자', '방패적 강화', '폭격기 강화', '은신적 강화', '새 적']) {
+      check(`효과 목록에 "${want}" 이 있다`, labels.includes(want), labels.join(' / '));
+    }
+  }
+
+  console.log(
+    `   봉인 ${ENEMY_PARAMS.sealer.sealTime}초 (정예 ${ELITE_TRAITS.sealer?.sealTime}초) · ${ENEMY_PARAMS.sealer.bulletCount}갈래 · 조준 ${ENEMY_PARAMS.sealer.aimTime}초`,
   );
 }
 

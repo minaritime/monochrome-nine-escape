@@ -2,10 +2,10 @@ import { CANVAS, ENEMY_BULLET, ENEMY_PARAMS } from '../../data/balance';
 import { angleTo, dist } from '../../core/math';
 import type { Enemy } from '../../game/types';
 import { killerOf } from '../../game/killer';
-import { eliteHas, eliteMul } from '../elite';
+import { eliteHas, eliteMul, eliteValue } from '../elite';
 import type { World } from '../../game/world';
 import type { EnemyBehavior } from '../types';
-import { avoidWalls, moveToward, stopMoving, wander } from './movement';
+import { avoidWalls, moveAway, moveToward, stopMoving, wander } from './movement';
 
 // ---------------------------------------------------------------------------
 // 원거리적: 사거리에 들어오면 멈춰 2초 조준한 뒤 느린 투사체를 쏩니다.
@@ -21,6 +21,87 @@ export function rangedAttackRange(w: World): number {
 export function rangedAimTime(e: Enemy): number {
   return ENEMY_PARAMS.ranged.aimTime * eliteMul(e, 'aimTimeMul');
 }
+
+/** 봉인적의 사거리. 원거리적과 같은 규칙이지만 조금 짧습니다 */
+export function sealerAttackRange(w: World): number {
+  const P = ENEMY_PARAMS.sealer;
+  return Math.max(P.baseRange, w.player.stats.range * P.playerRangeMul) * w.diff.rangeMul;
+}
+
+/** 이 개체의 실제 조준 시간. 정예는 절반입니다 (그리기 쪽도 이 값을 써야 합니다) */
+export function sealerAimTime(e: Enemy): number {
+  return ENEMY_PARAMS.sealer.aimTime * eliteMul(e, 'aimTimeMul');
+}
+
+/** 이 개체가 거는 봉인 시간. 정예가 더 깁니다 */
+export function sealerSealTime(e: Enemy): number {
+  return eliteValue(e, 'sealTime', ENEMY_PARAMS.sealer.sealTime);
+}
+
+/**
+ * 봉인적 (하드 7).
+ *
+ * 원거리적과 같은 얼개입니다. 접근 → 멈춰 조준 → 발사 → 재장전.
+ * 다른 것은 **3갈래**와 **맞으면 스킬 하나가 봉인된다**는 것뿐입니다.
+ *
+ * **탄 속도와 크기는 `ENEMY_PARAMS.ranged` 를 그대로 읽습니다.** 사용자가 "탄 구조와
+ * 속도는 원거리적과 같다"고 정했으므로, 값을 복사해두면 원거리적을 만질 때 여기만
+ * 옛 값으로 남습니다.
+ */
+export const sealer: EnemyBehavior = (e, w, dt) => {
+  const P = ENEMY_PARAMS.sealer;
+  const B = ENEMY_PARAMS.ranged;
+  const attackRange = sealerAttackRange(w);
+  const d = dist(e.x, e.y, w.player.x, w.player.y);
+
+  if (e.state.phase === 0) {
+    if (d > attackRange) {
+      moveToward(e, w.player.x, w.player.y);
+    } else {
+      e.state.phase = 1;
+      e.state.timer = sealerAimTime(e);
+      e.state.angle = angleTo(e.x, e.y, w.player.x, w.player.y);
+    }
+    return;
+  }
+
+  if (e.state.phase === 1) {
+    stopMoving(e);
+    e.state.timer -= dt;
+    e.state.angle = angleTo(e.x, e.y, w.player.x, w.player.y);
+    e.facing = e.state.angle;
+    if (e.state.timer <= 0) {
+      const seal = sealerSealTime(e);
+      for (let i = 0; i < P.bulletCount; i++) {
+        const a = e.state.angle + (i - (P.bulletCount - 1) / 2) * P.spread;
+        w.addProjectile({
+          kind: 'enemy',
+          friendly: false,
+          x: e.x,
+          y: e.y,
+          vx: Math.cos(a) * B.bulletSpeed,
+          vy: Math.sin(a) * B.bulletSpeed,
+          radius: B.bulletRadius,
+          damage: e.damage,
+          color: ENEMY_BULLET.color,
+          life: 6,
+          seal,
+          source: killerOf(e),
+        });
+      }
+      w.effects.spray(e.x, e.y, e.state.angle, 0.4, 7, ENEMY_BULLET.glow, 120);
+      e.state.phase = 2;
+      e.state.timer = P.cooldown;
+    }
+    return;
+  }
+
+  // 재장전하며 거리 유지. 원거리적과 같은 규칙입니다
+  e.state.timer -= dt;
+  if (d < attackRange * 0.7) moveAway(e, w.player.x, w.player.y);
+  else stopMoving(e);
+  if (e.state.timer <= 0) e.state.phase = 0;
+};
 
 export const ranged: EnemyBehavior = (e, w, dt) => {
   const P = ENEMY_PARAMS.ranged;

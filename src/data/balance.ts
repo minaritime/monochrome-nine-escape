@@ -271,7 +271,8 @@ export type EnemyId =
   | 'shield'
   | 'mummy'
   | 'stealth'
-  | 'priest';
+  | 'priest'
+  | 'sealer';
 
 export interface EnemyBalance {
   speed: number;
@@ -321,6 +322,7 @@ export const ENEMY_TABLE: Record<EnemyId, EnemyBalance> = {
   // 사제 (하드 3). 도망 다니는 적이라 체력이 낮으면 존재 의미가 없습니다.
   // 다만 소환적(7.5)만큼 두꺼우면 재생이 끊기지 않아서 그 중간에 두었습니다
   priest: { speed: 0.85, hp: 2.0, damage: 0.7, radiusMul: 1.1, xpMul: 3.2, unlockTime: 0, unlockSkills: 0, weight: 26, maxAlive: 3, hardOnly: true },
+  sealer: { speed: 0.7, hp: 2.0, damage: 0.6, radiusMul: 1.0, xpMul: 3.0, unlockTime: 180, unlockSkills: 0, weight: 24, maxAlive: 3, hardOnly: true },
 };
 
 /** 적별 개별 파라미터. 이동 패턴을 조정하는 손잡이입니다 */
@@ -538,6 +540,29 @@ export const ENEMY_PARAMS = {
    * 계속 흐르므로, 태우는 동안 걸린 재생이 통째로 버려집니다. 시간까지 멈추면
    * 카운터가 아니라 "잠깐 미루기"가 됩니다.
    */
+  /**
+   * 봉인적 (하드 7).
+   *
+   * **탄 구조와 속도는 원거리적과 같습니다** (사용자 확정). 그래서 그 값을 여기에
+   * 다시 적지 않고 `ENEMY_PARAMS.ranged` 를 그대로 읽습니다. 원거리적의 탄을 만질 때
+   * 여기만 옛 값으로 남는 일이 없어야 합니다.
+   *
+   * 다른 것은 **3갈래**와 **봉인**뿐입니다. 맞으면 아직 안 봉인된 스킬 하나가
+   * 잠깐 안 나갑니다. 공격 스킬이 자동 발동이라 그동안 화력이 통째로 빠집니다.
+   */
+  sealer: {
+    baseRange: 340,
+    playerRangeMul: 1.05,
+    /** 원거리적(2.0초)보다 짧습니다. 대신 피해가 낮습니다 */
+    aimTime: 1.4,
+    cooldown: 3.4,
+    /** 부채꼴 3갈래. 가운데가 플레이어를 향합니다 */
+    bulletCount: 3,
+    /** 갈래 사이 각도 */
+    spread: 0.26,
+    /** 맞으면 스킬 하나가 이만큼 봉인됩니다 */
+    sealTime: 1.2,
+  },
   priest: {
     /** 이 안에 플레이어가 들어오면 도망갑니다 */
     fleeRange: 380,
@@ -689,6 +714,8 @@ export interface EliteTrait {
   hpRegenRatio?: number;
   /** 원거리적: 조준 시간. 작을수록 빨리 쏩니다 */
   aimTimeMul?: number;
+  /** 봉인적: 봉인 시간(초). 일반은 `ENEMY_PARAMS.sealer.sealTime` 입니다 */
+  sealTime?: number;
   /** 돌진적: 돌진 예고 시간. 작을수록 빨리 튀어나옵니다 */
   telegraphMul?: number;
   /** 겁쟁이적: 달려드는 인식 사거리 */
@@ -752,6 +779,8 @@ export const ELITE_TRAITS: Partial<Record<EnemyId, EliteTrait>> = {
   summoner: { summonElite: true },
   /** 방패가 살아 있는 동안은 반만 아프고, 깨고 나면 더 아픕니다 */
   shield: { shieldRatio: 1.2, shieldedDamageTaken: 0.5, brokenDamageTaken: 1.2 },
+  // 정예 봉인적은 봉인이 2.5초입니다 (일반 1.2초). 그 밖은 공통 배율 그대로입니다
+  sealer: { sealTime: 2.5 },
   charger: { telegraphMul: 0.4 },
   /** 절반 거리까지 붙어야 드러납니다. 더 늦게 보인다는 뜻입니다 */
   stealth: { revealRangeMul: 0.5 },
@@ -2426,7 +2455,7 @@ export const HARD_DIFFICULTY_STEPS: readonly DifficultyStep[] = [
   { label: '폭격기 능력 강화, 적 공격력 +10%', bossBombardHard: true, damageMul: 1.1 },
   { label: '경기장 레이저 등장, 적 공격력 +10% · 체력 +10%', arenaLaser: true, damageMul: 1.1, hpMul: 1.1 },
   { label: '모든 적이 정예 (배율 없이 능력만), 적 공격력 +20% · 체력 +20%', allElite: true, eliteStatsOff: true, damageMul: 1.2, hpMul: 1.2 },
-  { label: '충돌 데미지 +15% · 공격력 +10%', contactDamageMul: 1.15, damageMul: 1.1 },
+  { label: '봉인적 등장', enemyUnlock: 'sealer' },
   { label: '적 체력 +10% · 스폰율 +10%', hpMul: 1.1, spawnRateMul: 1.1 },
   { label: '적 공격력 +10% · 이동속도 +5%', damageMul: 1.1, speedMul: 1.05 },
   { label: '적 체력 +15%', hpMul: 1.15 },
