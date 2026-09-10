@@ -223,9 +223,23 @@ body {
   right: 38px;
 }
 
+/*
+ * 톱니는 45도 돌아갑니다. 그건 톱니라서 어울리는 움직임이고, 여기는 수첩이라
+ * **집어 드는 쪽**으로 잡았습니다. 살짝 떠오르며 기웁니다.
+ * 색과 시간은 톱니와 같은 값을 씁니다. 같은 줄에 선 버튼 둘이 서로 다른 속도로
+ * 반응하면 한쪽이 굼떠 보입니다
+ */
 .patch-btn:hover,
 .patch-btn:focus-visible {
-  transform: none;
+  color: var(--accent);
+  transform: translateY(-2px) rotate(-7deg);
+  outline: none;
+}
+
+/* 안 읽음 점도 같이 살아납니다. 버튼만 움직이면 점이 따로 노는 것처럼 보입니다 */
+.patch-btn:hover .dot,
+.patch-btn:focus-visible .dot {
+  transform: scale(1.25);
 }
 
 .patch-btn .dot {
@@ -236,6 +250,7 @@ body {
   height: 7px;
   border-radius: 50%;
   background: var(--accent);
+  transition: transform 160ms ease;
 }
 
 .gear-btn:hover,
