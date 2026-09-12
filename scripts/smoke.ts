@@ -1536,16 +1536,26 @@ console.log('4-6) 코인: 공전하지 않고 곧바로 빨려 들어오는가')
   check('한 번도 멀어지지 않는다 (공전 없음)', increases === 0, `${increases}회`);
 }
 
-console.log('4-7) 정예는 반드시 코인을 떨어뜨리는가');
+console.log('4-7) 정예는 절반 확률로 코인을 떨어뜨리는가');
 {
+  // **2026-09-12 부터 확정이 아니라 확률입니다.** 확정 드랍이면 정예 한 마리가
+  // 일반 적 14마리 몫이라 판 전체 코인의 60~70% 가 여기서 나왔습니다.
+  // 확률이므로 한 마리로는 못 재고, 많이 잡아서 비율로 봅니다
   const w = new World(emptySave(), input, 1212);
   w.spawner.enabled = false;
-  const count = 12;
+  const count = 400;
   for (let i = 0; i < count; i++) w.spawner.spawnNow(w, 'basic', true);
   const elites = w.enemies.filter((e) => e.elite).length;
   for (const e of [...w.enemies]) w.killEnemy(e);
-  console.log(`   정예 ${elites}마리 처치 → 코인 ${w.coins.length}개`);
-  check('정예 수만큼 코인이 떨어진다', w.coins.length >= elites, `${w.coins.length}/${elites}`);
+  const rate = w.coins.length / elites;
+  console.log(`   정예 ${elites}마리 처치 → 코인 ${w.coins.length}개 (${(rate * 100).toFixed(0)}%)`);
+  check('일반 적보다는 훨씬 잘 나온다', rate > ENEMY_BASE.coinChance * 3, `${(rate * 100).toFixed(0)}%`);
+  check('확정은 아니다', rate < 1, `${(rate * 100).toFixed(0)}%`);
+  check(
+    '표에 적힌 확률 근처다',
+    Math.abs(rate - ELITE.coinChance) < 0.12,
+    `${(rate * 100).toFixed(0)}% (표 ${ELITE.coinChance * 100}%)`,
+  );
 }
 
 console.log('4-8) 공격 스킬은 자동, 유틸 스킬은 수동인가');
@@ -2962,7 +2972,9 @@ console.log('10-4-11b) 정예 분열체는 코인을 안 주고, 죽은 돌진�
     `   정예 분열 · 최초 처치 코인 ${afterFirst}개 · 전부 처치 뒤 ${w.coins.length}개 · 처치 수 ${w.stats.kills} · 도감 ${w.stats.killsByType.splitter ?? 0}`,
   );
   check('최초 처치에만 코인이 나온다', w.coins.length === afterFirst, `${afterFirst} → ${w.coins.length}`);
-  check('그 코인은 정예 몫만큼이다', afterFirst === ELITE.coinDrop, `${afterFirst}`);
+  // 정예 드랍이 확률이 된 뒤로는(2026-09-12) 0 개일 수도 있습니다. 여기서 재는 것은
+  // "분열체가 코인을 안 준다"이지 정예가 몇 개를 주느냐가 아닙니다 (그쪽은 10-4-11c)
+  check('한 마리가 주는 코인은 최대 하나다', afterFirst <= 1, `${afterFirst}`);
 
   // **분열체는 처치로 안 셉니다** (2026-09-09). 정예 분열적은 1 → 3 → 9 라서
   // 세면 한 마리가 13 처치가 되어 처치 수가 무엇을 뜻하는지 알 수 없게 됩니다
@@ -4467,7 +4479,7 @@ console.log('\n23) 클리어 뒤 급상승 (OVERTIME)');
   check('클리어 전 속도 배율은 1', w.overtimeSpeedMul() === 1, `${w.overtimeSpeedMul()}`);
   check('클리어 전 적 상한은 기본값', w.maxAliveNow() === SPAWN.maxAlive + w.diff.maxAliveAdd, `${w.maxAliveNow()}`);
 
-  // --- 속도는 가속이 붙습니다 (분당 증가량이 3분마다 한 단계 커집니다) ---
+  // --- 속도는 **잡는 그 순간** 이미 speedStart 입니다 (2026-09-12 재설계) ---
   w.cleared = true;
   const speedAt = (min: number) => {
     w.time = ct + min * 60;
@@ -4476,17 +4488,30 @@ console.log('\n23) 클리어 뒤 급상승 (OVERTIME)');
   const nearSpeed = (label: string, got: number, want: number) =>
     check(label, Math.abs(got - want) < 0.01, `${got.toFixed(2)} (기대 ${want})`);
 
-  nearSpeed('3분에 x1.6', speedAt(3), 1.6);
-  nearSpeed('4분에 x2.0', speedAt(4), 2.0);
-  nearSpeed('5분에 x2.4', speedAt(5), 2.4);
-  nearSpeed('6분에 x2.8', speedAt(6), 2.8);
+  // **이 시험이 이 구간 설계의 전부입니다.** 0 분이 1 로 돌아가면 도망칠 수 없게
+  // 되기까지 몇 분이 생기고, 그 몇 분이 그대로 파밍 시간이 됩니다
+  nearSpeed('클리어하는 순간 이미 speedStart', speedAt(0), OVERTIME.speedStart);
+  nearSpeed('1분에 +0.5', speedAt(1), OVERTIME.speedStart + OVERTIME.speedPerMinute);
+  nearSpeed('2분에 +1.0', speedAt(2), OVERTIME.speedStart + OVERTIME.speedPerMinute * 2);
   check('상한에서 멈춘다', speedAt(30) === OVERTIME.speedMax, `${speedAt(30)}`);
 
-  // **가속이 실제로 붙는가.** 같은 3분인데 뒤쪽 구간이 더 많이 올라야 합니다.
-  // 이 시험이 없으면 선형으로 되돌아가도 위 값들만으로는 안 잡힙니다
-  const first3 = speedAt(3) - speedAt(0);
-  const next3 = speedAt(6) - speedAt(3);
-  check('뒤 구간이 앞 구간보다 가파르다', next3 > first3 * 1.9, `${first3.toFixed(2)} → ${next3.toFixed(2)}`);
+  // **정예 빠른적이 플레이어보다 빨라야 합니다.** 이 부등호가 깨지면 클리어 뒤에도
+  // 그냥 도망다닐 수 있게 되어 급상승이 하는 일이 없어집니다.
+  //
+  // 기준이 둘인 이유는 플레이어 이동속도가 판 안에서 자라기 때문입니다. 상점만 산
+  // 상태(365)는 **클리어하는 그 순간** 이미 따라잡히고, 스탯을 상한까지 올린
+  // 플레이어(510)도 **1분이면** 따라잡힙니다
+  {
+    const eliteSpd = ELITE_TRAITS.fast?.speedMul ?? ELITE.speedMul;
+    const fastBase = ENEMY_BASE.speed * ENEMY_TABLE.fast.speed * eliteSpd;
+    const cap = STAT_DEFS.find((d) => d.key === 'moveSpeed')!.cap!;
+    check('클리어 직후 상점만 산 플레이어(365)보다 빠르다', fastBase * OVERTIME.speedStart > 365, `${(fastBase * OVERTIME.speedStart).toFixed(0)}`);
+    check(
+      `1분이면 이동속도 상한(${cap})도 따라잡는다`,
+      fastBase * speedAt(1) > cap,
+      `${(fastBase * speedAt(1)).toFixed(0)}`,
+    );
+  }
 
   // --- 체력·공격력은 합연산으로 시간 강화 위에 더해집니다 ---
   {
@@ -4513,8 +4538,21 @@ console.log('\n23) 클리어 뒤 급상승 (OVERTIME)');
   }
 
   console.log(
-    `   속도 3분 x${speedAt(3).toFixed(2)} · 6분 x${speedAt(6).toFixed(2)} · 상한 x${OVERTIME.speedMax} · 적 상한 ${OVERTIME.maxAliveCap}`,
+    `   속도 0분 x${speedAt(0).toFixed(2)} · 3분 x${speedAt(3).toFixed(2)} · 상한 x${OVERTIME.speedMax} · 적 상한 ${OVERTIME.maxAliveCap}`,
   );
+
+  // --- 클리어 뒤로는 코인이 아예 안 나옵니다 (2026-09-12) ---
+  {
+    const cw = new World(emptySave(), input, 5, 0);
+    cw.spawner.enabled = false;
+    cw.dropCoin(640, 360);
+    check('클리어 전에는 떨어진다', cw.coins.length === 1, `${cw.coins.length}`);
+    cw.cleared = true;
+    for (let i = 0; i < 50; i++) cw.dropCoin(640, 360);
+    check('클리어 뒤로는 한 개도 안 떨어진다', cw.coins.length === 1, `${cw.coins.length}`);
+    // 이미 바닥에 있던 것은 그대로 주울 수 있어야 합니다
+    check('이미 떨어진 코인은 남는다', cw.coins[0] !== undefined);
+  }
 
   // --- 화면이 타이머 정지를 계속 알리는가 ---
   {

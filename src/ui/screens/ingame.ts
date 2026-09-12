@@ -1,4 +1,4 @@
-import { SKILL_BRANCH_LEVEL, STAT_DEFS } from '../../data/balance';
+import { CLEAR_BONUS, SKILL_BRANCH_LEVEL, STAT_DEFS } from '../../data/balance';
 import type { SkillBranchId } from '../../data/balance';
 import { UTILITY_KEY_LABEL, ownedSlots } from '../../game/player';
 import { formatStat } from '../../game/stats';
@@ -246,10 +246,13 @@ export function showGameOver(w: World, coinsTotal: number, onRetry: () => void, 
     .map((s) => `${slotLabel(s)} Lv.${s.level}`)
     .join(' · ');
 
+  // **"주운"이 아니라 "모은"입니다** (2026-09-12). 클리어 보너스는 바닥에 떨어지는
+  // 코인이 아니라 즉시 적립이라, 주웠다고 하면 화면이 거짓말을 합니다
+  const bonusNote = w.cleared ? ` · 클리어 보너스 +${CLEAR_BONUS.coin} 포함` : '';
   const coinLine =
     w.diff.coinMul > 1
-      ? `획득 코인 ${w.earnedCoins()}  (주운 ${w.stats.coins} × 난이도 보상 ${w.diff.coinMul.toFixed(2)}배 · 보유 ${coinsTotal})`
-      : `획득 코인 ${w.earnedCoins()}  (보유 ${coinsTotal})`;
+      ? `획득 코인 ${w.earnedCoins()}  (모은 ${w.stats.coins}${bonusNote} × 난이도 보상 ${w.diff.coinMul.toFixed(2)}배 · 보유 ${coinsTotal})`
+      : `획득 코인 ${w.earnedCoins()}  (보유 ${coinsTotal}${bonusNote})`;
 
   const body = [
     h('div', { class: 'big-num' }, [formatTime(w.time)]),

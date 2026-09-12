@@ -21,6 +21,7 @@ import {
   SETTINGS,
   STATUS,
   OVERTIME,
+  CLEAR_BONUS,
   SPAWN,
   TIME_SCALING,
   type BossId,
@@ -579,21 +580,19 @@ export class World {
   }
 
   /**
-   * 클리어 뒤 속도 배율. **분당 증가량 자체가 단계마다 커집니다.**
+   * 클리어 뒤 속도 배율. **클리어하는 그 순간 이미 `speedStart` 입니다.**
    *
-   * 0~3분은 분당 +0.2, 3~6분은 분당 +0.4, 6~9분은 분당 +0.6 입니다.
-   * 체력·공격력이 합연산인데도 충분한 이유가 여기 있습니다. 이동으로 피하는
-   * 게임이라 속도가 오르면 대응할 방법이 없고, 그것이 이 구간의 목적입니다.
+   * `overtimeMinutes()` 가 0 을 돌려주는 경우가 둘이라(클리어 전 · 클리어 직후)
+   * 시간이 아니라 `cleared` 로 갈라야 합니다. 시간으로 가르면 클리어 직후 한 프레임이
+   * x1 로 새어나가고, 무엇보다 "잡는 순간부터"라는 약속이 깨집니다.
+   *
+   * 이동으로 피하는 게임이라 속도가 오르면 대응할 방법이 없고, 그것이 이 구간의
+   * 목적입니다. 체력·공격력이 합연산인데도 충분한 이유가 여기 있습니다.
    */
   overtimeSpeedMul(): number {
+    if (!this.cleared) return 1;
     const t = this.overtimeMinutes();
-    if (t <= 0) return 1;
-    const step = OVERTIME.speedStepMinutes;
-    const rate = OVERTIME.speedPerMinuteStep;
-    const k = Math.floor(t / step);
-    // 다 지나온 단계들 + 지금 단계에서 흐른 만큼
-    const acc = rate * step * ((k * (k + 1)) / 2) + rate * (k + 1) * (t - k * step);
-    return Math.min(OVERTIME.speedMax, 1 + acc);
+    return Math.min(OVERTIME.speedMax, OVERTIME.speedStart + t * OVERTIME.speedPerMinute);
   }
 
   /**
@@ -928,7 +927,19 @@ export class World {
     this.pendingBlasts.push({ ...b, dead: false });
   }
 
+  /**
+   * 코인 하나를 떨어뜨립니다.
+   *
+   * **클리어한 뒤로는 아무것도 안 떨어집니다** (2026-09-12). 클리어 뒤 구간은
+   * 적 수 상한이 200 까지 오르므로 분당 처치가 판에서 가장 많아지는데, 그대로 두면
+   * 파밍을 막으려고 넣은 급상승이 오히려 파밍 효율을 올립니다. 이미 바닥에 떨어져
+   * 있던 코인은 그대로 주울 수 있습니다.
+   *
+   * **막는 자리가 여기 하나여야 합니다.** 부르는 쪽(일반 처치·정예·보스·하수인)에
+   * 각각 검사를 두면 새 출처가 생겼을 때 반드시 하나를 빠뜨립니다.
+   */
   dropCoin(x: number, y: number, value = COIN.value, spread = 0): void {
+    if (this.cleared) return;
     const a = this.rng.angle();
     const s = spread > 0 ? this.rng.range(0, spread) : 0;
     this.coins.push({
@@ -1069,6 +1080,11 @@ export class World {
       // 클리어 판정. **그 개체여야 합니다.** 앞 보스가 아직 살아 있을 때
       // 그쪽을 잡는 것으로는 안 됩니다 (2026-09-10 사용자 확정)
       if (!this.cleared && e.id === this.clearBossId) {
+        // **보너스를 먼저 적립하고 `cleared` 를 켭니다.** 순서가 반대면 `dropCoin`
+        // 차단과 무관하게 이 줄까지 같이 막고 싶어지는 유혹이 생기는데, 보너스는
+        // 바닥에 떨어지는 코인이 아니라 즉시 적립이라 성질이 다릅니다
+        this.stats.coins += CLEAR_BONUS.coin;
+        this.queueNotice(`클리어 보너스 +${CLEAR_BONUS.coin}`, '#ffd45e', 20, 0, -60);
         this.cleared = true;
         this.clearBossId = 0;
       }
@@ -1079,7 +1095,7 @@ export class World {
       //
       // 전원이 정예인 난이도(9 이상)에서는 이 확정 드랍을 끕니다. 전부 정예인데
       // 전부 확정으로 주면 그냥 "모든 적이 코인을 떨어뜨린다"가 되어, 난이도 배율과 겹쳐 코인이 폭증합니다
-      for (let i = 0; i < ELITE.coinDrop; i++) this.dropCoin(e.x, e.y, 1, 14);
+      if (this.rng.chance(ELITE.coinChance)) this.dropCoin(e.x, e.y, 1, 14);
     } else if (!e.child && this.rng.chance(ENEMY_BASE.coinChance)) {
       this.dropCoin(e.x, e.y);
     }
