@@ -942,16 +942,17 @@ export class World {
   /**
    * 코인 하나를 떨어뜨립니다.
    *
-   * **클리어한 뒤로는 아무것도 안 떨어집니다** (2026-09-12). 클리어 뒤 구간은
-   * 적 수 상한이 200 까지 오르므로 분당 처치가 판에서 가장 많아지는데, 그대로 두면
-   * 파밍을 막으려고 넣은 급상승이 오히려 파밍 효율을 올립니다. 이미 바닥에 떨어져
-   * 있던 코인은 그대로 주울 수 있습니다.
+   * **클리어한 뒤로는 `OVERTIME.coinDropMul` 만큼만 떨어집니다** (2026-09-12).
+   * 클리어 뒤 구간은 적 수 상한이 200 까지 오르므로 분당 처치가 판에서 가장
+   * 많아지는데, 그대로 두면 파밍을 막으려고 넣은 급상승이 오히려 파밍 효율을
+   * 올립니다. 0 으로 끊지 않는 것은 적을 잡아도 아무 일도 안 일어나는 구간을
+   * 만들지 않기 위해서입니다.
    *
-   * **막는 자리가 여기 하나여야 합니다.** 부르는 쪽(일반 처치·정예·보스·하수인)에
+   * **거르는 자리가 여기 하나여야 합니다.** 부르는 쪽(일반 처치·정예·보스·하수인)에
    * 각각 검사를 두면 새 출처가 생겼을 때 반드시 하나를 빠뜨립니다.
    */
   dropCoin(x: number, y: number, value = COIN.value, spread = 0): void {
-    if (this.cleared) return;
+    if (this.cleared && !this.rng.chance(OVERTIME.coinDropMul)) return;
     const a = this.rng.angle();
     const s = spread > 0 ? this.rng.range(0, spread) : 0;
     this.coins.push({

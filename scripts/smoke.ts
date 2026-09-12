@@ -4542,17 +4542,27 @@ console.log('\n23) 클리어 뒤 급상승 (OVERTIME)');
     `   속도 0분 x${speedAt(0).toFixed(2)} · 3분 x${speedAt(3).toFixed(2)} · 상한 x${OVERTIME.speedMax} · 적 상한 ${OVERTIME.maxAliveCap}`,
   );
 
-  // --- 클리어 뒤로는 코인이 아예 안 나옵니다 (2026-09-12) ---
+  // --- 클리어 뒤에는 코인이 훨씬 덜 떨어집니다 (2026-09-12) ---
   {
-    const cw = new World(emptySave(), input, 5, 0);
-    cw.spawner.enabled = false;
-    cw.dropCoin(640, 360);
-    check('클리어 전에는 떨어진다', cw.coins.length === 1, `${cw.coins.length}`);
-    cw.cleared = true;
-    for (let i = 0; i < 50; i++) cw.dropCoin(640, 360);
-    check('클리어 뒤로는 한 개도 안 떨어진다', cw.coins.length === 1, `${cw.coins.length}`);
-    // 이미 바닥에 있던 것은 그대로 주울 수 있어야 합니다
-    check('이미 떨어진 코인은 남는다', cw.coins[0] !== undefined);
+    const n = 2000;
+    const before = new World(emptySave(), input, 5, 0);
+    before.spawner.enabled = false;
+    for (let i = 0; i < n; i++) before.dropCoin(640, 360);
+    check('클리어 전에는 부르는 족족 떨어진다', before.coins.length === n, `${before.coins.length}/${n}`);
+
+    const after = new World(emptySave(), input, 5, 0);
+    after.spawner.enabled = false;
+    after.cleared = true;
+    for (let i = 0; i < n; i++) after.dropCoin(640, 360);
+    const rate = after.coins.length / n;
+    check('클리어 뒤에는 눈에 띄게 줄어든다', rate < 0.5, `${(rate * 100).toFixed(0)}%`);
+    check('그래도 아예 끊기지는 않는다', after.coins.length > 0, `${after.coins.length}`);
+    check(
+      '표에 적힌 배율 근처다',
+      Math.abs(rate - OVERTIME.coinDropMul) < 0.05,
+      `${(rate * 100).toFixed(0)}% (표 ${OVERTIME.coinDropMul * 100}%)`,
+    );
+    console.log(`   클리어 뒤 코인 드랍 ${(rate * 100).toFixed(0)}% (표 ${OVERTIME.coinDropMul * 100}%)`);
   }
 
   // --- 클리어 보너스는 **처음 깰 때만** 제값입니다 (2026-09-12) ---
