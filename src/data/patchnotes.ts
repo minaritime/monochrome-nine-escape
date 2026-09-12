@@ -35,11 +35,47 @@ export interface PatchGroup {
 export interface PatchNote {
   version: string;
   date: string;
+  /**
+   * 그 판을 한 줄로 여는 머리말. 없어도 됩니다.
+   *
+   * **여기까지만 문장을 씁니다.** 아래 항목은 개조식 그대로이고, 이 자리에
+   * 항목마다 붙을 설명을 몰아 적기 시작하면 그때부터 패치로그가 글이 됩니다
+   */
+  intro?: string;
   groups: PatchGroup[];
 }
 
 /** **최신이 맨 앞입니다.** 화면이 이 순서를 그대로 씁니다 */
 export const PATCH_NOTES: readonly PatchNote[] = [
+  {
+    version: 'v0.2.01',
+    date: '2026-09-12',
+    intro:
+      '코인 수급 방식에 대한 조정입니다. 기존의 막대한 코인 수급량을 조정하고 클리어 이후 버티는 것을 최소한으로 하여 수급을 막았습니다. 꼬와도 개발자 맘입니다.',
+    groups: [
+      {
+        title: '시스템 변경점',
+        items: [
+          {
+            title: '코인',
+            lines: [
+              '일반 적과 정예의 코인 드랍 확률 감소',
+              '클리어 이후 코인 드랍 확률 추가 감소',
+              '클리어 보너스 코인 추가 (반복 클리어 시 보너스 코인량이 감소합니다.)',
+            ],
+          },
+          {
+            title: '클리어 이후',
+            lines: [
+              '적 이동속도 대폭 증가',
+              '적 체력, 공격력 상승폭 대폭 증가',
+              '스폰량 상승폭 대폭 증가',
+            ],
+          },
+        ],
+      },
+    ],
+  },
   {
     version: 'v0.2.0',
     date: '2026-09-10',
@@ -133,7 +169,10 @@ export function visiblePatchNotes(hardUnlocked: boolean): PatchNote[] {
       const items = g.items.filter((it) => !it.hardOnly || hardUnlocked);
       if (items.length > 0) groups.push({ title: g.title, items });
     }
-    if (groups.length > 0) out.push({ version: note.version, date: note.date, groups });
+    // **칸을 새로 만들 때 빠뜨리기 쉽습니다.** 여기서 새 객체를 짓는 이유는 하드
+    // 항목을 걸러낸 `groups` 를 갈아끼우기 위해서인데, 나머지 칸을 손으로 옮기다
+    // 하나를 놓치면 그 값만 화면에서 조용히 사라집니다 (머리말이 실제로 그랬습니다)
+    if (groups.length > 0) out.push({ ...note, groups });
   }
   return out;
 }

@@ -1587,6 +1587,16 @@ body.mobile .shop-intro-row {
   padding: 0 var(--ui-pad-x) var(--ui-pad-y);
 }
 
+/* 그 판 전체를 여는 한 줄. 항목보다 조금 밝고, 왼쪽 선으로 본문과 갈라 둡니다 */
+.patch-intro {
+  margin: 0 var(--ui-pad-x) 14px;
+  padding-left: 10px;
+  border-left: 2px solid var(--line);
+  color: var(--text);
+  font-size: 0.88em;
+  line-height: 1.6;
+}
+
 .patch-group + .patch-group {
   margin-top: 14px;
 }

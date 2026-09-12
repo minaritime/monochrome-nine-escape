@@ -9,7 +9,8 @@
 
 // main.ts 는 불러오는 순간 document 를 만지므로 아래에서 동적으로 불러옵니다.
 // 이 둘은 모듈을 읽는 것만으로는 DOM 을 건드리지 않아 정적으로 가져와도 안전합니다
-import { DEBUG } from '../src/data/balance';
+import { DEBUG, DIFFICULTY } from '../src/data/balance';
+import { PATCH_NOTES } from '../src/data/patchnotes';
 import { emptySave } from '../src/meta/save';
 
 interface StubElement {
@@ -393,7 +394,14 @@ async function main(): Promise<void> {
     patch?.click();
     frames(2);
     check('패치로그가 열린다', overlayText().includes('패치로그'), overlayText().trim().slice(0, 40));
-    check('최신 버전이 펼쳐져 있다', overlayText().includes('클리어 조건'), overlayText().trim().slice(0, 120));
+    // **문구를 손으로 적지 않습니다.** 적어두면 패치를 쓸 때마다 이 시험이 깨지고,
+    // 그러면 시험을 고치는 일이 패치를 쓰는 일의 일부가 됩니다
+    const latest = PATCH_NOTES[0];
+    check('최신 버전이 펼쳐져 있다', overlayText().includes(latest.groups[0].items[0].lines[0]), overlayText().trim().slice(0, 120));
+    check('옛 버전은 접혀 있다', !overlayText().includes(PATCH_NOTES[1].groups[0].items[0].lines[0]));
+    // 머리말은 있을 때만 봅니다. `visiblePatchNotes` 가 새 객체를 지으면서 이 칸을
+    // 빠뜨린 적이 있어서, 화면까지 닿는지를 여기서 한 번 잡습니다
+    if (latest.intro) check('머리말이 보인다', overlayText().includes(latest.intro.slice(0, 20)));
     // **하드 항목은 안 보여야 합니다.** 하드모드는 히든이라 안 연 사람에게
     // 존재를 알리면 안 됩니다
     check('하드 항목은 안 보인다', !overlayText().includes('폭격기'), overlayText().trim().slice(0, 200));
@@ -576,6 +584,29 @@ async function main(): Promise<void> {
 
     press('Digit3');
     check('끄면 도감이 원래대로 돌아온다', overlayText().includes('아직 만나지 못했습니다'));
+    press('Escape');
+
+    // **난이도 전체 해금.** `?unlock` 과 같은 일을 설정 화면에서 합니다.
+    // 주소를 고치러 나가지 않아도 되게 낸 자리라 판정도 같아야 합니다 (개발자 전용)
+    press('Digit6');
+    check('개발자 모드에서는 난이도 전체 해금이 보인다', overlayText().includes('난이도 전체 해금 (개발자)'));
+    // 앞선 점검이 난이도 0 을 깨고 왔을 수 있어서 "누르기 전 값"을 특정하지 않습니다.
+    // 여기서 확실한 것은 **아직 끝까지는 안 열렸다** 하나뿐입니다
+    check('누르기 전에는 안 열려 있다', !overlayText().includes(`일반 ${DIFFICULTY.max}`), overlayText().trim().slice(0, 80));
+    clickCard('난이도 전체 해금 (개발자)');
+    check(
+      '누르면 끝까지 열린다',
+      overlayText().includes(`일반 ${DIFFICULTY.max} · 하드 ${DIFFICULTY.max}`),
+      overlayText().trim().slice(0, 80),
+    );
+    press('Escape');
+
+    // 실제로 난이도 화면에서 고를 수 있어야 합니다. 저장만 바뀌고 화면이 안 따라오면
+    // 열린 것이 아닙니다. 다이얼을 끝까지 돌려서 `잠김` 이 안 뜨는지 봅니다
+    press('Digit1');
+    check('난이도 화면이 열린다', overlayText().includes('난이도 선택'));
+    for (let i = 0; i < DIFFICULTY.max + 2; i++) press('ArrowRight');
+    check('끝 난이도가 잠겨 있지 않다', !overlayText().includes('잠김'), overlayText().trim().slice(0, 80));
     press('Escape');
 
     press('Digit6');

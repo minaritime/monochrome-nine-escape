@@ -404,6 +404,18 @@ function goSettings(notice = ''): void {
         saveGame(save);
         goSettings(save.devBestiary ? '도감을 전부 엽니다' : '도감이 원래대로 돌아왔습니다');
       },
+      // `?unlock` 과 같은 일입니다. 주소를 고치러 나갈 필요가 없게 자리를 하나 더
+      // 낸 것뿐이라, **판정도 `unlockAllFromUrl` 과 같아야 합니다** (개발자 모드에서만).
+      //
+      // 하드까지 같이 엽니다. 하드 표의 빈 칸(8~14)을 만드는 동안 하드 15 를 보려면
+      // 하드 사슬도 따로 뚫어야 하는데, 그때마다 저장을 손으로 고치게 됩니다
+      unlockAllDifficulties: () => {
+        if (!save.devMode) return;
+        save.maxDifficulty = DIFFICULTY.max;
+        save.maxHardDifficulty = DIFFICULTY.max;
+        saveGame(save);
+        goSettings(`난이도를 ${DIFFICULTY.max} 까지 전부 엽니다 (일반 · 하드)`);
+      },
       resetAll: () => {
         save = resetSave();
         // 저장이 비면 하드모드도 꺼집니다. 색만 붉게 남으면 화면이 거짓말을 합니다

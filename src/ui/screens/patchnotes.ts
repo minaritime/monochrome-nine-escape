@@ -53,6 +53,9 @@ function versionBlock(note: PatchNote, open: Set<string>, redraw: () => void): H
 
   const kids: Node[] = [head];
   if (expanded) {
+    // 머리말은 항목들보다 먼저, 묶음 밖에 섭니다. 그 판 전체를 여는 한 줄이라
+    // 어느 한 묶음에 딸리면 그 묶음만의 이야기로 읽힙니다
+    if (note.intro) kids.push(h('div', { class: 'patch-intro' }, [note.intro]));
     kids.push(
       h(
         'div',

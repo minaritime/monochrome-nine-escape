@@ -22,6 +22,8 @@ import { bindKeys, card, clearOverlay, h, overlayEl, screen } from './dom';
 export interface SettingsActions {
   /** 개발자 모드 전용. 도감을 전부 열어 봅니다 */
   toggleDevBestiary: () => void;
+  /** 개발자 모드 전용. 난이도를 일반·하드 모두 끝까지 엽니다 */
+  unlockAllDifficulties: () => void;
   /** 단계형 설정을 한 칸 넘깁니다 (끝에 닿으면 처음으로) */
   cycleShake: () => void;
   cycleParticles: () => void;
@@ -156,6 +158,18 @@ export function showSettings(save: SaveData, notice: string, actions: SettingsAc
       // 그 화면은 사실상 확인할 수 없는 화면입니다. 저장의 도감 기록은 안 건드립니다
       if (save.devMode) {
         rows.push(toggle('도감 전체 보기 (개발자)', save.devBestiary ? '켬' : '끔', actions.toggleDevBestiary));
+        // 난이도 전체 해금. `?unlock` 과 같은 일을 하지만 주소를 고치지 않아도 됩니다.
+        //
+        // **토글이 아닙니다.** 한 방향으로만 가고 되돌리려면 데이터 초기화뿐입니다.
+        // 그래서 켬/끔 대신 **지금 열린 칸을 그대로 보여줍니다.** 다 열린 뒤에 또
+        // 눌러도 아무 일이 없고, 그 사실이 값에 드러납니다
+        rows.push(
+          toggle(
+            '난이도 전체 해금 (개발자)',
+            `일반 ${save.maxDifficulty} · 하드 ${save.maxHardDifficulty}`,
+            actions.unlockAllDifficulties,
+          ),
+        );
       }
       body.push(h('div', { class: 'rowlist' }, rows));
     }
