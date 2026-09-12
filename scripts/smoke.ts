@@ -12,6 +12,7 @@ import {
   BASE_STATS,
   BASE_WEIGHT,
   BOSS,
+  CLEAR_BONUS,
   BOSS_PREDATOR,
   BOSS_PREDATOR_HARD,
   BOSS_BOMBARD,
@@ -4552,6 +4553,44 @@ console.log('\n23) 클리어 뒤 급상승 (OVERTIME)');
     check('클리어 뒤로는 한 개도 안 떨어진다', cw.coins.length === 1, `${cw.coins.length}`);
     // 이미 바닥에 있던 것은 그대로 주울 수 있어야 합니다
     check('이미 떨어진 코인은 남는다', cw.coins[0] !== undefined);
+  }
+
+  // --- 클리어 보너스는 **처음 깰 때만** 제값입니다 (2026-09-12) ---
+  {
+    // 같은 저장으로 두 판을 이어 돌립니다. 첫 판은 기록이 비어 있으니 제값,
+    // 두 번째 판은 저장에 클리어가 남아 있으니 줄어든 값이어야 합니다
+    const save = emptySave();
+    const clearOnce = (sv: typeof save) => {
+      const w = new World(sv, input, 31, 0);
+      w.time = w.diff.clearTime - 1;
+      step(w, 3);
+      const boss = w.enemies.find((e) => e.id === w.clearBossId)!;
+      const before = w.stats.coins;
+      w.killEnemy(boss);
+      // 보스 코인은 바닥에 떨어지는 것이라 주워야 `stats.coins` 에 들어옵니다.
+      // 여기서 늘어난 것은 즉시 적립되는 보너스뿐입니다
+      return { w, gained: w.stats.coins - before };
+    };
+
+    const first = clearOnce(save);
+    check('첫 클리어는 제값', first.w.clearBonus === CLEAR_BONUS.coin, `${first.w.clearBonus}`);
+    check('첫 클리어임을 기억한다', first.w.clearBonusFirst);
+    check('실제로 코인이 들어온다', first.gained === CLEAR_BONUS.coin, `${first.gained}`);
+    commitRun(save, first.w);
+
+    const again = clearOnce(save);
+    const want = Math.round(CLEAR_BONUS.coin * CLEAR_BONUS.repeatRatio);
+    check('두 번째부터는 줄어든다', again.w.clearBonus === want, `${again.w.clearBonus} (기대 ${want})`);
+    check('첫 클리어가 아니라고 표시된다', !again.w.clearBonusFirst);
+    check('줄어든 값이 제값보다 확실히 작다', want < CLEAR_BONUS.coin * 0.5, `${want}`);
+
+    // **다른 난이도는 별개입니다.** 난이도 0 을 깼다고 1 의 첫 클리어가 사라지면
+    // "안 깬 난이도로 가라"는 규칙 자체가 성립하지 않습니다
+    const other = new World(save, input, 31, 1);
+    check('다른 난이도는 여전히 첫 클리어', !hasCleared(save, 1), '난이도 1');
+    check('그 판의 난이도가 1 이다', other.difficulty === 1, `${other.difficulty}`);
+
+    console.log(`   첫 클리어 ${CLEAR_BONUS.coin} → 재클리어 ${want} (난이도 배율은 그 위에 곱해집니다)`);
   }
 
   // --- 화면이 타이머 정지를 계속 알리는가 ---

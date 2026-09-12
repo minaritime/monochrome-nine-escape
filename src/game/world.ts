@@ -41,7 +41,7 @@ import { bossIdForSpawn } from '../enemies/boss';
 import { eliteStatMul, eliteValue } from '../enemies/elite';
 import { rollStatGains } from '../progression/levelup';
 import { addStat } from './stats';
-import { clampDifficulty, difficultyMods, type DifficultyMods } from '../meta/difficulty';
+import { clampDifficulty, difficultyMods, hasCleared, type DifficultyMods } from '../meta/difficulty';
 import { xpMultiplier } from '../meta/shop';
 import { killerOf } from './killer';
 import { emptyRunTrack } from './types';
@@ -155,6 +155,18 @@ export class World {
    * 그래서 개체를 지목해야 하고, 그 지목을 여기 담습니다
    */
   clearBossId = 0;
+
+  /**
+   * 클리어할 때 실제로 받은 보너스 코인. 게임오버 화면이 이 값을 그대로 씁니다.
+   *
+   * **화면이 상수를 다시 읽으면 안 됩니다.** 첫 클리어인지에 따라 값이 갈리는데,
+   * 화면에서 `hasCleared` 를 다시 물으면 그때는 이미 저장에 클리어가 남아 있어서
+   * **첫 클리어인 판이 전부 "두 번째"로 보입니다**
+   */
+  clearBonus = 0;
+
+  /** 그 보너스가 첫 클리어 몫이었는가 */
+  clearBonusFirst = false;
 
   /**
    * 하드 5의 경기장 레이저. 주인이 없어서 적 목록이 아니라 여기 따로 둡니다
@@ -1082,9 +1094,17 @@ export class World {
       if (!this.cleared && e.id === this.clearBossId) {
         // **보너스를 먼저 적립하고 `cleared` 를 켭니다.** 순서가 반대면 `dropCoin`
         // 차단과 무관하게 이 줄까지 같이 막고 싶어지는 유혹이 생기는데, 보너스는
-        // 바닥에 떨어지는 코인이 아니라 즉시 적립이라 성질이 다릅니다
-        this.stats.coins += CLEAR_BONUS.coin;
-        this.queueNotice(`클리어 보너스 +${CLEAR_BONUS.coin}`, '#ffd45e', 20, 0, -60);
+        // 바닥에 떨어지는 코인이 아니라 즉시 적립이라 성질이 다릅니다.
+        //
+        // **저장을 보는 시점이 여기여야 합니다.** 저장에 클리어가 남는 것은 판이
+        // 끝날 때(`commitRun`)라, 지금 묻는 `hasCleared` 는 **이 판 이전의 기록**입니다.
+        // 그래서 첫 클리어인 판은 제값을 받고 그 다음 판부터 줄어듭니다
+        const first = !hasCleared(this.save, this.difficulty, this.hard);
+        const bonus = first ? CLEAR_BONUS.coin : Math.round(CLEAR_BONUS.coin * CLEAR_BONUS.repeatRatio);
+        this.stats.coins += bonus;
+        this.clearBonus = bonus;
+        this.clearBonusFirst = first;
+        this.queueNotice(`${first ? '첫 클리어 보너스' : '클리어 보너스'} +${bonus}`, '#ffd45e', 20, 0, -60);
         this.cleared = true;
         this.clearBossId = 0;
       }
