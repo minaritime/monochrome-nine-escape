@@ -70,6 +70,7 @@ export function eliteValue(
     | 'sealTime'
     | 'shieldedDamageTaken'
     | 'brokenDamageTaken'
+    | 'revivedDamageTaken'
     | 'instantHealRatio',
   fallback: number,
 ): number {

@@ -115,9 +115,15 @@ export class Spawner {
     if (w.needsClearBoss()) {
       this.bossTimer = BOSS.interval;
       this.bossSpawnAge = 0;
-      w.clearBossId = w.spawnBoss().id;
+      // 종류를 못박습니다. 순환을 그대로 타면 정규 보스가 한 프레임 먼저 나간
+      // 만큼 인덱스가 밀려서 엉뚱한 종류가 클리어 보스가 됩니다
+      w.clearBossId = w.spawnBoss(BOSS.clearBossKind).id;
       return;
     }
+    // **클리어 시간이 코앞이면 정규 보스를 건너뜁니다.** 클리어 시간이 보스 주기의
+    // 배수라 그대로 두면 같은 자리에서 둘이 나오고, 그중 하나만 클리어 대상이라
+    // 무엇을 잡아야 하는지 화면에서 읽히지 않습니다
+    if (!w.cleared && w.time + BOSS.clearSkipWindow >= w.diff.clearTime) return;
     // 상한까지 찼을 때만 카운트다운을 멈춥니다.
     // 예전에는 한 마리라도 살아 있으면 멈춰서, 못 잡으면 보스가 영영 안 나왔습니다.
     // 지금은 못 잡으면 다음 보스가 그 위에 겹칩니다

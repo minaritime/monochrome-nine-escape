@@ -30,7 +30,9 @@ export function updateEnemies(w: World, dt: number): void {
     // 되살아난 미라는 매초 최대 체력의 일정 비율을 잃습니다.
     // 가만히 둬도 스스로 무너지므로 "지금 정리할까 버틸까"의 판단이 됩니다
     if (e.hpDrainRatio > 0) {
-      w.damageEnemy(e, e.maxHp * e.hpDrainRatio * edt, { showNumber: false });
+      // **`selfDrain` 이 있어야 합니다.** 되살아난 미라는 피해를 크게 줄이는데,
+      // 그 감소가 자기 소멸에도 걸리면 5초짜리 수명이 25초가 됩니다
+      w.damageEnemy(e, e.maxHp * e.hpDrainRatio * edt, { showNumber: false, selfDrain: true });
       if (e.dead) continue;
     }
 

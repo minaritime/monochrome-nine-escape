@@ -85,6 +85,14 @@ export interface DamageOptions {
   showNumber?: boolean;
   /** 방패적의 정면 방패를 무시합니다 (관통·폭발·전방위 계열) */
   ignoreShield?: boolean;
+  /**
+   * 적이 스스로 무너지는 소멸입니다 (되살아난 미라).
+   *
+   * **피해 감소를 안 탑니다.** 이건 누가 때린 것이 아니라 판이 정한 수명이라,
+   * 감소가 걸리면 "5초면 스스로 무너진다"는 약속이 감소율만큼 늘어납니다
+   * (80% 감소면 25초가 됩니다)
+   */
+  selfDrain?: boolean;
 }
 
 /** 엔티티 컨테이너 + 업데이트 순서 */
@@ -986,6 +994,13 @@ export class World {
     // 정예 방패적은 방패가 남아 있는 동안 덜 아프고, 깨지고 나면 더 아픕니다.
     // 방패를 깨는 것이 곧 이득이 되도록 만드는 부분입니다
     amount *= eliteValue(e, e.shieldHp > 0 ? 'shieldedDamageTaken' : 'brokenDamageTaken', 1);
+
+    // **되살아난 미라는 잡는 대상이 아니라 피하는 대상입니다** (2026-09-12).
+    // 체력 3배에 이 배율까지 곱하면 실질 15배(정예는 30배)라 5초 안에 죽이는 것이
+    // 사실상 불가능한데, 어차피 `hpDrainRatio` 로 스스로 무너집니다
+    if (e.revived && !opts.selfDrain) {
+      amount *= eliteValue(e, 'revivedDamageTaken', ENEMY_PARAMS.mummy.revivedDamageTaken);
+    }
 
     // 방패는 정면 피해를 대신 받습니다. 다 닳으면 무효화가 사라지고 대신 빨라집니다
     if (e.shieldHp > 0 && !opts.ignoreShield && opts.fromX !== undefined && opts.fromY !== undefined) {

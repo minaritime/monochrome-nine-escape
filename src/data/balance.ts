@@ -522,11 +522,26 @@ export const ENEMY_PARAMS = {
     downedAlpha: 0.22,
     hpMul: 3,
     damageMul: 2,
-    speedMul: 1.5,
-    /** 이동속도 배율이 매초 이만큼 내려갑니다 (1.5 → 1.0 까지 5초) */
+    /** 부활 직후 이동속도. 부활 전의 이 배율입니다 */
+    speedMul: 2.5,
+    /**
+     * 이동속도 배율이 매초 이만큼 내려갑니다.
+     *
+     * **부활한 미라는 `hpDrainPerSec` 로 5초면 스스로 무너집니다.** 속도가 2.5 가
+     * 된 뒤로는 이 감쇠가 끝나기 전에 사라지므로, 되살아난 동안은 사실상 계속
+     * 빠릅니다. 되돌리려면 여기를 0.3 으로 올리면 5초에 원래대로 돌아옵니다
+     */
     speedDecayPerSec: 0.1,
     /** 매초 빠져나가는 최대 체력의 비율 */
     hpDrainPerSec: 0.2,
+    /**
+     * 되살아난 뒤 받는 피해 배율 (0.2 면 80% 감소). 정예는 `ELITE_TRAITS` 쪽입니다.
+     *
+     * 체력 3배에 이것까지 곱하면 실질 15배라 5초 안에 죽이는 것이 사실상 불가능합니다.
+     * **그게 의도입니다.** 되살아난 미라는 잡는 대상이 아니라 피하는 대상이고,
+     * 가만히 둬도 스스로 무너집니다
+     */
+    revivedDamageTaken: 0.2,
   },
   /**
    * 은신적은 **가까이 왔을 때만** 모습을 드러냅니다 (2026-08-16 변경).
@@ -811,6 +826,8 @@ export interface EliteTrait {
   revealRangeMul?: number;
   /** 미라적: 되살아나기까지의 시간 */
   reviveDelayMul?: number;
+  /** 미라적: 되살아난 뒤 받는 피해 배율 (0.1 이면 90% 감소) */
+  revivedDamageTaken?: number;
 }
 
 export const ELITE_TRAITS: Partial<Record<EnemyId, EliteTrait>> = {
@@ -844,7 +861,7 @@ export const ELITE_TRAITS: Partial<Record<EnemyId, EliteTrait>> = {
   /** 절반 거리까지 붙어야 드러납니다. 더 늦게 보인다는 뜻입니다 */
   stealth: { revealRangeMul: 0.5 },
   /** 되살아나는 데 절반밖에 안 걸립니다 (3초 → 1.5초) */
-  mummy: { reviveDelayMul: 0.5 },
+  mummy: { reviveDelayMul: 0.5, revivedDamageTaken: 0.1 },
   /** 반경이 넓고, 거는 순간 대상들이 잃은 체력의 5% 를 즉시 되찾습니다 */
   priest: { auraRadiusMul: 1.5, instantHealRatio: 0.05 },
 };
@@ -1125,6 +1142,25 @@ export const BOSS = {
    * 보스는 등장 횟수마다 `hpGrowthPerSpawn` 으로 단단해지므로, 겹치면 뒤에 온 쪽이 더 셉니다.
    */
   maxAlive: 3,
+  /**
+   * **클리어 보스는 종류가 고정입니다** (2026-09-12 사용자 확정).
+   *
+   * 예전에는 순환(`bossIdForSpawn`)을 그대로 탔는데, 클리어 시간이 마침 주기의
+   * 배수라 **같은 자리에서 정규 보스가 한 프레임 먼저 나갔습니다.** 그러면
+   * `bossesSpawned` 가 하나 더 오른 뒤 클리어 보스가 순환의 첫 칸으로 되돌아가서,
+   * 15분에 군체왕과 포식자가 같이 나오고 그중 포식자가 클리어 대상이었습니다.
+   *
+   * 판의 마지막 시험이 매번 다른 종류면 클리어 난도가 운에 좌우되기도 합니다.
+   * 세 번째 보스(군체왕)로 못박습니다.
+   */
+  clearBossKind: 'swarm',
+  /**
+   * 클리어 시간이 이만큼 남았으면 정규 보스를 안 내보냅니다.
+   *
+   * **없으면 한 프레임 차이로 보스가 둘 나옵니다.** 그중 하나만 클리어 대상이라
+   * 무엇을 잡아야 하는지 화면에서 읽히지 않습니다
+   */
+  clearSkipWindow: 10,
 } as const;
 
 /**

@@ -2786,12 +2786,31 @@ console.log('10-4-11) 정예 고유 능력 (바보 · 분열 · 장판 · 소환
     check('되살아난다', !m.dead && m.revived && m.downed === 0);
     check('체력이 3배가 된다', Math.abs(m.maxHp / baseHp - ENEMY_PARAMS.mummy.hpMul) < 1e-6);
     check('공격력이 2배가 된다', Math.abs(m.damage / baseDmg - ENEMY_PARAMS.mummy.damageMul) < 1e-6);
-    check('이동속도가 1.5배로 시작한다', m.speed > baseSpeed * 1.4, `${m.speed.toFixed(0)} vs ${baseSpeed.toFixed(0)}`);
+    check(
+      '이동속도가 표대로 시작한다',
+      Math.abs(m.speed / baseSpeed - ENEMY_PARAMS.mummy.speedMul) < 0.05,
+      `${m.speed.toFixed(0)} vs ${baseSpeed.toFixed(0)}`,
+    );
 
-    // 속도는 5초에 걸쳐 원래대로 돌아옵니다
-    step(w, 5.2, false);
-    console.log(`   5초 뒤 속도 ${m.speed.toFixed(0)} (원래 ${baseSpeed.toFixed(0)})`);
-    check('속도가 원래대로 돌아온다', Math.abs(m.speed - baseSpeed) < 1, `${m.speed.toFixed(1)}`);
+    // 속도 감쇠는 걸려 있지만 **끝나기 전에 스스로 무너집니다.** 부활 직후가 가장
+    // 위험하고 그 뒤로 약해진다는 설계는 체력 쪽(`hpDrainPerSec`)이 담당합니다
+    const revivedSpeed = m.speed;
+    step(w, 2, false);
+    console.log(`   2초 뒤 속도 ${m.speed.toFixed(0)} (부활 직후 ${revivedSpeed.toFixed(0)} · 원래 ${baseSpeed.toFixed(0)})`);
+    check('속도가 서서히 내려간다', m.speed < revivedSpeed, `${m.speed.toFixed(1)}`);
+    check('그래도 원래 속도보다는 빠르다', m.speed > baseSpeed * 1.5, `${m.speed.toFixed(1)}`);
+
+    // **되살아난 미라는 잡는 대상이 아니라 피하는 대상입니다** (2026-09-12).
+    // 재는 것은 "실제로 들어간 피해"라 `damageEnemy` 의 반환값을 그대로 봅니다.
+    // 한 방에 죽으면 뒤 시험이 흔들리므로 체력을 키워 두고 잽니다
+    {
+      makeUnkillable(m);
+      const probe = 1000;
+      const got = w.damageEnemy(m, probe);
+      const want = probe * ENEMY_PARAMS.mummy.revivedDamageTaken;
+      console.log(`   부활 뒤 피해 ${probe} → ${got.toFixed(0)} (표 ${(ENEMY_PARAMS.mummy.revivedDamageTaken * 100).toFixed(0)}%)`);
+      check('부활 뒤에는 피해가 크게 줄어든다', Math.abs(got - want) < 1, `${got.toFixed(1)} (기대 ${want})`);
+    }
 
     // 매초 최대 체력의 20% 씩 빠지므로 가만히 둬도 5초면 무너집니다
     const w3 = new World(emptySave(), stillInput, 11008);
@@ -2809,6 +2828,8 @@ console.log('10-4-11) 정예 고유 능력 (바보 · 분열 · 장판 · 소환
     }
     const expect = 1 / ENEMY_PARAMS.mummy.hpDrainPerSec;
     console.log(`   스스로 무너지기까지 ${gone.toFixed(1)}초 (예상 ${expect.toFixed(1)}초)`);
+    // **피해 감소가 자기 소멸에는 안 걸려야 합니다** (`selfDrain`). 걸리면 5초짜리
+    // 수명이 감소율만큼 늘어나(80% 감소면 25초) 이 적의 성격이 통째로 달라집니다
     check('가만히 둬도 스스로 무너진다', gone > 0 && Math.abs(gone - expect) < 1.0, `${gone.toFixed(1)}초`);
     check('두 번째 죽음은 진짜다', m3.dead && m3.revived);
 
@@ -2821,6 +2842,18 @@ console.log('10-4-11) 정예 고유 능력 (바보 · 분열 · 장판 · 소환
     w4.damageEnemy(m4, m4.maxHp * 5);
     console.log(`   정예 미라 부활 대기 ${m4.downed.toFixed(2)}초 (일반 ${ENEMY_PARAMS.mummy.reviveDelay})`);
     check('정예는 절반 만에 일어난다', Math.abs(m4.downed - ENEMY_PARAMS.mummy.reviveDelay * 0.5) < 1e-6);
+
+    // 정예는 피해 감소도 더 큽니다
+    step(w4, ENEMY_PARAMS.mummy.reviveDelay * 0.5 + 0.2, false);
+    check('정예도 되살아난다', m4.revived && !m4.dead);
+    {
+      const probe = 1000;
+      const got = w4.damageEnemy(m4, probe);
+      const want = probe * (ELITE_TRAITS.mummy?.revivedDamageTaken ?? 1);
+      console.log(`   정예 부활 뒤 피해 ${probe} → ${got.toFixed(0)}`);
+      check('정예는 더 많이 줄어든다', Math.abs(got - want) < 1, `${got.toFixed(1)} (기대 ${want})`);
+      check('일반보다 덜 아프다', want < probe * ENEMY_PARAMS.mummy.revivedDamageTaken);
+    }
   }
 
   // 은신: 가까이 와야 드러나고, 정예는 절반 거리까지 붙어야 보입니다
@@ -3094,6 +3127,37 @@ console.log('11) 난이도 해금 시간 규칙');
     check('클리어 시간에 타이머가 멈춘다', Math.abs(w.time - unlockTimeFor(0)) < 1e-6, `${w.time.toFixed(2)}`);
     check('클리어 보스가 나온다', w.clearBossId !== 0, `${w.clearBossId}`);
     check('아직 클리어가 아니다', !w.cleared);
+
+    // **종류가 고정입니다** (2026-09-12). 순환을 그대로 타면 정규 보스가 한 프레임
+    // 먼저 나간 만큼 인덱스가 밀려서 엉뚱한 종류가 클리어 보스가 됩니다
+    {
+      const cb = w.enemies.find((e) => e.id === w.clearBossId)!;
+      console.log(`   클리어 보스 ${cb.defId} (고정 ${BOSS.clearBossKind}) · 살아 있는 보스 ${w.bossesAlive}`);
+      check('클리어 보스는 표에 적힌 종류다', cb.defId === BOSS.clearBossKind, `${cb.defId}`);
+    }
+
+    // **같은 자리에서 정규 보스가 겹쳐 나오면 안 됩니다.** 클리어 시간이 보스 주기의
+    // 배수라, 막지 않으면 한 프레임 차이로 둘이 나오고 그중 하나만 클리어 대상입니다
+    {
+      const fresh = new World(emptySave(), input, 99, 0);
+      fresh.player.stats.maxHp = 1e9;
+      let spawned = 0;
+      const seen = new Set<number>();
+      for (let i = 0; i < Math.round((unlockTimeFor(0) + 8) / FIXED_DT); i++) {
+        fresh.player.hp = 1e9;
+        fresh.update(FIXED_DT);
+        for (const e of fresh.enemies) {
+          if (e.boss && !seen.has(e.id)) {
+            seen.add(e.id);
+            spawned++;
+          }
+        }
+      }
+      console.log(`   클리어 시간까지 나온 보스 ${spawned}마리 (주기 ${BOSS.interval}초)`);
+      check('클리어 시점에 보스가 겹쳐 나오지 않는다', spawned === Math.round(unlockTimeFor(0) / BOSS.interval), `${spawned}마리`);
+      const cb2 = fresh.enemies.find((e) => e.id === fresh.clearBossId);
+      check('그 마지막 한 마리가 클리어 보스다', cb2 !== undefined && cb2.defId === BOSS.clearBossKind, `${cb2?.defId}`);
+    }
 
     // 앞 보스를 잡는 것으로는 안 됩니다
     const other = w.spawnBoss();
