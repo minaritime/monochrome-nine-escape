@@ -248,6 +248,22 @@ export class World {
   encountered = new Set<string>();
 
   /**
+   * 이 판에서 써 본 스킬의 최고 레벨과 고른 갈래 (스킬 도감, 2026-09-13).
+   *
+   * **판이 끝날 때의 슬롯만 보면 안 됩니다.** 유틸은 교체되면 앞의 것이 사라지므로 레벨이
+   * 오르는 순간마다 적어 둡니다 (`noteSkill`). 저장에 옮기는 것은 클리어한 판뿐입니다
+   * (`meta/skillDex.ts` 의 `recordSkillDex`)
+   */
+  skillLog = new Map<SkillId, { level: number; branches: Set<string> }>();
+
+  noteSkill(slot: SkillSlot): void {
+    const log = this.skillLog.get(slot.id) ?? { level: 0, branches: new Set<string>() };
+    log.level = Math.max(log.level, slot.level);
+    if (slot.branch) log.branches.add(slot.branch);
+    this.skillLog.set(slot.id, log);
+  }
+
+  /**
    * 지금 도는 시체 폭발이 잡은 수 (분열체 제외).
    * -1 이면 폭발을 세고 있지 않은 상태입니다. `explodeAll` 이 켜고 끕니다.
    */
@@ -290,6 +306,8 @@ export class World {
     this.player = createPlayer(save);
     this.spawner = new Spawner();
     this.skillsTaken = ownedSlots(this.player).length;
+    // 시작 스킬도 이 판에서 쓴 스킬입니다
+    for (const s of ownedSlots(this.player)) this.noteSkill(s);
 
     // 난이도 15: 처치할 수 없는 바보적 한 마리가 판 내내 벽을 튕겨 다닙니다.
     // 적이라기보다 움직이는 장애물이라 스폰 표에 넣지 않고 여기서 딱 한 번만 냅니다

@@ -1,4 +1,5 @@
-import { DIFFICULTY, PASSIVE, SETTINGS, SKILLS, STAT_DEFS, type StatKey } from '../data/balance';
+import { DIFFICULTY, PASSIVE, SETTINGS, SKILLS, SKILL_MAX_LEVEL, STAT_DEFS, type StatKey } from '../data/balance';
+import { branchesFor } from '../skills/branches';
 import type { SkillId } from '../skills/types';
 import { unlockTimeFor } from './difficulty';
 
@@ -8,6 +9,15 @@ const VERSION = 1;
 export interface BestiaryEntry {
   seen: boolean;
   kills: number;
+}
+
+/**
+ * 스킬 도감 한 칸 (2026-09-13). **클리어한 판에서 가 본 것만 남습니다.**
+ * `level` 은 가 본 최고 레벨이고, `branches` 는 한 번이라도 고른 갈래 id 입니다
+ */
+export interface SkillDexEntry {
+  level: number;
+  branches: string[];
 }
 
 export interface Records {
@@ -167,6 +177,13 @@ export interface SaveData {
    * 하드 안에서도 0 부터 차례로 깨야 위가 열립니다.
    */
   maxHardDifficulty: number;
+  /**
+   * 스킬 도감 (2026-09-13). 키는 스킬 id 입니다.
+   *
+   * **클리어한 판만 기록합니다** (`recordSkillDex`). 죽거나 나간 판은 그 판에서 몇 레벨을
+   * 찍었든 안 남습니다. 기록은 줄지 않고 레벨은 최고값, 갈래는 합집합으로 쌓입니다
+   */
+  skillDex: Record<string, SkillDexEntry>;
 }
 
 export function emptySave(): SaveData {
@@ -203,6 +220,7 @@ export function emptySave(): SaveData {
     hardUnlocked: false,
     devBestiary: false,
     maxHardDifficulty: 0,
+    skillDex: {},
   };
 }
 
@@ -386,7 +404,28 @@ function migrate(data: Partial<SaveData>): SaveData {
     hardUnlocked: data.hardUnlocked === true || data.hardMode === true,
     devBestiary: data.devBestiary === true,
     maxHardDifficulty: clampInt(numberOr(data.maxHardDifficulty, 0), 0, DIFFICULTY.max),
+    skillDex: skillDexMap(data.skillDex),
   };
+}
+
+/**
+ * 스킬 도감을 읽어들입니다. **없는 스킬 · 없는 갈래 · 범위 밖 레벨은 버립니다.**
+ * 스킬 id 를 바꾸거나 갈래를 갈아엎었을 때 도감 화면이 표에 없는 이름을 찾다 터지면 안 됩니다
+ */
+function skillDexMap(v: unknown): Record<string, SkillDexEntry> {
+  const out: Record<string, SkillDexEntry> = {};
+  if (!isRecord(v)) return out;
+  for (const [id, e] of Object.entries(v)) {
+    if (!(id in SKILLS) || !isRecord(e)) continue;
+    const level = clampInt(numberOr(e.level, 0), 0, SKILL_MAX_LEVEL);
+    if (level <= 0) continue;
+    const valid = new Set(branchesFor(id as SkillId).map((b) => b.id));
+    const branches = Array.isArray(e.branches)
+      ? e.branches.filter((b): b is string => typeof b === 'string' && valid.has(b))
+      : [];
+    out[id] = { level, branches: [...new Set(branches)] };
+  }
+  return out;
 }
 
 /** 값이 숫자인 항목만 남깁니다 (난이도별 기록처럼 키가 자유로운 맵) */

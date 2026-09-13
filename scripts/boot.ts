@@ -336,6 +336,12 @@ async function main(): Promise<void> {
   press('Escape');
   press('Digit3');
   check('도감이 열렸다', overlayText().includes('적 도감'));
+  // 스킬 도감 (2026-09-13). 좌우 화살표로 탭을 넘깁니다. 클리어한 판이 없으니 전부 잠겨 있습니다
+  press('ArrowRight');
+  check('도감에 스킬 탭이 있다', overlayText().includes('스킬 도감'), overlayText().trim().slice(0, 40));
+  check('스킬 도감은 처음에 잠겨 있다', overlayText().includes('???') && !overlayText().includes('Lv.1'));
+  press('ArrowLeft');
+  check('적 탭으로 돌아온다', overlayText().includes('적 도감'));
   press('Escape');
   press('Digit4');
   check('기록이 열렸다', overlayText().includes('최고 생존 시간'));
@@ -575,6 +581,9 @@ async function main(): Promise<void> {
     press('Digit3');
     check('도감이 전부 열린다', !overlayText().includes('아직 만나지 못했습니다'), overlayText().trim().slice(0, 60));
     check('수치 칸까지 열린다', !overlayText().includes('이동 패턴이 열립니다'));
+    press('ArrowRight');
+    check('스킬 도감도 전부 열린다', overlayText().includes('스킬 도감') && !overlayText().includes('???'), overlayText().trim().slice(0, 60));
+    press('ArrowLeft');
     press('Escape');
 
     press('Digit6');

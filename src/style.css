@@ -1547,6 +1547,38 @@ body.hard {
   background: rgba(255, 93, 93, 0.12);
 }
 
+/*
+ * 스킬 도감의 레벨 목록 (`ui/screens/bestiary.ts`).
+ * 레벨 이름은 굵게 앞에 세우고, 가려진 줄은 흐리게 둡니다
+ */
+.dex-levels {
+  display: grid;
+  gap: 2px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.dex-levels li b {
+  display: inline-block;
+  min-width: 64px;
+  margin-right: 6px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.dex-levels li.dex-branch b {
+  color: var(--accent);
+}
+
+.dex-levels li.locked {
+  opacity: 0.5;
+}
+
 /* ---------------------------------------------------------------------------
  * 모바일 배치 (`body.mobile`, `main.ts` 의 `applyLayout`).
  *

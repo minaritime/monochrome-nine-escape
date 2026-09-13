@@ -83,6 +83,7 @@ import {
   setClock,
   spawnEnemies,
 } from '../src/game/sandbox';
+import { knowsBranch, skillDexLevel } from '../src/meta/skillDex';
 import { emptySave, fromJSON, type SaveData } from '../src/meta/save';
 import {
   attackSlotCount,
@@ -5272,6 +5273,75 @@ console.log('29) 미라 부활: 4.5배 · 속도 상한 · 기절과 감속 2배
     const { m, base } = reviveOne(w);
     check('클리어 뒤에는 상한을 안 넘는다', m.speed <= P.revivedSpeedCap + 1e-6, `${base.toFixed(0)} → ${m.speed.toFixed(0)}`);
     check('상한이 원래 속도 아래로 끌어내리지는 않는다', m.speed >= base);
+  }
+}
+
+console.log('30) 스킬 도감: 클리어한 판만, 가 본 레벨과 고른 갈래만');
+{
+  const [pickedBranch, otherBranch] = SKILL_BRANCHES.missile;
+
+  // --- 클리어 못 한 판은 안 남깁니다 ---
+  {
+    const save = emptySave();
+    const w = new World(save, input, 3001, 0);
+    w.player.attacks[0] = makeSlot('missile', 4);
+    commitRun(save, w);
+    check('클리어 못 한 판은 스킬 도감에 안 남는다', skillDexLevel(save, 'missile') === 0);
+    check('새 저장의 스킬 도감은 비어 있다', Object.keys(emptySave().skillDex).length === 0);
+  }
+
+  // --- 클리어한 판 ---
+  {
+    const save = emptySave();
+    const w = new World(save, input, 3002, 0);
+    w.player.attacks[0] = makeSlot('missile', 7, pickedBranch.id);
+    // 유틸은 교체되면 앞의 것이 사라집니다. 오르는 순간 적어 둔 값이 남아야 합니다
+    const dash = makeSlot('dash', 5);
+    w.player.utility = dash;
+    w.noteSkill(dash);
+    w.player.utility = makeSlot('medkit', 2);
+    w.cleared = true;
+    commitRun(save, w);
+
+    check('가 본 레벨까지 남는다', skillDexLevel(save, 'missile') === 7, `${skillDexLevel(save, 'missile')}`);
+    check('고른 갈래가 남는다', knowsBranch(save, 'missile', pickedBranch.id));
+    check('안 고른 갈래는 안 남는다', !knowsBranch(save, 'missile', otherBranch.id));
+    check('교체된 유틸도 남는다', skillDexLevel(save, 'dash') === 5, `${skillDexLevel(save, 'dash')}`);
+    check('안 써 본 스킬은 잠겨 있다', skillDexLevel(save, 'sniper') === 0);
+
+    // 더 낮은 레벨로 다시 깨도 기록이 안 깎입니다
+    const w2 = new World(save, input, 3003, 0);
+    w2.player.attacks[0] = makeSlot('missile', 2);
+    w2.cleared = true;
+    commitRun(save, w2);
+    check('낮은 레벨로 다시 깨도 기록이 안 깎인다', skillDexLevel(save, 'missile') === 7 && knowsBranch(save, 'missile', pickedBranch.id));
+
+    // 레벨업 선택으로 오르는 길도 적힙니다
+    const w3 = new World(save, input, 3004, 0);
+    w3.player.attacks[0] = makeSlot('sniper', 2);
+    w3.player.attacks[0].level = 3;
+    applySkillChoice(w3, { id: 'sniper', upgrade: true, level: 3 } as Parameters<typeof applySkillChoice>[1]);
+    check('선택으로 오른 레벨이 판 기록에 적힌다', (w3.skillLog.get('sniper')?.level ?? 0) === 4, `${w3.skillLog.get('sniper')?.level}`);
+
+    save.devMode = true;
+    save.devBestiary = true;
+    check('도감 전체 보기는 스킬도 전부 연다', skillDexLevel(save, 'sniper') === SKILL_MAX_LEVEL && knowsBranch(save, 'sniper', SKILL_BRANCHES.sniper[1].id));
+    check('도감 전체 보기는 저장을 안 건드린다', save.skillDex.sniper === undefined);
+  }
+
+  // --- 낡거나 망가진 저장 ---
+  {
+    const loaded = fromJSON({
+      skillDex: {
+        missile: { level: 99, branches: [pickedBranch.id, 'nope', pickedBranch.id] },
+        nothing: { level: 3 },
+        dash: { level: 0 },
+      },
+    });
+    check('레벨은 상한으로 자른다', loaded.skillDex.missile?.level === SKILL_MAX_LEVEL);
+    check('없는 갈래와 중복은 버린다', loaded.skillDex.missile?.branches.length === 1);
+    check('없는 스킬은 버린다', !('nothing' in loaded.skillDex));
+    check('0 레벨 항목은 버린다', !('dash' in loaded.skillDex));
   }
 }
 

@@ -22,7 +22,8 @@ export function showMainMenu(save: SaveData, actions: MainActions): () => void {
   const items = h('div', { class: 'rowlist' }, [
     card({ key: '1', title: '게임 시작', onClick: actions.start }),
     card({ key: '2', title: '상점', onClick: actions.shop }),
-    card({ key: '3', title: '적 도감', onClick: actions.bestiary }),
+    // 적과 스킬 두 탭이라 "적 도감"이 아니라 "도감"입니다 (2026-09-13)
+    card({ key: '3', title: '도감', onClick: actions.bestiary }),
     card({ key: '4', title: '기록', onClick: actions.records }),
     card({ key: '5', title: '업적', desc: `${achieveProgress(save).done} / ${achieveProgress(save).total} 달성`, onClick: actions.achievements }),
   ]);

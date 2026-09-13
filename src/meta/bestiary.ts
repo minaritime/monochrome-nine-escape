@@ -1,6 +1,7 @@
 import { BESTIARY_TIERS, BESTIARY_TIERS_BOSS, DIFFICULTY } from '../data/balance';
 import { isBossId } from '../enemies/boss';
 import { difficultyKey } from './difficulty';
+import { recordSkillDex } from './skillDex';
 import { ownedSlots } from '../game/player';
 import type { World } from '../game/world';
 import type { SkillId } from '../skills/types';
@@ -84,4 +85,7 @@ export function commitRun(save: SaveData, w: World): void {
       save.maxDifficulty = next;
     }
   }
+
+  // 스킬 도감은 클리어한 판만 남깁니다 (안에서 `w.cleared` 를 봅니다)
+  recordSkillDex(save, w);
 }

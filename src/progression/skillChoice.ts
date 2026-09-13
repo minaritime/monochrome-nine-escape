@@ -114,6 +114,7 @@ export function applySkillChoice(w: World, choice: SkillChoice): void {
     const slot = def.kind === 'utility' ? p.utility : p.attacks.find((s) => s?.id === choice.id) ?? null;
     if (slot) {
       slot.level = Math.min(SKILL_MAX_LEVEL, slot.level + 1);
+      w.noteSkill(slot);
       announce(w, `${def.name} Lv.${slot.level}`);
       // 6레벨에 딱 한 번 강화 갈래를 고릅니다.
       // ⚠ `kind === 'attack'` 검사가 없으면 유틸이 6레벨일 때 카드 0장짜리 화면이 뜨고,
@@ -135,6 +136,7 @@ export function applySkillChoice(w: World, choice: SkillChoice): void {
     // 상한을 다시 씌우는 이유는 `SKILL_MAX_LEVEL` 을 낮췄을 때 옛 슬롯이 넘칠 수 있어서입니다
     const level = Math.min(SKILL_MAX_LEVEL, Math.max(1, choice.level));
     p.utility = makeSlot(choice.id, level);
+    w.noteSkill(p.utility);
     w.skillsTaken++;
     announce(w, level > 1 ? `${def.name} Lv.${level}` : `${def.name} 획득`);
     return;
@@ -142,7 +144,9 @@ export function applySkillChoice(w: World, choice: SkillChoice): void {
 
   const empty = p.attacks.indexOf(null);
   if (empty < 0) return; // 3칸이 차면 새 공격 스킬은 애초에 선택지에 나오지 않습니다
-  p.attacks[empty] = makeSlot(choice.id, 1);
+  const added = makeSlot(choice.id, 1);
+  p.attacks[empty] = added;
+  w.noteSkill(added);
 
   // 해금 조건에 쓰이는 "획득한 스킬 수"
   w.skillsTaken++;
@@ -157,6 +161,7 @@ export function applyBranchChoice(w: World, id: SkillId, branchId: SkillBranchId
   const slot = w.player.attacks.find((s) => s?.id === id) ?? null;
   if (!slot || slot.branch !== null) return;
   slot.branch = branchId;
+  w.noteSkill(slot);
   const def = getSkillDef(id);
   const branch = branchDef(branchId);
   announce(w, `${def.name} · ${branch?.name ?? branchId}`);
