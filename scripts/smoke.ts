@@ -77,7 +77,9 @@ import {
   forceClear,
   grantSkill,
   killAllEnemies,
+  levelUp,
   prepareSandbox,
+  resetLevel,
   setClock,
   spawnEnemies,
 } from '../src/game/sandbox';
@@ -5187,6 +5189,31 @@ console.log('28) 디버그 맵: 조작이 실제로 먹고, 정규 판은 못 �
 
     clearSkills(w);
     check('전부 비우기는 슬롯을 비운다', w.player.attacks.every((s) => s === null) && w.player.utility === null);
+  }
+
+  // --- 레벨 초기화 · 경험치 끄기 ---
+  {
+    const w = sandbox(709);
+    const base = createStats(w.save.perm, w.save.hardUnlocked);
+    levelUp(w, 12);
+    check('레벨업이 스탯을 올린다', w.player.level === 13 && STAT_DEFS.some((d) => w.player.stats[d.key] !== base[d.key]));
+    grantSkill(w, 'mine', false);
+
+    resetLevel(w);
+    check('레벨 초기화는 Lv.1 로 돌린다', w.player.level === 1 && w.player.xp === 0 && w.player.xpToNext === LEVEL.xpToNext(1));
+    check('레벨업으로 오른 스탯도 되돌린다', STAT_DEFS.every((d) => w.player.stats[d.key] === base[d.key]));
+    check('밀린 스킬 선택을 지운다', w.pendingSkillChoices === 0, `${w.pendingSkillChoices}`);
+    check('체력이 최대 체력을 안 넘는다', w.player.hp <= w.player.stats.maxHp);
+    check('스킬은 그대로 둔다', w.player.attacks.some((s) => s?.id === 'mine'));
+
+    w.xpBlocked = true;
+    w.killEnemy(w.spawnEnemy('basic', 300, 300, {}));
+    check('경험치를 끄면 처치해도 안 오른다', w.player.xp === 0 && w.player.level === 1, `${w.player.xp}`);
+    levelUp(w, 1);
+    check('꺼도 레벨 +1 은 먹는다', w.player.level === 2);
+    w.xpBlocked = false;
+    w.killEnemy(w.spawnEnemy('basic', 300, 300, {}));
+    check('다시 켜면 들어온다', w.player.xp > 0 || w.player.level > 2, `${w.player.xp}`);
   }
 }
 

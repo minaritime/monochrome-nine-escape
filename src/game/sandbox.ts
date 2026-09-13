@@ -1,4 +1,5 @@
-import { CANVAS, SKILL_BRANCH_LEVEL, SKILL_MAX_LEVEL, SPAWN, DEBUG_MAP, type EnemyId } from '../data/balance';
+import { CANVAS, LEVEL, SKILL_BRANCH_LEVEL, SKILL_MAX_LEVEL, SPAWN, DEBUG_MAP, type EnemyId } from '../data/balance';
+import { createStats } from './stats';
 import { clamp, TAU } from '../core/math';
 import { hasBranches } from '../skills/branches';
 import { getSkillDef, makeSlot } from '../skills/registry';
@@ -105,6 +106,28 @@ export function levelUp(w: World, count: number): void {
     const p = w.player;
     w.gainXp(p.xpToNext - p.xp, true);
   }
+}
+
+/**
+ * 레벨을 1 로 되돌립니다. **레벨업으로 오른 스탯도 같이 되돌립니다.**
+ *
+ * 레벨 숫자만 내리면 Lv.1 인데 체력 600 인 플레이어가 남아서, "1레벨에서 이 적이
+ * 어떤가"를 볼 수가 없습니다. 스탯은 판 시작과 같은 값(영구 강화까지)으로 다시 만듭니다.
+ *
+ * **스킬은 그대로 둡니다.** 빼고 싶으면 "전부 비우기"가 따로 있습니다. 둘을 묶으면
+ * 스킬을 만렙으로 차려 둔 채 레벨만 낮춰 보는 시험을 못 합니다.
+ */
+export function resetLevel(w: World): void {
+  const p = w.player;
+  p.stats = createStats(w.save.perm, w.save.hardUnlocked);
+  p.level = 1;
+  p.xp = 0;
+  p.xpToNext = LEVEL.xpToNext(1);
+  p.hp = Math.min(p.hp, p.stats.maxHp);
+  w.stats.maxLevel = 1;
+  // 밀려 있던 스킬 선택과 스탯 알림도 걷습니다. 남기면 Lv.1 로 돌아온 뒤 선택창이 뜹니다
+  w.pendingSkillChoices = 0;
+  for (const n of w.notices) n.dead = true;
 }
 
 /**

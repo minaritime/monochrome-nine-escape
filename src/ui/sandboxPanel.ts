@@ -10,6 +10,7 @@ import {
   grantSkill,
   killAllEnemies,
   levelUp,
+  resetLevel,
   setClock,
   spawnEnemies,
 } from '../game/sandbox';
@@ -101,6 +102,7 @@ function statusText(w: World): string {
   return [
     `${formatTime(w.time)}${w.freezeClock ? ' (정지)' : ''}`,
     difficultyName(w.difficulty, w.hard),
+    `Lv.${w.player.level}${w.xpBlocked ? ' (경험치 끔)' : ''}`,
     `적 ${w.countedAlive()}/${w.maxAliveNow()}`,
     `스폰 ${w.spawner.currentRate(w).toFixed(2)}/초`,
     clear,
@@ -236,13 +238,17 @@ export function createSandboxPanel(debug: Debug, actions: SandboxPanelActions): 
     ]);
   }
 
-  function playerSection(): HTMLElement {
+  function playerSection(w: World): HTMLElement {
     return section('플레이어 · 정리', [
       row('무적', [btn(debug.godMode ? '켬' : '끔', () => {
         debug.godMode = !debug.godMode;
         notice = debug.godMode ? '무적 켬' : '무적 끔';
         render();
       }, { on: debug.godMode })]),
+      // 켬 = 처치 경험치가 들어온다. 레벨 +1 버튼은 꺼도 먹습니다
+      toggle('경험치', !w.xpBlocked, (cur) => {
+        cur.xpBlocked = !cur.xpBlocked;
+      }),
       h('div', { class: 'sb-grid' }, [
         btn('회복', act((cur) => {
           cur.player.hp = cur.player.stats.maxHp;
@@ -254,6 +260,10 @@ export function createSandboxPanel(debug: Debug, actions: SandboxPanelActions): 
             return `Lv.${cur.player.level}`;
           })),
         ),
+        btn('레벨 초기화', act((cur) => {
+          resetLevel(cur);
+          return 'Lv.1 · 레벨업 스탯을 되돌렸습니다 (스킬은 그대로)';
+        })),
         btn('적 전멸', act((cur) => `${killAllEnemies(cur)}마리 처치`)),
         btn('적탄·장판 정리', act((cur) => {
           clearHostiles(cur);
@@ -314,7 +324,7 @@ export function createSandboxPanel(debug: Debug, actions: SandboxPanelActions): 
       spawnSection(w),
       summonSection(),
       bossSection(),
-      playerSection(),
+      playerSection(w),
       skillSection(w),
     );
   }

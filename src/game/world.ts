@@ -227,6 +227,12 @@ export class World {
   /** 디버그 맵: 시계를 세웁니다. 스폰과 적 행동은 그대로 돕니다 */
   freezeClock = false;
 
+  /**
+   * 디버그 맵: 처치 경험치를 막습니다. 적을 잡으면서 레벨을 고정해 두고 볼 때 씁니다.
+   * **강제 레벨업(`raw`)은 막지 않습니다.** 막으면 레벨 +1 버튼까지 같이 죽습니다
+   */
+  xpBlocked = false;
+
   /** 상점의 경험치 강화 배율. 판이 시작될 때 한 번 굳힙니다 (`gainXp` 참고) */
   private readonly xpMul: number;
 
@@ -1590,6 +1596,7 @@ export class World {
    * 자리라 배율이 곱해지면 한 번에 두 레벨이 오릅니다.
    */
   gainXp(amount: number, raw = false): void {
+    if (this.xpBlocked && !raw) return;
     const p = this.player;
     p.xp += raw ? amount : amount * this.xpMul;
     while (p.xp >= p.xpToNext) {
