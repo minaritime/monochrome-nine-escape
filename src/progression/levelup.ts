@@ -36,27 +36,21 @@ export function rollStatGains(w: World, count = STAT_GAINS_PER_LEVEL): StatGainR
 /**
  * 지정 칸 추첨. 못 뽑으면 null 을 돌려주고 호출한 쪽이 일반 추첨으로 넘깁니다.
  *
- * **열린 칸 중에서 고르되, 고른 칸이 비어 있으면 그냥 실패입니다.** 이게 봉인의 존재
- * 이유입니다. 3칸이 열려 있는데 하나만 끼면 그 하나는 70% x 1/3 = 23.3% 밖에 안 오고,
- * 나머지 몫은 일반 추첨으로 새어 나갑니다. 안 쓸 칸을 봉인해야 70% 가 온전히 갑니다.
- * "빈 칸이면 그 칸을 건너뛰고 다시 고른다"로 만들면 봉인이 아무 의미가 없어집니다.
+ * **세 칸 중에서 고르되, 고른 칸이 비어 있으면 그냥 실패입니다.** 그래서 한 스탯이
+ * 받는 몫은 70% x 1/3 = 23.3% 가 끝입니다. 예전에는 칸을 봉인해 70% 를 한 스탯에
+ * 몰 수 있었는데, 그 스탯만 과하게 커져서 봉인을 없앴습니다 (2026-09-13).
+ * "빈 칸이면 건너뛰고 다시 고른다"로 바꾸면 하나만 끼는 것이 다시 70% 가 되니 바꾸지 마십시오.
  */
 function rollDesignated(w: World, exclude: ReadonlySet<StatKey>): StatGainResult | null {
-  const openSlots = PASSIVE.slots - clampSealed(w.save.sealedSlots);
-  if (openSlots <= 0) return null;
   if (!w.rng.chance(PASSIVE.chance)) return null;
 
-  const key = w.save.equippedPassives[w.rng.int(0, openSlots)] ?? null;
+  const key = w.save.equippedPassives[w.rng.int(0, PASSIVE.slots)] ?? null;
   if (!key) return null;
   if (exclude.has(key) || !isStatRollable(key) || isStatMaxed(w.player.stats, key)) return null;
 
   const def = STAT_DEFS.find((s) => s.key === key);
   if (!def) return null;
   return { key, amount: def.step, name: def.name, text: formatGain(key, def.step) };
-}
-
-function clampSealed(v: number): number {
-  return Math.min(PASSIVE.slots - 1, Math.max(0, Math.floor(v || 0)));
 }
 
 /**
@@ -68,11 +62,8 @@ function clampSealed(v: number): number {
  */
 export function passiveChancePercent(save: SaveData, key: StatKey): number {
   if (!isStatRollable(key)) return 0;
-  const openSlots = PASSIVE.slots - clampSealed(save.sealedSlots);
-  if (openSlots <= 0) return 0;
-
-  const hits = save.equippedPassives.slice(0, openSlots).filter((k) => k === key).length;
-  return (PASSIVE.chance * hits) / openSlots * 100;
+  const hits = save.equippedPassives.slice(0, PASSIVE.slots).filter((k) => k === key).length;
+  return (PASSIVE.chance * hits) / PASSIVE.slots * 100;
 }
 
 /** 스탯 하나를 뽑습니다. exclude 에 든 것과 상한에 닿은 것은 빼고 뽑습니다 */

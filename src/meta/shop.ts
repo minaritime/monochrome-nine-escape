@@ -110,9 +110,9 @@ export function totalPurchasable(): number {
   return n;
 }
 
-/** 스탯·특수 강화를 뺀 나머지 (패시브 해금 · 봉인 · 시작 스킬) */
+/** 스탯·특수 강화를 뺀 나머지 (패시브 해금 · 시작 스킬). 칸 봉인은 2026-09-13 에 없앴습니다 */
 function nonPermTotal(): number {
-  return passiveKeys().length + PASSIVE.sealCosts.length + Object.keys(START_SKILL_COST).length;
+  return passiveKeys().length + Object.keys(START_SKILL_COST).length;
 }
 
 /**
@@ -130,7 +130,7 @@ export function totalPurchasableAll(): number {
  * 지금까지 산 개수. **하드 구간은 빠집니다** (업적 "플렉스" 용).
  *
  * 스탯을 20 으로 자르고 하드 전용 항목을 빼지 않으면, 하드 스탯 몇 칸을 사는 것만으로
- * 일반 156 이 채워집니다. 세는 쪽과 목표치가 짝을 이뤄야 합니다.
+ * 일반 154 가 채워집니다. 세는 쪽과 목표치가 짝을 이뤄야 합니다.
  */
 export function purchasedCount(save: SaveData): number {
   let n = 0;
@@ -150,7 +150,7 @@ export function purchasedCountAll(save: SaveData): number {
 }
 
 function ownedNonPerm(save: SaveData): number {
-  return save.unlockedPassives.length + save.sealsOwned + save.unlockedStartSkills.length;
+  return save.unlockedPassives.length + save.unlockedStartSkills.length;
 }
 
 // ---------------------------------------------------------------------------
@@ -217,23 +217,38 @@ export function buyPassive(save: SaveData, key: StatKey): boolean {
   return true;
 }
 
-/** 지금 열려 있는 칸 수. 봉인한 만큼 줄어듭니다 */
-export function openSlots(save: SaveData): number {
-  return PASSIVE.slots - sealedSlots(save);
+/** 스탯의 종류. 주요 칸과 부가 칸 중 어디에 들어가는가 */
+export function passiveKind(key: StatKey): 'major' | 'minor' {
+  return STAT_DEFS.find((d) => d.key === key)?.major ? 'major' : 'minor';
 }
 
-/** 마지막 한 칸은 절대 못 잠급니다. 전부 잠기면 지정 추첨 자체가 사라집니다 */
-export function sealedSlots(save: SaveData): number {
-  return Math.min(PASSIVE.slots - 1, Math.max(0, Math.floor(save.sealedSlots || 0)));
+/**
+ * 이 스탯을 끼울 칸. 없으면 -1 입니다.
+ *
+ * 이미 끼웠으면 그 칸, 아니면 **같은 종류의 빈 칸**입니다. 주요 칸은 하나뿐이라 차 있으면
+ * 그 칸을 갈아끼우고, 부가 칸은 둘이라 무엇을 뺄지 알 수 없어서 차 있으면 막습니다.
+ */
+export function slotForPassive(save: SaveData, key: StatKey): number {
+  const at = save.equippedPassives.indexOf(key);
+  if (at >= 0) return at;
+  const kind = passiveKind(key);
+  const empty = PASSIVE.slotKinds.findIndex((k, i) => k === kind && save.equippedPassives[i] === null);
+  if (empty >= 0) return empty;
+  return kind === 'major' ? PASSIVE.slotKinds.indexOf('major') : -1;
 }
 
 /**
  * 칸에 끼우거나 뺍니다. 이미 다른 칸에 낀 것을 또 끼우면 그 칸에서 빠져나옵니다.
  * 같은 스탯을 두 칸에 넣어도 이득이 없어서(확률이 그만큼 나뉠 뿐) 막는 편이 낫습니다.
+ *
+ * **칸의 종류와 스탯의 종류가 같아야 들어갑니다** (2026-09-13). 주요 스탯을 둘 이상
+ * 고정할 수 없게 하는 판정은 여기 하나입니다.
  */
 export function togglePassive(save: SaveData, slot: number, key: StatKey): boolean {
-  if (slot < 0 || slot >= openSlots(save)) return false;
+  const kind = PASSIVE.slotKinds[slot];
+  if (kind === undefined) return false;
   if (!isPassiveUnlocked(save, key)) return false;
+  if (kind !== passiveKind(key)) return false;
 
   if (save.equippedPassives[slot] === key) {
     save.equippedPassives[slot] = null;
@@ -243,34 +258,6 @@ export function togglePassive(save: SaveData, slot: number, key: StatKey): boole
     if (save.equippedPassives[i] === key) save.equippedPassives[i] = null;
   }
   save.equippedPassives[slot] = key;
-  return true;
-}
-
-export function nextSealCost(save: SaveData): number | null {
-  const owned = Math.min(PASSIVE.sealCosts.length, Math.max(0, Math.floor(save.sealsOwned || 0)));
-  return owned >= PASSIVE.sealCosts.length ? null : PASSIVE.sealCosts[owned];
-}
-
-export function buySeal(save: SaveData): boolean {
-  const cost = nextSealCost(save);
-  if (cost === null || save.coins < cost) return false;
-  save.coins -= cost;
-  save.sealsOwned += 1;
-  return true;
-}
-
-/**
- * 봉인을 한 칸 켜거나 끕니다. 산 개수까지만 켤 수 있습니다.
- *
- * **봉인하면 그 칸에 끼워둔 것이 빠집니다.** 잠긴 칸에 남겨두면 화면에는 장착으로
- * 보이는데 추첨에는 안 들어가서, 왜 확률이 안 오르는지 알 수 없게 됩니다.
- */
-export function setSealed(save: SaveData, count: number): boolean {
-  const max = Math.min(PASSIVE.sealCosts.length, PASSIVE.slots - 1, Math.floor(save.sealsOwned || 0));
-  const next = Math.min(max, Math.max(0, Math.floor(count)));
-  if (next === sealedSlots(save)) return false;
-  save.sealedSlots = next;
-  for (let i = PASSIVE.slots - next; i < PASSIVE.slots; i++) save.equippedPassives[i] = null;
   return true;
 }
 

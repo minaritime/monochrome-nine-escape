@@ -95,6 +95,14 @@ export interface DamageOptions {
   selfDrain?: boolean;
 }
 
+/**
+ * 되살아난 미라가 받는 상태이상 지속시간 배율. 그 밖의 적은 1 입니다.
+ * `revived` 는 미라만 켜는 값이라 종류를 따로 묻지 않습니다
+ */
+function revivedStatusMul(e: Enemy): number {
+  return e.revived ? ENEMY_PARAMS.mummy.revivedStatusMul : 1;
+}
+
 export interface WorldOptions {
   /** 디버그 맵. 기록 · 코인 · 업적 · 도감에 아무것도 안 남깁니다 */
   sandbox?: boolean;
@@ -1358,7 +1366,9 @@ export class World {
   stunEnemy(e: Enemy, seconds: number): void {
     // 돌진 중에는 안 걸립니다 (`Enemy.statusImmune` 주석 참고)
     if (e.statusImmune) return;
-    const s = e.boss ? seconds * (1 - STATUS.bossStatusResist) : seconds;
+    // 되살아난 미라는 반대로 **더 오래** 받습니다 (`ENEMY_PARAMS.mummy.revivedStatusMul`).
+    // 받는 피해를 80% 줄여 둔 적이라, 묶어 두는 것이 유일한 대응 수단입니다
+    const s = e.boss ? seconds * (1 - STATUS.bossStatusResist) : seconds * revivedStatusMul(e);
     e.stun = Math.max(e.stun, s);
   }
 
@@ -1370,7 +1380,7 @@ export class World {
     if (e.statusImmune) return;
     const f = e.boss ? 1 - (1 - factor) * (1 - STATUS.bossStatusResist) : factor;
     e.slow = Math.min(e.slow, f);
-    e.slowTime = Math.max(e.slowTime, time);
+    e.slowTime = Math.max(e.slowTime, time * revivedStatusMul(e));
   }
 
   // -------------------------------------------------------------------------

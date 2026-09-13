@@ -19,21 +19,18 @@ import {
   attackSlotCount,
   buyPassive,
   buyPerm,
-  buySeal,
   equippedStartCount,
   isPassiveUnlocked,
   isSkipUnlimited,
   isStartSkillUnlocked,
-  nextSealCost,
-  openSlots,
   passiveCost,
   passiveKeys,
+  passiveKind,
   maxStartFor,
   permLevel,
   permMaxLevel,
   permNextCost,
-  sealedSlots,
-  setSealed,
+  slotForPassive,
   startSkillCost,
   startSkillLevel,
   togglePassive,
@@ -91,14 +88,12 @@ function tabHelp(tab: Tab, save: SaveData): string[] {
       }
       return lines;
     }
-    case 'passive': {
-      const open = openSlots(save);
+    case 'passive':
       return [
         `레벨업마다 서로 다른 스탯 ${STAT_GAINS_PER_LEVEL}개가 오릅니다.`,
-        `그중 첫 칸만 ${Math.round(PASSIVE.chance * 100)}% 확률로 여기 끼운 스탯에서 뽑고, 나머지는 언제나 무작위입니다.`,
-        `지금은 칸이 ${open}개라 낀 스탯 하나마다 ${Math.round((PASSIVE.chance / open) * 100)}% 입니다. 안 쓸 칸은 봉인해야 그 몫이 남은 칸으로 몰립니다.`,
+        `그중 첫 칸만 ${Math.round(PASSIVE.chance * 100)}% 확률로 여기 끼운 칸 ${PASSIVE.slots}개 중 하나를 골라 그 스탯을 올리고, 나머지는 언제나 무작위입니다.`,
+        `주요 칸 1개에는 주요 스탯만, 부가 칸 2개에는 부가 스탯만 들어갑니다. 칸 하나마다 ${Math.round((PASSIVE.chance / PASSIVE.slots) * 100)}% 이고, 빈 칸의 몫은 무작위로 넘어갑니다.`,
       ];
-    }
     case 'attack': {
       const lv = startSkillLevel(save);
       return [
@@ -368,84 +363,55 @@ function hardTab(save: SaveData, refresh: () => void): HTMLElement {
  * "산 +15%p 와 실제 +13.0%p 가 다르다" 였으므로, 여기서는 `passiveChancePercent` 가
  * 내는 값을 그대로 보여줍니다. 계산해서 보여줄 수 없는 시스템은 만들지 마십시오.
  */
+const KIND_LABEL = { major: '주요', minor: '부가' } as const;
+
 function passiveTab(save: SaveData, refresh: () => void): HTMLElement {
   const rows: Node[] = [];
-  const open = openSlots(save);
-  const sealed = sealedSlots(save);
 
   // --- 칸 ---
-  for (let i = 0; i < PASSIVE.slots; i++) {
-    const isSealed = i >= open;
+  // 주요 칸 하나, 부가 칸 둘입니다. 부가 칸은 둘이라 번호를 붙여 가릅니다
+  PASSIVE.slotKinds.forEach((kind, i) => {
     const key = save.equippedPassives[i];
     const def = key ? STAT_DEFS.find((d) => d.key === key) : null;
+    const sameKind = PASSIVE.slotKinds.filter((k) => k === kind).length;
+    const nth = PASSIVE.slotKinds.slice(0, i + 1).filter((k) => k === kind).length;
+    const label = `${KIND_LABEL[kind]} 칸${sameKind > 1 ? ` ${nth}` : ''}`;
     rows.push(
       card({
         info: true,
-        // 칸은 제목 한 줄이 전부입니다. 그 `18%` 가 무엇의 확률이고 빈 칸과 봉인이
+        // 칸은 제목 한 줄이 전부입니다. 그 `23%` 가 무엇의 확률이고 칸 종류가
         // 무슨 뜻인지는 탭 줄의 `?` 한 곳에만 둡니다 (`tabHelp`)
-        title: `${i + 1}번 칸  ${isSealed ? '[봉인됨]' : def ? `${def.name}  ${passiveChancePercent(save, def.key).toFixed(0)}%` : '비어 있음'}`,
+        title: `${label}  ${def ? `${def.name}  ${passiveChancePercent(save, def.key).toFixed(0)}%` : '비어 있음'}`,
       }),
     );
-  }
-
-  // --- 봉인 ---
-  const sealCost = nextSealCost(save);
-  const maxSeal = Math.min(PASSIVE.sealCosts.length, PASSIVE.slots - 1);
-  if (sealCost !== null) {
-    rows.push(
-      card({
-        title: `봉인 구매  (${save.sealsOwned} / ${maxSeal})`,
-        desc: '칸 하나를 잠급니다',
-        price: `${sealCost} 코인`,
-        disabled: save.coins < sealCost,
-        onClick: () => {
-          if (buySeal(save)) {
-            saveGame(save);
-            refresh();
-          }
-        },
-      }),
-    );
-  }
-  if (save.sealsOwned > 0) {
-    for (let n = 0; n <= Math.min(save.sealsOwned, maxSeal); n++) {
-      const openIfN = PASSIVE.slots - n;
-      rows.push(
-        card({
-          title: `${n === 0 ? '봉인 해제' : `${n}칸 봉인`}${sealed === n ? '  [적용 중]' : ''}`,
-          desc: `칸 ${openIfN}개 · 칸당 ${Math.round((PASSIVE.chance / openIfN) * 100)}%`,
-          price: sealed === n ? '적용 중' : '적용',
-          disabled: sealed === n,
-          onClick: () => {
-            if (setSealed(save, n)) {
-              saveGame(save);
-              refresh();
-            }
-          },
-        }),
-      );
-    }
-  }
+  });
 
   // --- 패시브 ---
   for (const key of passiveKeys()) {
     const def = STAT_DEFS.find((d) => d.key === key)!;
+    const kind = passiveKind(key);
     const unlocked = isPassiveUnlocked(save, key);
     const cost = passiveCost(key);
     const slot = save.equippedPassives.indexOf(key);
-    const equipped = slot >= 0 && slot < open;
+    const equipped = slot >= 0;
     const capText = def.cap !== undefined ? ` · 상한 ${def.cap}` : '';
+    // 끼울 자리. 부가 칸이 둘 다 차 있으면 없고, 주요 칸이 차 있으면 갈아끼웁니다
+    const target = equipped ? slot : slotForPassive(save, key);
+    const full = unlocked && !equipped && target < 0;
+    const replacing = unlocked && !equipped && target >= 0 && save.equippedPassives[target] !== null;
 
     rows.push(
       card({
-        title: `${def.name}${equipped ? `  [${slot + 1}번 칸]` : ''}`,
+        title: `${def.name}${equipped ? `  [${KIND_LABEL[kind]} 칸]` : ''}`,
         // 낀 것에는 설명을 안 답니다. 이미 고른 것을 매번 다시 읽을 이유가 없고,
         // 위쪽 칸 목록과 아래쪽 목록에 같은 스탯이 두 번 나오는데 설명까지 붙으면
         // 무엇이 지금 낀 것인지가 글에 묻힙니다
-        desc: equipped ? undefined : `${def.major ? '주요' : '부가'} 스탯 · ${def.desc}${capText}`,
-        price: unlocked ? (equipped ? '빼기' : '끼우기') : `${cost} 코인`,
+        desc: equipped ? undefined : `${KIND_LABEL[kind]} 스탯 · ${def.desc}${capText}`,
+        price: unlocked
+          ? equipped ? '빼기' : full ? '칸 가득' : replacing ? '교체' : '끼우기'
+          : `${cost} 코인`,
         // 아직 안 산 것은 "잠긴 것"이 아니라 "파는 것"입니다 (시작 스킬 탭과 같은 규칙)
-        disabled: !unlocked && save.coins < cost,
+        disabled: unlocked ? full : save.coins < cost,
         onClick: () => {
           if (!unlocked) {
             if (buyPassive(save, key)) {
@@ -454,8 +420,7 @@ function passiveTab(save: SaveData, refresh: () => void): HTMLElement {
             }
             return;
           }
-          // 낀 것을 다시 누르면 빠지고, 안 낀 것은 첫 빈 칸에 들어갑니다
-          const target = equipped ? slot : save.equippedPassives.slice(0, open).indexOf(null);
+          // 낀 것을 다시 누르면 빠지고, 안 낀 것은 같은 종류의 칸에 들어갑니다
           if (target < 0) return;
           if (togglePassive(save, target, key)) {
             saveGame(save);

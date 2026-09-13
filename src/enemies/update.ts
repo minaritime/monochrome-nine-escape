@@ -151,7 +151,8 @@ function revive(e: Enemy, w: World): void {
   // 지금 속도가 곧 "원래 속도"입니다. 시간 강화도 난이도 배율도 이미 반영된 값이라
   // 표를 다시 읽어 계산하면 그것들이 통째로 빠집니다
   e.speedFloor = e.speed;
-  e.speed *= P.speedMul;
+  // 상한(`revivedSpeedCap`)은 클리어 뒤를 위한 것입니다. 원래 속도 아래로는 안 내립니다
+  e.speed = Math.max(e.speedFloor, Math.min(e.speed * P.speedMul, P.revivedSpeedCap));
   e.speedDecay = e.speedFloor * P.speedDecayPerSec;
   e.hpDrainRatio = P.hpDrainPerSec;
   w.effects.burst(e.x, e.y, 22, e.def.accent, 220, 3, 0.6);

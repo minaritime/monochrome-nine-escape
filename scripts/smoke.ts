@@ -66,7 +66,7 @@ import { World, isSkillLevel } from '../src/game/world';
 import { createPlayer, ownedSlots } from '../src/game/player';
 import { rollStatGains } from '../src/progression/levelup';
 import { addStat, createStats } from '../src/game/stats';
-import { openSlots, setSealed, togglePassive } from '../src/meta/shop';
+import { passiveKind, slotForPassive, togglePassive } from '../src/meta/shop';
 import { clampDifficulty, clearedAllFrom, difficultyEffects, difficultyKey, difficultyMods, hasCleared, unlockTimeFor } from '../src/meta/difficulty';
 import { commitRun } from '../src/meta/bestiary';
 import { DEBUG_MAP } from '../src/data/balance';
@@ -1757,12 +1757,10 @@ console.log('7-3) 성장 패시브: 지정 칸이 규칙대로 도는가');
   const trials = 30000;
   // 장착 상태를 만들어 레벨업 추첨을 반복하고, 그 스탯이 첫 칸에 뽑힌 비율을 잽니다.
   // 상수를 읽지 않고 **실제로 추첨을 돌려서** 재야 규칙이 바뀌었을 때 잡힙니다
-  const measure = (equip: (StatKey | null)[], sealed: number) => {
+  const measure = (equip: (StatKey | null)[]) => {
     const save = emptySave();
     save.unlockedPassives = equip.filter((k): k is StatKey => k !== null);
     save.equippedPassives = [...equip];
-    save.sealsOwned = sealed;
-    save.sealedSlots = sealed;
     const w = new World(save, input, 4321);
     w.spawner.enabled = false;
     let hit = 0;
@@ -1782,47 +1780,64 @@ console.log('7-3) 성장 패시브: 지정 칸이 규칙대로 도는가');
   const base = 100 - share; // 지정 칸이 실패했을 때 일반 추첨으로 넘어가는 몫
   const gen = statChanceOfAttack(); // 일반 추첨에서 공격력이 뽑힐 확률
 
-  // 3칸 열림 · 1개만 장착 → 몫이 1/3 만 오고 나머지는 새어나갑니다
-  expect('3칸 · 1개 장착', measure(['attack', null, null], 0), share / 3 + ((base + (share * 2) / 3) * gen) / 100);
-  // 3칸 열림 · 3개 장착
-  expect('3칸 · 3개 장착', measure(['attack', 'maxHp', 'regen'], 0), share / 3 + (base * gen) / 100);
-  // 2칸 봉인 · 1개 장착 → 몫이 통째로 옵니다. 봉인의 존재 이유입니다
-  expect('2칸 봉인 · 1개 장착', measure(['attack', null, null], 2), share + (base * gen) / 100);
+  // 1개만 장착 → 몫이 1/3 만 오고 나머지는 새어나갑니다.
+  // **칸 봉인이 없어진 뒤로 이게 한 스탯이 받는 최대입니다** (2026-09-13)
+  expect('1개 장착', measure(['attack', null, null]), share / 3 + ((base + (share * 2) / 3) * gen) / 100);
+  // 주요 하나 · 부가 둘
+  expect('3개 장착', measure(['attack', 'critChance', 'regen']), share / 3 + (base * gen) / 100);
   // 아무것도 안 끼면 지금까지와 똑같아야 합니다
-  expect('빈 칸만 · 장착 없음', measure([null, null, null], 0), gen);
+  expect('장착 없음', measure([null, null, null]), gen);
 
   console.log(
-    `   3칸1개 ${measure(['attack', null, null], 0).toFixed(1)}% · 3칸3개 ${measure(['attack', 'maxHp', 'regen'], 0).toFixed(1)}%` +
-      ` · 2칸봉인1개 ${measure(['attack', null, null], 2).toFixed(1)}% · 미장착 ${measure([null, null, null], 0).toFixed(1)}%`,
+    `   1개 ${measure(['attack', null, null]).toFixed(1)}% · 3개 ${measure(['attack', 'critChance', 'regen']).toFixed(1)}%` +
+      ` · 미장착 ${measure([null, null, null]).toFixed(1)}%`,
   );
 
-  // 봉인하면 잠긴 칸의 장착이 빠져야 합니다. 안 그러면 화면에는 끼워져 있는데
-  // 추첨에는 안 들어가서 왜 확률이 안 오르는지 알 수 없게 됩니다
+  // --- 칸 종류: 주요 하나 · 부가 둘 ---
+  check('칸 종류 표와 칸 수가 맞는다', PASSIVE.slotKinds.length === PASSIVE.slots);
+  check('주요 칸은 하나뿐이다', PASSIVE.slotKinds.filter((k) => k === 'major').length === 1);
   {
     const save = emptySave();
-    save.unlockedPassives = ['attack', 'maxHp', 'regen'];
-    save.equippedPassives = ['attack', 'maxHp', 'regen'];
-    save.sealsOwned = 2;
-    setSealed(save, 2);
-    check('봉인하면 잠긴 칸이 비워진다', save.equippedPassives[1] === null && save.equippedPassives[2] === null);
-    check('열린 칸은 그대로 남는다', save.equippedPassives[0] === 'attack');
+    save.unlockedPassives = ['attack', 'maxHp', 'critChance', 'regen', 'range'];
+    check('부가 스탯은 주요 칸에 안 들어간다', !togglePassive(save, 0, 'critChance') && save.equippedPassives[0] === null);
+    check('주요 스탯은 부가 칸에 안 들어간다', !togglePassive(save, 1, 'attack') && save.equippedPassives[1] === null);
+
+    togglePassive(save, slotForPassive(save, 'attack'), 'attack');
+    togglePassive(save, slotForPassive(save, 'maxHp'), 'maxHp');
+    const majors = save.equippedPassives.filter((k) => k !== null && passiveKind(k) === 'major');
+    check('주요 스탯은 둘을 고정할 수 없다', majors.length === 1, save.equippedPassives.join(','));
+    check('주요 스탯을 새로 끼우면 갈아끼운다', save.equippedPassives[0] === 'maxHp');
+
+    togglePassive(save, slotForPassive(save, 'critChance'), 'critChance');
+    togglePassive(save, slotForPassive(save, 'regen'), 'regen');
+    check('부가 칸 둘이 찬다', save.equippedPassives[1] === 'critChance' && save.equippedPassives[2] === 'regen');
+    check('부가 칸이 차면 셋째는 못 끼운다', slotForPassive(save, 'range') === -1);
   }
 
   // 같은 스탯을 두 칸에 못 넣습니다 (확률만 나뉘고 이득이 없습니다)
   {
     const save = emptySave();
-    save.unlockedPassives = ['attack'];
-    togglePassive(save, 0, 'attack');
-    togglePassive(save, 1, 'attack');
-    check('같은 패시브는 한 칸에만 들어간다', save.equippedPassives.filter((k) => k === 'attack').length === 1);
+    save.unlockedPassives = ['critChance'];
+    togglePassive(save, 1, 'critChance');
+    togglePassive(save, 2, 'critChance');
+    check('같은 패시브는 한 칸에만 들어간다', save.equippedPassives.filter((k) => k === 'critChance').length === 1);
   }
 
-  // 마지막 한 칸은 못 잠급니다
+  // 옛 저장: 주요 스탯 둘을 끼우고 칸을 봉인해 둔 사람
   {
-    const save = emptySave();
-    save.sealsOwned = 99;
-    setSealed(save, 99);
-    check('마지막 한 칸은 봉인되지 않는다', openSlots(save) >= 1, `열린 칸 ${openSlots(save)}`);
+    const old = {
+      coins: 0,
+      unlockedPassives: ['attack', 'maxHp', 'regen'],
+      equippedPassives: ['attack', 'maxHp', 'regen'],
+      sealsOwned: 2,
+      sealedSlots: 2,
+    };
+    const loaded = fromJSON(JSON.parse(JSON.stringify(old)));
+    check('옛 저장은 주요 스탯 하나만 남긴다', loaded.equippedPassives[0] === 'attack' && !loaded.equippedPassives.includes('maxHp'), loaded.equippedPassives.join(','));
+    check('옛 저장의 부가 스탯은 부가 칸으로 옮긴다', loaded.equippedPassives[1] === 'regen');
+    check('뺀 것도 해금은 그대로다', loaded.unlockedPassives.includes('maxHp'));
+    check('칸 봉인에 쓴 코인을 돌려준다', loaded.coins === 600 + 1400, `${loaded.coins}`);
+    check('봉인 칸은 저장에서 사라진다', !('sealsOwned' in loaded) && !('sealedSlots' in loaded));
   }
 
   // 옛 가중치에 쓴 코인은 환불됩니다
@@ -3873,7 +3888,8 @@ console.log('\n17) 하드모드 상점');
   // --- 업적 짝 맞추기 ---
   {
     const before = totalPurchasable();
-    check('플렉스 목표는 156 (하드 제외)', before === 156, `${before}`);
+    // 칸 봉인 2개가 빠져 156 → 154 (2026-09-13)
+    check('플렉스 목표는 154 (하드 제외)', before === 154, `${before}`);
     check('공급부족 목표가 더 크다', totalPurchasableAll() > before, `${totalPurchasableAll()}`);
 
     const s = emptySave();
@@ -5214,6 +5230,48 @@ console.log('28) 디버그 맵: 조작이 실제로 먹고, 정규 판은 못 �
     w.xpBlocked = false;
     w.killEnemy(w.spawnEnemy('basic', 300, 300, {}));
     check('다시 켜면 들어온다', w.player.xp > 0 || w.player.level > 2, `${w.player.xp}`);
+  }
+}
+
+console.log('29) 미라 부활: 4.5배 · 속도 상한 · 기절과 감속 2배');
+{
+  const P = ENEMY_PARAMS.mummy;
+  const reviveOne = (w: World) => {
+    const m = w.spawnEnemy('mummy', 1100, 650, {});
+    const base = m.speed;
+    w.damageEnemy(m, m.hp * 10);
+    step(w, P.reviveDelay + 0.05, true, false);
+    return { m, base };
+  };
+
+  // --- 클리어 전: 배율 그대로 ---
+  {
+    const w = new World(emptySave(), input, 2901, 0);
+    w.spawner.enabled = false;
+    const { m, base } = reviveOne(w);
+    check('부활했다', m.revived && m.downed <= 0 && !m.dead);
+    check('부활 직후 4.5배다', Math.abs(m.speed / base - P.speedMul) < 0.05, `${(m.speed / base).toFixed(2)}`);
+
+    // 기절과 감속은 2배로 걸리고, 되살아나기 전의 미라는 그대로입니다
+    w.stunEnemy(m, 1);
+    check('부활한 미라는 기절이 2배로 걸린다', Math.abs(m.stun - P.revivedStatusMul) < 1e-9, `${m.stun}`);
+    w.slowEnemy(m, 0.5, 1);
+    check('부활한 미라는 감속도 2배로 걸린다', Math.abs(m.slowTime - P.revivedStatusMul) < 1e-9, `${m.slowTime}`);
+
+    const plain = w.spawnEnemy('mummy', 200, 650, {});
+    w.stunEnemy(plain, 1);
+    check('되살아나기 전에는 그대로다', plain.stun === 1, `${plain.stun}`);
+  }
+
+  // --- 클리어 뒤: 상한에 걸린다 ---
+  {
+    const w = new World(emptySave(), input, 2902, 0);
+    w.spawner.enabled = false;
+    w.cleared = true;
+    w.time = w.diff.clearTime + 180;
+    const { m, base } = reviveOne(w);
+    check('클리어 뒤에는 상한을 안 넘는다', m.speed <= P.revivedSpeedCap + 1e-6, `${base.toFixed(0)} → ${m.speed.toFixed(0)}`);
+    check('상한이 원래 속도 아래로 끌어내리지는 않는다', m.speed >= base);
   }
 }
 

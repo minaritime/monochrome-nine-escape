@@ -61,14 +61,13 @@ export interface SaveData {
   /**
    * 패시브 칸 (`PASSIVE.slots` 개). 빈 칸은 null 입니다.
    *
-   * **빈 칸도 지정 추첨에 참여하고 그 몫은 그냥 흘러갑니다.** 그래서 안 쓸 칸은
-   * 봉인해야 이득입니다 (`PASSIVE` 주석 참고). 배열 길이는 항상 `PASSIVE.slots` 입니다.
+   * **자리가 곧 칸의 종류입니다** (`PASSIVE.slotKinds`). [0] 은 주요, [1]·[2] 는 부가입니다.
+   * 빈 칸도 지정 추첨에 참여하고 그 몫은 그냥 흘러갑니다. 배열 길이는 항상 `PASSIVE.slots` 입니다.
+   *
+   * 칸 봉인(`sealsOwned` · `sealedSlots`)은 2026-09-13 에 없앴습니다. 옛 저장에 남은
+   * 값은 읽을 때 코인으로 돌려주고 버립니다 (`refundSeals`)
    */
   equippedPassives: (StatKey | null)[];
-  /** 사 둔 봉인 개수 (0 ~ PASSIVE.sealCosts.length) */
-  sealsOwned: number;
-  /** 지금 실제로 봉인해 둔 칸 수 (0 ~ sealsOwned). 산 뒤에도 켜고 끌 수 있습니다 */
-  sealedSlots: number;
   unlockedStartSkills: SkillId[];
   equippedStartSkills: SkillId[];
   bestiary: Record<string, BestiaryEntry>;
@@ -177,8 +176,6 @@ export function emptySave(): SaveData {
     perm: {},
     unlockedPassives: [],
     equippedPassives: new Array(PASSIVE.slots).fill(null),
-    sealsOwned: 0,
-    sealedSlots: 0,
     unlockedStartSkills: [],
     equippedStartSkills: [],
     bestiary: {},
@@ -271,6 +268,42 @@ function refundOldWeights(weights: unknown): number {
 }
 
 /**
+ * 칸 봉인에 쓴 코인을 돌려줍니다 (2026-09-13 폐지).
+ *
+ * 위 가중치 환불과 같은 이유로 **그 시절 가격을 여기 박아둡니다.** `balance.ts` 에서
+ * 지운 값을 되살려두면 지금 시스템이 그것을 참조하게 됩니다.
+ * 환불한 뒤 저장에는 봉인 칸이 안 남으므로 두 번 받는 일은 없습니다.
+ */
+const OLD_SEAL_COSTS = [600, 1400] as const;
+
+function refundSeals(owned: unknown): number {
+  if (typeof owned !== 'number' || !Number.isFinite(owned)) return 0;
+  const n = Math.min(OLD_SEAL_COSTS.length, Math.max(0, Math.floor(owned)));
+  return OLD_SEAL_COSTS.slice(0, n).reduce((sum, c) => sum + c, 0);
+}
+
+/**
+ * 끼워 둔 패시브를 **제 종류의 칸**에 다시 앉힙니다 (2026-09-13).
+ *
+ * 예전 저장은 아무 칸에나 아무 스탯이 들어 있습니다. 앞에서부터 차례로 같은 종류의 빈
+ * 칸을 찾아 넣고, 자리가 없으면 뺍니다. 그래서 주요 스탯을 둘 이상 끼워 두었으면 먼저
+ * 온 하나만 남습니다. **해금은 그대로라** 뺀 것도 상점에서 다시 끼울 수 있습니다.
+ */
+function seatPassives(raw: unknown, unlocked: StatKey[]): (StatKey | null)[] {
+  const seats: (StatKey | null)[] = new Array(PASSIVE.slots).fill(null);
+  if (!Array.isArray(raw)) return seats;
+  for (const k of raw) {
+    if (typeof k !== 'string' || !unlocked.includes(k as StatKey)) continue;
+    const key = k as StatKey;
+    if (seats.includes(key)) continue;
+    const kind = STAT_DEFS.find((d) => d.key === key)?.major ? 'major' : 'minor';
+    const at = PASSIVE.slotKinds.findIndex((s, i) => s === kind && seats[i] === null);
+    if (at >= 0) seats[at] = key;
+  }
+  return seats;
+}
+
+/**
  * 지금 표에 있는 스킬만 남깁니다.
  *
  * **배열인지만 보고 통과시키면 안 됩니다.** 스킬 id 를 하나라도 바꾸거나 없애면, 그
@@ -291,26 +324,20 @@ function migrate(data: Partial<SaveData>): SaveData {
     ? data.unlockedPassives.filter((k): k is StatKey => validKeys.has(k as StatKey))
     : [];
 
-  // 칸 길이는 항상 PASSIVE.slots 로 맞춥니다. 해금 안 한 것이 끼워져 있으면 비웁니다
-  const equipped: (StatKey | null)[] = new Array(PASSIVE.slots).fill(null);
-  if (Array.isArray(data.equippedPassives)) {
-    for (let i = 0; i < PASSIVE.slots; i++) {
-      const k = data.equippedPassives[i];
-      if (typeof k === 'string' && unlockedPassives.includes(k as StatKey)) equipped[i] = k as StatKey;
-    }
-  }
-  const sealsOwned = clampInt(numberOr(data.sealsOwned, 0), 0, PASSIVE.sealCosts.length);
+  // 칸 길이는 항상 PASSIVE.slots 로 맞춥니다. 해금 안 한 것과 종류가 안 맞는 것은 빠집니다
+  const equipped = seatPassives(data.equippedPassives, unlockedPassives);
   const bestTimes = numberMap(data.records?.bestTimeByDifficulty);
 
   return {
     version: VERSION,
-    // 예전 가중치에 쓴 코인은 전액 돌려줍니다
-    coins: numberOr(data.coins, 0) + refundOldWeights((data as { weights?: unknown }).weights),
+    // 예전 가중치와 칸 봉인에 쓴 코인은 전액 돌려줍니다
+    coins:
+      numberOr(data.coins, 0) +
+      refundOldWeights((data as { weights?: unknown }).weights) +
+      refundSeals((data as { sealsOwned?: unknown }).sealsOwned),
     perm: isRecord(data.perm) ? (data.perm as Record<string, number>) : {},
     unlockedPassives,
     equippedPassives: equipped,
-    sealsOwned,
-    sealedSlots: clampInt(numberOr(data.sealedSlots, 0), 0, sealsOwned),
     unlockedStartSkills: knownSkills(data.unlockedStartSkills),
     equippedStartSkills: knownSkills(data.equippedStartSkills),
     bestiary: isRecord(data.bestiary) ? (data.bestiary as Record<string, BestiaryEntry>) : {},

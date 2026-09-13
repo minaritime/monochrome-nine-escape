@@ -13,7 +13,6 @@
 import {
   ARMS_UPGRADE,
   CANVAS,
-  PASSIVE,
   PERM_HARD_MAX_LEVEL,
   PERM_MAX_LEVEL,
   PERM_UPGRADES,
@@ -294,21 +293,16 @@ export function saveFor(tier: ShopTier) {
   save.perm[REVIVE_UPGRADE.key] = Math.round(REVIVE_UPGRADE.costs.length * ratio);
 
   /**
-   * 성장 패시브. 봇은 **공격력 하나에 몰고 나머지 칸을 봉인하는** 빌드를 씁니다.
+   * 성장 패시브. 전부 구매는 주요 칸에 공격력, 부가 칸에 치명타 확률 · 쿨다운 감소를
+   * 끼우고, 절반 구매는 공격력 하나만 끼웁니다 (2026-09-13).
    *
-   * 전부 구매는 2칸 봉인 + 공격력 하나(지정 몫 70% 를 통째로), 절반 구매는 봉인 없이
-   * 3칸에 세 개를 끼웁니다. 이렇게 나눈 이유는 봉인이 이 시스템의 핵심 선택이라
-   * "산 사람과 안 산 사람"의 차이를 재려면 그 축이 측정에 들어와야 하기 때문입니다.
+   * **그 전 측정값과 견줄 수 없습니다.** 예전 전부 구매는 칸 둘을 봉인해 공격력에
+   * 지정 몫 70% 를 통째로 몰던 빌드였고, 절반 구매는 주요 스탯 셋을 끼웠습니다.
+   * 둘 다 지금 규칙으로는 만들 수 없습니다.
    */
-  const focus: StatKey[] = ['attack', 'maxHp', 'fireRate'];
-  save.unlockedPassives = tier === 'full' ? [...focus] : focus.slice(0, 3);
-  if (tier === 'full') {
-    save.sealsOwned = PASSIVE.sealCosts.length;
-    save.sealedSlots = PASSIVE.sealCosts.length;
-    save.equippedPassives = ['attack', null, null];
-  } else {
-    save.equippedPassives = [...focus];
-  }
+  const focus: StatKey[] = ['attack', 'critChance', 'cooldownReduction'];
+  save.unlockedPassives = tier === 'full' ? [...focus] : focus.slice(0, 1);
+  save.equippedPassives = tier === 'full' ? [...focus] : ['attack', null, null];
   // 시작 스킬은 절반이면 1개, 전부면 2개 (`MAX_START_ATTACKS`)
   // `satisfies` 라야 오타난 스킬 id 가 이 자리에서 잡힙니다.
   // `as SkillId[]` 로 덮으면 없는 이름을 적어도 그냥 통과합니다
