@@ -38,6 +38,7 @@ export function drawWorld(r: Renderer, w: World): void {
   r.begin(ARENA_X + w.effects.shakeX, w.effects.shakeY);
 
   drawArena(r);
+  if (w.sandbox) drawSandboxRuler(r);
   drawHazards(r, w);
   drawTelegraphs(r, w);
   drawCoins(r, w);
@@ -65,6 +66,20 @@ export function drawIdleBackground(r: Renderer, hard = false): void {
   r.begin(ARENA_X, 0);
   drawArena(r);
   r.end();
+}
+
+/**
+ * 디버그 맵의 좌표 눈금과 표시.
+ *
+ * 좌표를 읽을 수 있어야 "반경 240 에 냈다"나 "레이저가 어디를 지났다"를 화면에서
+ * 확인할 수 있습니다. **경기장 바닥색은 그대로입니다.** 덧칠 금지 규칙은 여기에도 같습니다
+ */
+function drawSandboxRuler(r: Renderer): void {
+  const step = 160;
+  const color = '#3a4458';
+  for (let x = step; x < CANVAS.w; x += step) r.text(String(x), x + 3, CANVAS.h - 6, { size: 10, color });
+  for (let y = step; y < CANVAS.h; y += step) r.text(String(y), 4, y - 3, { size: 10, color });
+  r.text('디버그 맵 · 기록이 남지 않습니다', CANVAS.w / 2, CANVAS.h - 22, { size: 12, color: '#4a5570', align: 'center' });
 }
 
 function drawArena(r: Renderer): void {

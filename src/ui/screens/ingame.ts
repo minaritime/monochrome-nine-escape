@@ -251,8 +251,11 @@ export function showGameOver(w: World, coinsTotal: number, onRetry: () => void, 
   const bonusNote = w.cleared
     ? ` · ${w.clearBonusFirst ? '첫 ' : ''}클리어 보너스 +${w.clearBonus} 포함`
     : '';
-  const coinLine =
-    w.diff.coinMul > 1
+  // 디버그 맵은 아무것도 저장하지 않습니다. 코인 줄을 그대로 두면 받지도 않은 코인을
+  // 받은 것처럼 적게 됩니다
+  const coinLine = w.sandbox
+    ? '디버그 맵 · 코인과 기록은 남지 않습니다'
+    : w.diff.coinMul > 1
       ? `획득 코인 ${w.earnedCoins()}  (모은 ${w.stats.coins}${bonusNote} × 난이도 보상 ${w.diff.coinMul.toFixed(2)}배 · 보유 ${coinsTotal})`
       : `획득 코인 ${w.earnedCoins()}  (보유 ${coinsTotal}${bonusNote})`;
 

@@ -1382,6 +1382,171 @@ body.hard {
   }
 }
 
+/*
+ * 디버그 맵 조작판 (`ui/sandboxPanel.ts`). 개발자 모드 전용 도구입니다.
+ *
+ * **오버레이 바깥이라 화면이 바뀌어도 남습니다.** 판을 가리지 않게 오른쪽 가장자리에
+ * 좁게 붙이고, 파란 줄 하나로 게임 화면이 아니라 도구라는 것을 드러냅니다.
+ * 강조색(`--accent-2` · `--danger`)은 하드모드에서 안 옮겨가는 색이라 rgba 로 적어도 됩니다
+ */
+#sandbox {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 50;
+  width: 300px;
+  max-height: calc(100vh - 24px);
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 10px 12px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent-2);
+  border-radius: 10px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+  font-size: 12px;
+  color: var(--text);
+}
+
+#sandbox[hidden] {
+  display: none;
+}
+
+.sb-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.sb-title {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--accent-2);
+}
+
+.sb-status {
+  margin-bottom: 6px;
+  line-height: 1.45;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.sb-notice {
+  margin-bottom: 6px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: var(--accent);
+}
+
+.sb-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.sb-sec-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+
+.sb-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sb-label {
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+.sb-ctrl {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.sb-step {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sb-val {
+  min-width: 88px;
+  text-align: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.sb-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.sb-owned {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.sb-btn {
+  font: inherit;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.sb-btn:hover {
+  border-color: var(--accent-2);
+}
+
+.sb-btn:active {
+  transform: translateY(1px);
+}
+
+.sb-btn:focus-visible {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 1px;
+}
+
+.sb-btn.on {
+  border-color: var(--accent-2);
+  background: rgba(77, 210, 255, 0.16);
+  color: var(--accent-2);
+}
+
+.sb-btn.wide {
+  width: 100%;
+  padding: 6px;
+  font-weight: 700;
+}
+
+.sb-btn.danger {
+  border-color: rgba(255, 93, 93, 0.5);
+  color: var(--danger);
+}
+
+.sb-btn.danger:hover {
+  background: rgba(255, 93, 93, 0.12);
+}
+
 /* ---------------------------------------------------------------------------
  * 모바일 배치 (`body.mobile`, `main.ts` 의 `applyLayout`).
  *

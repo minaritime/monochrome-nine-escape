@@ -24,6 +24,8 @@ export interface SettingsActions {
   toggleDevBestiary: () => void;
   /** 개발자 모드 전용. 난이도를 일반·하드 모두 끝까지 엽니다 */
   unlockAllDifficulties: () => void;
+  /** 개발자 모드 전용. 기록이 안 남는 시험장에 들어갑니다 */
+  enterDebugMap: () => void;
   /** 단계형 설정을 한 칸 넘깁니다 (끝에 닿으면 처음으로) */
   cycleShake: () => void;
   cycleParticles: () => void;
@@ -157,6 +159,8 @@ export function showSettings(save: SaveData, notice: string, actions: SettingsAc
       // 개발자 전용. 적을 하나 고칠 때마다 50마리를 잡아 와야 수치 칸을 볼 수 있으면
       // 그 화면은 사실상 확인할 수 없는 화면입니다. 저장의 도감 기록은 안 건드립니다
       if (save.devMode) {
+        // 디버그 맵. 켜고 끄는 값이 아니라 들어가는 문이라 값 자리에 `입장` 을 적습니다
+        rows.push(toggle('디버그 맵 (개발자)', '입장', actions.enterDebugMap));
         rows.push(toggle('도감 전체 보기 (개발자)', save.devBestiary ? '켬' : '끔', actions.toggleDevBestiary));
         // 난이도 전체 해금. `?unlock` 과 같은 일을 하지만 주소를 고치지 않아도 됩니다.
         //

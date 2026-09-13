@@ -15,10 +15,26 @@ interface PendingSpawn {
 /** 난도 곡선, 해금 판정, 동시 존재 상한 */
 export class Spawner {
   timer = 1.2;
-  bossTimer = BOSS.interval;
+  bossTimer: number = BOSS.interval;
   pending: PendingSpawn[] = [];
   /** 디버그: 자동 스폰 정지 */
   enabled = true;
+  /**
+   * 디버그 맵: 보스 자동 등장만 따로 끕니다.
+   *
+   * `enabled` 는 잡몹과 보스를 한꺼번에 세우는데, 보스 패턴을 볼 때는 잡몹이 계속
+   * 나와야 하고 잡몹을 볼 때는 5분마다 보스가 끼어들면 안 됩니다.
+   * **클리어 보스는 이 값을 무시합니다.** 막으면 클리어 시간에 멈춘 판이 영영 안 풀립니다
+   */
+  bossEnabled = true;
+  /** 디버그 맵: 평소 스폰율에 곱합니다. 난이도 배율 위에 얹힙니다 */
+  rateMul = 1;
+  /**
+   * 디버그 맵: 시간·스킬 수 해금을 무시하고 전 종류를 냅니다.
+   * **하드 전용 적은 여전히 난이도가 열어줘야 나옵니다.** 그것까지 풀면 스폰 표가
+   * 난이도와 무관해져서 "이 난이도에서 무엇이 나오는가"를 볼 수 없게 됩니다
+   */
+  ignoreUnlock = false;
   /** 웨이브 타이머 (난이도 6 이상). 시작 시간 전에는 돌지 않습니다 */
   private waveTimer = 0;
   private bomberWaveTimer = 0;
@@ -106,7 +122,11 @@ export class Spawner {
   }
 
   private updateBoss(w: World, dt: number): void {
-    if (!this.enabled) return;
+    // **디버그 맵에서는 자동 스폰을 꺼도 클리어 보스는 나옵니다.** 거기서는 스폰을
+    // 꺼 둔 채 시간을 클리어 시간으로 옮기는 것이 흔한데, 그러면 타이머만 멈춘 채
+    // 아무 일도 안 일어나서 멈춘 것인지 고장인지 구분이 안 됩니다.
+    // 정규 판의 F4 는 예전 그대로 전부 세웁니다 (점검들이 그 동작에 기대고 있습니다)
+    if (!this.enabled && !w.sandbox) return;
     if (this.bossSpawnAge < Number.POSITIVE_INFINITY) this.bossSpawnAge += dt;
 
     // **클리어 보스는 상한과 주기를 무시하고 반드시 나옵니다** (2026-09-10).
@@ -120,6 +140,7 @@ export class Spawner {
       w.clearBossId = w.spawnBoss(BOSS.clearBossKind).id;
       return;
     }
+    if (!this.enabled || !this.bossEnabled) return;
     // **클리어 시간이 코앞이면 정규 보스를 건너뜁니다.** 클리어 시간이 보스 주기의
     // 배수라 그대로 두면 같은 자리에서 둘이 나오고, 그중 하나만 클리어 대상이라
     // 무엇을 잡아야 하는지 화면에서 읽히지 않습니다
@@ -150,7 +171,7 @@ export class Spawner {
   /** 초당 스폰 수. 난이도의 스폰율 배율이 곱해집니다 */
   currentRate(w: World): number {
     const base = lerp(SPAWN.rateStart, SPAWN.rateMax, progress(w.time, 0, SPAWN.rateRampTime));
-    return base * w.diff.spawnRateMul;
+    return base * w.diff.spawnRateMul * this.rateMul;
   }
 
   currentInterval(w: World): number {
@@ -166,7 +187,7 @@ export class Spawner {
       if (bal.hardOnly && !w.diff.extraEnemies.includes(id)) continue;
       const byTime = w.time >= bal.unlockTime;
       const bySkill = bal.unlockSkills > 0 && w.skillsTaken >= bal.unlockSkills;
-      if (!byTime && !bySkill) continue;
+      if (!byTime && !bySkill && !this.ignoreUnlock) continue;
       if (bal.maxAlive !== undefined && this.countAlive(w, id) >= bal.maxAlive) continue;
       out.push(id);
     }
@@ -221,7 +242,7 @@ export class Spawner {
   }
 }
 
-function randomEdge(w: World): { x: number; y: number } {
+export function randomEdge(w: World): { x: number; y: number } {
   const inset = SPAWN.edgeInset;
   const side = w.rng.int(0, 4);
   switch (side) {

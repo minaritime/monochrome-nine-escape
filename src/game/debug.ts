@@ -88,13 +88,20 @@ export class Debug {
       w.damagePlayer(w.player.stats.maxHp + 1, true, killer ? killerOf(killer) : null);
     }
 
-    // 무적은 체력까지 되돌립니다. 무적 시간만 켜면 **스스로 치르는 대가**를 못 막습니다.
-    // 넉백 폭발이 최대 체력의 20% 를 태우는데 그건 무적을 일부러 무시하므로(`spendHp`),
-    // 무적을 켜두고도 넉백을 몇 번 쓰면 그냥 죽습니다
-    if (this.godMode) {
-      w.player.invuln = Math.max(w.player.invuln, 0.5);
-      w.player.hp = w.player.stats.maxHp;
-    }
+    this.applyGodMode(w);
+  }
+
+  /**
+   * 무적은 체력까지 되돌립니다. 무적 시간만 켜면 **스스로 치르는 대가**를 못 막습니다.
+   * 넉백 폭발이 최대 체력의 20% 를 태우는데 그건 무적을 일부러 무시하므로(`spendHp`),
+   * 무적을 켜두고도 넉백을 몇 번 쓰면 그냥 죽습니다.
+   *
+   * 디버그 맵은 F1 오버레이를 안 켜도 무적이 들어야 해서 `main.ts` 가 따로 부릅니다
+   */
+  applyGodMode(w: World): void {
+    if (!this.godMode) return;
+    w.player.invuln = Math.max(w.player.invuln, 0.5);
+    w.player.hp = w.player.stats.maxHp;
   }
 
   draw(r: Renderer, w: World, fps: number): void {

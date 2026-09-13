@@ -69,6 +69,18 @@ import { addStat, createStats } from '../src/game/stats';
 import { openSlots, setSealed, togglePassive } from '../src/meta/shop';
 import { clampDifficulty, clearedAllFrom, difficultyEffects, difficultyKey, difficultyMods, hasCleared, unlockTimeFor } from '../src/meta/difficulty';
 import { commitRun } from '../src/meta/bestiary';
+import { DEBUG_MAP } from '../src/data/balance';
+import type { SkillId } from '../src/skills/types';
+import {
+  clearHostiles,
+  clearSkills,
+  forceClear,
+  grantSkill,
+  killAllEnemies,
+  prepareSandbox,
+  setClock,
+  spawnEnemies,
+} from '../src/game/sandbox';
 import { emptySave, fromJSON, type SaveData } from '../src/meta/save';
 import {
   attackSlotCount,
@@ -5047,6 +5059,135 @@ console.log('\n27) 하드 7: 봉인적');
   console.log(
     `   봉인 ${ENEMY_PARAMS.sealer.sealTime}초 (정예 ${ELITE_TRAITS.sealer?.sealTime}초) · ${ENEMY_PARAMS.sealer.bulletCount}갈래 · 조준 ${ENEMY_PARAMS.sealer.aimTime}초`,
   );
+}
+
+console.log('28) 디버그 맵: 조작이 실제로 먹고, 정규 판은 못 건드리는가');
+{
+  const sandbox = (seed: number): World => {
+    const w = new World(emptySave(), input, seed, 0, { sandbox: true });
+    prepareSandbox(w);
+    return w;
+  };
+
+  // --- 조용한 경기장에서 시작합니다 ---
+  {
+    const w = sandbox(700);
+    check('자동 스폰과 보스 자동이 꺼진 채 시작한다', !w.spawner.enabled && !w.spawner.bossEnabled);
+    step(w, 3, true, false);
+    check('그래서 적이 안 나온다', w.enemies.length === 0, `${w.enemies.length}`);
+  }
+
+  // --- 난이도는 디버그 맵에서만 바뀝니다 ---
+  {
+    const w = sandbox(701);
+    check('판 중에 난이도를 바꿀 수 있다', w.setDifficulty(15, false) && w.difficulty === 15 && w.diff.hpMul > 1);
+    check('15 로 올리면 무적 바보적이 나온다', w.enemies.some((e) => e.immortal && !e.dead));
+    w.setDifficulty(0, false);
+    check('0 으로 내리면 무적 바보적이 사라진다', !w.enemies.some((e) => e.immortal && !e.dead));
+    check('하드로 바꾸면 입문 아래로 안 간다', w.setDifficulty(-1, true) && w.hard && w.difficulty === 0);
+
+    // **정규 판에서 바뀌면 깨지도 않은 난이도가 클리어로 저장됩니다**
+    const normal = new World(emptySave(), input, 702, 0);
+    check('정규 판은 난이도를 못 바꾼다', !normal.setDifficulty(5, false) && normal.difficulty === 0);
+    check('정규 판은 디버그 맵이 아니다', !normal.sandbox);
+  }
+
+  // --- 스폰 손잡이 ---
+  {
+    const w = sandbox(703);
+    const base = w.spawner.currentRate(w);
+    w.spawner.rateMul = 4;
+    check('스폰율 배율이 곱해진다', Math.abs(w.spawner.currentRate(w) - base * 4) < 1e-9, `${base} → ${w.spawner.currentRate(w)}`);
+    w.spawner.rateMul = 1;
+
+    const before = w.spawner.unlockedIds(w).length;
+    w.spawner.ignoreUnlock = true;
+    const normalIds = (Object.keys(ENEMY_TABLE) as EnemyId[]).filter((id) => !ENEMY_TABLE[id].hardOnly);
+    const after = w.spawner.unlockedIds(w);
+    check('해금 무시면 0분에도 일반 적 전 종류가 나온다', after.length === normalIds.length && after.length > before, `${before} → ${after.length} / ${normalIds.length}`);
+    check('해금 무시도 하드 전용 적은 안 연다', !after.some((id) => ENEMY_TABLE[id].hardOnly));
+
+    // 보스 자동만 끄면 잡몹은 나오고 보스는 안 나옵니다
+    w.spawner.enabled = true;
+    w.spawner.bossTimer = 0.05;
+    step(w, 1, true, false);
+    check('보스 자동을 끄면 주기가 와도 보스가 안 나온다', w.bossesSpawned === 0, `${w.bossesSpawned}`);
+    w.spawner.bossEnabled = true;
+    w.spawner.bossTimer = 0.05;
+    step(w, 0.5, true, false);
+    check('다시 켜면 나온다', w.bossesSpawned === 1, `${w.bossesSpawned}`);
+  }
+
+  // --- 스폰을 꺼도 클리어 보스는 나옵니다 (안 나오면 타이머만 멈춘 채 아무 일도 없습니다) ---
+  {
+    const w = sandbox(704);
+    setClock(w, w.diff.clearTime);
+    step(w, 0.2, true, false);
+    check('디버그 맵에서는 스폰을 꺼도 클리어 보스가 나온다', w.clearBossId !== 0);
+
+    const normal = new World(emptySave(), input, 705, 0);
+    normal.spawner.enabled = false;
+    normal.time = normal.diff.clearTime;
+    step(normal, 0.2, true, false);
+    check('정규 판의 F4 는 예전처럼 전부 세운다', normal.clearBossId === 0);
+  }
+
+  // --- 시계 ---
+  {
+    const w = sandbox(706);
+    setClock(w, -50);
+    check('시계는 0 아래로 안 간다', w.time === 0);
+    setClock(w, 120);
+    w.freezeClock = true;
+    step(w, 2, true, false);
+    check('시계 정지면 시간이 안 흐른다', w.time === 120, `${w.time}`);
+    w.freezeClock = false;
+    check('강제 클리어가 먹는다', forceClear(w) && w.cleared && w.time >= w.diff.clearTime);
+    check('두 번은 안 먹는다', !forceClear(w));
+  }
+
+  // --- 소환 ---
+  {
+    const w = sandbox(707);
+    const n = spawnEnemies(w, 'tank', 5, true, 'near');
+    const tanks = w.enemies.filter((e) => e.defId === 'tank');
+    check('고른 수만큼 나온다', n === 5 && tanks.length === 5, `${tanks.length}`);
+    check('정예로 나온다', tanks.every((e) => e.elite));
+    check(
+      '내 주변에 나온다',
+      tanks.every((e) => Math.hypot(e.x - w.player.x, e.y - w.player.y) <= DEBUG_MAP.nearDistance + 1),
+    );
+
+    spawnEnemies(w, 'basic', 3, false, 'edge');
+    w.setDifficulty(15, false);
+    const killed = killAllEnemies(w);
+    check('전멸은 무적 바보적을 남긴다', killed === 8 && w.enemies.some((e) => e.immortal && !e.dead), `${killed}`);
+
+    w.addProjectile({ x: 100, y: 100, friendly: false });
+    w.addProjectile({ x: 100, y: 100, friendly: true });
+    clearHostiles(w);
+    check('정리는 적탄만 걷는다', w.projectiles.every((p) => p.friendly === !p.dead));
+  }
+
+  // --- 스킬 ---
+  {
+    const w = sandbox(708);
+    check('없는 스킬은 1레벨로 들어온다', grantSkill(w, 'shotgun', false).includes('획득') && w.player.attacks[0]?.level === 1);
+    grantSkill(w, 'shotgun', false);
+    check('있는 스킬은 한 레벨 오른다', w.player.attacks[0]?.level === 2);
+    grantSkill(w, 'shotgun', true);
+    check('만렙은 끝까지 올린다', w.player.attacks[0]?.level === SKILL_MAX_LEVEL);
+    check('6레벨을 지나가면 갈래 선택이 뜬다', w.pendingBranchChoices.includes('shotgun'));
+
+    const slots = w.player.attacks.length;
+    const fill: SkillId[] = ['mine', 'missile', 'chain', 'laser', 'sniper'];
+    for (const id of fill.slice(0, slots - 1)) grantSkill(w, id, false);
+    const full = grantSkill(w, fill[slots - 1], false);
+    check('공격 칸이 차면 거절한다', full.includes('가득'), full);
+
+    clearSkills(w);
+    check('전부 비우기는 슬롯을 비운다', w.player.attacks.every((s) => s === null) && w.player.utility === null);
+  }
 }
 
 console.log(failures === 0 ? '\n전부 통과했습니다' : `\n실패 ${failures}건`);

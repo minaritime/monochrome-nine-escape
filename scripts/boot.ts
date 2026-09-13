@@ -609,6 +609,70 @@ async function main(): Promise<void> {
     check('끝 난이도가 잠겨 있지 않다', !overlayText().includes('잠김'), overlayText().trim().slice(0, 80));
     press('Escape');
 
+    // **디버그 맵** (2026-09-13). 기록이 안 남는 시험장입니다
+    {
+      const records = () => JSON.stringify(JSON.parse(store.get('dodge-game-save') ?? '{}').records ?? {});
+      const recordsBefore = records();
+      const panel = () => bodyEl.children.find((c) => c.id === 'sandbox') ?? null;
+      const panelShown = () => {
+        const p = panel();
+        return p !== null && (p as unknown as { hidden?: boolean }).hidden !== true;
+      };
+      const clickSandbox = (label: string): boolean => {
+        const walk = (el: StubElement): StubElement | null => {
+          if (el.tagName === 'button' && el.text === label) return el;
+          for (const c of el.children) {
+            const hit = walk(c);
+            if (hit) return hit;
+          }
+          return null;
+        };
+        const p = panel();
+        const hit = p ? walk(p) : null;
+        hit?.click();
+        return hit !== null;
+      };
+
+      press('Digit6');
+      check('개발자 모드에서는 디버그 맵이 보인다', overlayText().includes('디버그 맵 (개발자)'));
+      clickCard('디버그 맵 (개발자)');
+      frames(3);
+      check('디버그 맵에 들어가면 판이 돈다', overlayText().trim() === '', overlayText().trim().slice(0, 40));
+      check('조작판이 뜬다', panelShown());
+
+      check('조작판에서 소환할 수 있다', clickSandbox('소환'));
+      const panelText = () => (panel() ? overlayText(panel()!) : '');
+      check('소환하면 적 수가 올라간다', /적 [1-9]/.test(panelText()), panelText().slice(0, 80));
+
+      // 일시정지 중에는 조작판을 숨깁니다. 카드를 가립니다
+      press('Escape');
+      frames(2);
+      check('일시정지 중에는 조작판이 숨는다', !panelShown());
+      press('Escape');
+      frames(2);
+      check('돌아오면 다시 뜬다', panelShown());
+
+      // 죽어도 기록이 안 남고, 다시 도전은 디버그 맵으로 돌아갑니다
+      check('조작판에서 즉사할 수 있다', clickSandbox('즉사'));
+      let dead = false;
+      for (let i = 0; i < 8 && !dead; i++) {
+        frames(80);
+        if (overlayText().includes('쓰러졌습니다')) dead = true;
+        else clickSandbox('즉사');
+      }
+      check('디버그 맵에서 죽으면 게임오버가 뜬다', dead, overlayText().trim().slice(0, 60));
+      check('코인과 기록이 안 남는다고 적는다', overlayText().includes('남지 않습니다'));
+      press('Enter');
+      frames(3);
+      check('다시 도전은 디버그 맵으로 돌아간다', panelShown() && overlayText().trim() === '');
+
+      check('나가기가 있다', clickSandbox('나가기'));
+      frames(2);
+      check('나가면 메인으로 온다', overlayText().includes('게임 시작'), overlayText().trim().slice(0, 40));
+      check('나가면 조작판이 사라진다', !panelShown());
+      check('디버그 맵은 기록을 안 남긴다', records() === recordsBefore);
+    }
+
     press('Digit6');
     press('Escape');
 

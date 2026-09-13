@@ -95,6 +95,13 @@ export interface DamageOptions {
   selfDrain?: boolean;
 }
 
+export interface WorldOptions {
+  /** 디버그 맵. 기록 · 코인 · 업적 · 도감에 아무것도 안 남깁니다 */
+  sandbox?: boolean;
+  /** 하드 여부. 안 주면 저장의 `hardMode` 를 따릅니다 */
+  hard?: boolean;
+}
+
 /** 엔티티 컨테이너 + 업데이트 순서 */
 /**
  * 레이저에 죽었을 때의 사인. **적이 아니라 판의 장치라 `id` 가 null 입니다.**
@@ -197,14 +204,28 @@ export class World {
   lastDamageSource: KillerInfo | null = null;
   killedBy: KillerInfo | null = null;
 
-  /** 이번 판의 난이도와 그로 인한 적 강화 배율 */
-  readonly difficulty: number;
-  readonly diff: DifficultyMods;
+  /**
+   * 이번 판의 난이도와 그로 인한 적 강화 배율.
+   *
+   * **판 중에 바꾸는 곳은 `setDifficulty` 하나이고 디버그 맵에서만 듣습니다.**
+   * 정규 판에서 바뀌면 깨지도 않은 난이도가 클리어로 저장됩니다
+   */
+  difficulty: number;
+  diff: DifficultyMods;
   /**
    * 이번 판이 하드모드인가. **판 시작에 굳힙니다.**
    * 도중에 설정이 바뀌어도 이미 도는 판의 규칙은 안 바뀌어야 합니다
    */
-  readonly hard: boolean;
+  hard: boolean;
+
+  /**
+   * 디버그 맵인가. 참이면 판이 끝나도 기록 · 코인 · 업적 · 도감에 아무것도 안 남깁니다
+   * (`main.ts` 의 `finishRun`). **판 시작에 굳히고 바꾸지 않습니다**
+   */
+  readonly sandbox: boolean;
+
+  /** 디버그 맵: 시계를 세웁니다. 스폰과 적 행동은 그대로 돕니다 */
+  freezeClock = false;
 
   /** 상점의 경험치 강화 배율. 판이 시작될 때 한 번 굳힙니다 (`gainXp` 참고) */
   private readonly xpMul: number;
@@ -238,8 +259,10 @@ export class World {
     readonly input: Input,
     seed?: number,
     difficulty = 0,
+    opts: WorldOptions = {},
   ) {
-    this.hard = save.hardMode;
+    this.sandbox = opts.sandbox ?? false;
+    this.hard = opts.hard ?? save.hardMode;
     this.difficulty = clampDifficulty(difficulty, this.hard);
     this.diff = difficultyMods(this.difficulty, this.hard);
     this.xpMul = xpMultiplier(save);
@@ -269,6 +292,28 @@ export class World {
     e.speed *= ENEMY_PARAMS.fool.immortalSpeedMul;
   }
 
+  /**
+   * 판 중에 난이도를 갈아끼웁니다. **디버그 맵에서만 듣습니다** (정규 판이면 false).
+   *
+   * 배율은 `timeScale()` 과 스폰이 매번 `diff` 를 읽으므로 **새로 나오는 적부터**
+   * 먹습니다. 이미 나와 있는 적의 체력과 공격력은 그대로입니다.
+   *
+   * 무적 바보적만은 판 시작에 한 번 내는 장치라 여기서 맞춰줍니다. 안 맞추면 15 에서
+   * 0 으로 내려도 못 죽이는 바보적이 남고, 0 에서 15 로 올려도 안 나옵니다.
+   */
+  setDifficulty(level: number, hard: boolean): boolean {
+    if (!this.sandbox) return false;
+    this.hard = hard;
+    this.difficulty = clampDifficulty(level, hard);
+    this.diff = difficultyMods(this.difficulty, hard);
+
+    const fools = this.enemies.filter((e) => e.immortal && !e.dead);
+    if (this.diff.foolInvuln && fools.length === 0) this.spawnImmortalFool();
+    // 보상 없이 지웁니다. `killEnemy` 를 타면 못 죽이는 적에게 경험치가 붙습니다
+    if (!this.diff.foolInvuln) for (const e of fools) e.dead = true;
+    return true;
+  }
+
   // -------------------------------------------------------------------------
   // 갱신
   // -------------------------------------------------------------------------
@@ -281,7 +326,9 @@ export class World {
     // 멈춘 동안에도 스폰과 적 행동은 평소대로 돕니다. 멈추는 것은 시계뿐이라
     // 그 보스전은 클리어 시간 시점의 난도로 고정된 채 치릅니다.
     // 잡으면 `cleared` 가 켜지고 그때부터 다시 흐르며 `OVERTIME` 이 쌓입니다
-    if (this.cleared) this.time += dt;
+    if (this.freezeClock) {
+      // 디버그 맵 전용. 시계만 세우고 나머지는 그대로 돕니다
+    } else if (this.cleared) this.time += dt;
     else if (this.time < this.diff.clearTime) this.time = Math.min(this.diff.clearTime, this.time + dt);
 
     // 업적: "첫 보스까지 안 움직이기" 는 조작 여부를 봐야 합니다.

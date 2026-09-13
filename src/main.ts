@@ -26,6 +26,8 @@ import { showDebugGate } from './ui/screens/debugGate';
 import type { SkillId } from './skills/types';
 import { checkAchievements, commitAchieveStats, resetAchievements, unlockDirect } from './meta/achievements';
 import { clearToasts, pushToasts, updateToasts } from './ui/toast';
+import { prepareSandbox } from './game/sandbox';
+import { createSandboxPanel, type SandboxPanel } from './ui/sandboxPanel';
 
 type Screen =
   | 'main'
@@ -67,6 +69,18 @@ let difficulty = save.lastDifficulty;
 debug.unlocked = save.devMode;
 /** 업적 판정까지 남은 시간 */
 let achieveTimer = 0;
+
+/**
+ * 디버그 맵 조작판. 처음 들어갈 때 만들고 그 뒤로는 다시 씁니다.
+ * 개발자 모드를 한 번도 안 켠 브라우저에는 아예 안 생깁니다
+ */
+let sandboxPanel: SandboxPanel | null = null;
+/**
+ * 디버그 맵에서 마지막으로 고른 난이도. **정규 판의 `difficulty` 와 섞지 않습니다.**
+ * 섞으면 시험장에서 15 를 본 뒤 정규 판이 15 로 시작합니다
+ */
+let sandboxLevel = 0;
+let sandboxHard = false;
 
 watchMouse();
 watchKonami();
@@ -285,6 +299,9 @@ function closeOverlay(next: Screen): void {
 }
 
 function goMain(): void {
+  // 디버그 맵이 켜 둔 무적을 정규 판으로 끌고 가지 않습니다. F1 오버레이를 여는 순간
+  // 아무도 켠 적 없는 무적이 들어가 있게 됩니다
+  if (world?.sandbox) debug.godMode = false;
   world = null;
   open('main', () =>
     showMainMenu(save, {
@@ -416,6 +433,7 @@ function goSettings(notice = ''): void {
         saveGame(save);
         goSettings(`난이도를 ${DIFFICULTY.max} 까지 전부 엽니다 (일반 · 하드)`);
       },
+      enterDebugMap: startSandbox,
       resetAll: () => {
         save = resetSave();
         // 저장이 비면 하드모드도 꺼집니다. 색만 붉게 남으면 화면이 거짓말을 합니다
@@ -492,6 +510,31 @@ function startRun(): void {
   closeOverlay('playing');
 }
 
+/**
+ * 디버그 맵에 들어갑니다 (2026-09-13, 개발자 모드 전용).
+ *
+ * **기록 · 코인 · 업적 · 도감에 아무것도 안 남깁니다** (`finishRun` 이 막습니다).
+ * 난이도와 시간을 판 중에 바꾸는 곳이라, 남기면 깨지도 않은 난이도가 클리어로 저장됩니다.
+ *
+ * **무적을 켠 채 시작합니다.** 무엇을 보러 왔든 죽으면 차려 둔 판이 날아가서, 피해를
+ * 볼 때만 끄는 편이 낫습니다. 조작판에서 바로 끌 수 있습니다
+ */
+function startSandbox(): void {
+  if (!save.devMode) return;
+  sandboxPanel ??= createSandboxPanel(debug, {
+    onDifficulty: (lv, hard) => {
+      sandboxLevel = lv;
+      sandboxHard = hard;
+    },
+    exit: goMain,
+  });
+  world = new World(save, input, seedFromUrl(), sandboxLevel, { sandbox: true, hard: sandboxHard });
+  prepareSandbox(world);
+  debug.godMode = true;
+  input.clear();
+  closeOverlay('playing');
+}
+
 function pauseRun(): void {
   if (!world) return;
   const w = world;
@@ -522,6 +565,9 @@ function openBranchChoice(id: SkillId): void {
 }
 
 function finishRun(w: World): void {
+  // 디버그 맵은 아무것도 남기지 않습니다. 판이 끝나는 길(사망 · 일시정지에서 나가기)이
+  // 전부 여기를 지나므로 이 한 줄이 문지기입니다
+  if (w.sandbox) return;
   commitRun(save, w);
   commitAchieveStats(save, w);
   saveGame(save);
@@ -577,7 +623,8 @@ function endRun(): void {
   const w = world;
   finishRun(w);
   open('gameover', () =>
-    showGameOver(w, save.coins, startRun, goMain),
+    // 디버그 맵에서 죽었으면 "다시 도전"도 디버그 맵으로 돌아갑니다
+    showGameOver(w, save.coins, w.sandbox ? startSandbox : startRun, goMain),
   );
 }
 
@@ -600,6 +647,14 @@ const loop = new GameLoop({
     if (touchUi) {
       touchUi.setVisible(mobile && screen === 'playing');
       touchUi.update(world);
+    }
+
+    // 디버그 맵 조작판. 판이 도는 동안에만 띄웁니다. 레벨업 창이나 일시정지 위에
+    // 겹치면 카드를 가립니다
+    if (sandboxPanel) {
+      const sandboxWorld = world?.sandbox ? world : null;
+      sandboxPanel.update(sandboxWorld, dt);
+      sandboxPanel.setVisible(screen === 'playing' && sandboxWorld !== null);
     }
 
     // **메인 화면에서도 F1 로 잠금 화면을 엽니다** (2026-09-06). 개발자 스위치가
@@ -643,12 +698,16 @@ const loop = new GameLoop({
       return;
     }
 
+    // 디버그 맵은 F1 오버레이를 안 켜도 무적이 들어야 합니다
+    if (world.sandbox) debug.applyGodMode(world);
+
     world.update(dt);
 
     // 판이 도는 동안에도 조건이 갖춰지는 순간 바로 뜹니다.
-    // 매 프레임 49개를 돌릴 이유가 없어서 ACHIEVEMENT.checkInterval 간격으로 봅니다
+    // 매 프레임 49개를 돌릴 이유가 없어서 ACHIEVEMENT.checkInterval 간격으로 봅니다.
+    // **디버그 맵은 안 훑습니다.** 레벨 +5 와 보스 소환만으로 열리는 업적이 수두룩합니다
     achieveTimer -= dt;
-    if (achieveTimer <= 0) {
+    if (!world.sandbox && achieveTimer <= 0) {
       achieveTimer = ACHIEVEMENT.checkInterval;
       sweepAchievements(world);
     }
