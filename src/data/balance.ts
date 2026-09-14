@@ -430,16 +430,17 @@ export const ENEMY_PARAMS = {
     blastDamageMul: 2.5,
   },
   /**
-   * burst* 는 난이도 14 에서만 씁니다 (나뉘는 순간 사방으로 뿌리는 탄).
-   * 갈래를 자식 수(3)와 맞추지 않고 6 으로 둔 이유는, 분열체가 흩어지는 방향과
-   * 탄이 가는 방향이 같으면 "분열체 뒤에 숨어 탄만 피하는" 자리가 생기기 때문입니다
+   * burst* 는 난이도 14 에서만 씁니다 (나뉘는 순간 쏘는 탄).
+   *
+   * **플레이어 쪽으로 한 발입니다** (2026-09-14 사용자 확정). 예전에는 사방 6갈래였는데,
+   * 정예 분열적은 1 → 3 → 9 로 나뉘어 한 마리에서 탄이 24발 쏟아졌습니다.
+   * 한 발은 옆으로 비키면 피하므로 "잡는 순간 그 자리에 서 있지 않는다"만 요구합니다
    */
   splitter: {
     children: 3,
     childScale: 0.55,
     childHpMul: 0.35,
     childSpeedMul: 1.35,
-    burstCount: 6,
     burstSpeed: 260,
     burstRadius: 6,
     burstDamageMul: 0.7,
@@ -956,7 +957,7 @@ export interface DifficultyStep {
   chargerNoStun?: boolean;
   /** 돌진이 끝나면 곧바로 다음 예고를 시작합니다 (예고 시간은 그대로) */
   chargerNoCooldown?: boolean;
-  /** 분열할 때 사방으로 탄을 뿌립니다 */
+  /** 분열할 때 플레이어 쪽으로 탄을 한 발 쏩니다 */
   splitterShoot?: boolean;
   /**
    * 판이 시작할 때 무적인 바보적 한 마리가 함께 등장합니다.
@@ -1031,13 +1032,14 @@ export const DIFFICULTY_EASY: DifficultyStep = {
 export const DIFFICULTY_STEPS: readonly DifficultyStep[] = [
   { label: '적 체력 +20%', hpMul: 1.2 },
   { label: '적 공격력 +20%', damageMul: 1.2 },
-  { label: '클리어 조건 +15분, 적 체력 +10%', clearTimeAdd: 900, hpMul: 1.1 },
+  { label: '클리어 조건 +15분, 적 체력 +10%, 보스 체력 +100%', clearTimeAdd: 900, hpMul: 1.1, bossHpMul: 2.0 },
   { label: '적 이동속도 +10%, 적 공격력 +10%', speedMul: 1.1, damageMul: 1.1 },
   { label: '스폰율 +25%, 적탄 속도 +10%', spawnRateMul: 1.25, bulletSpeedMul: 1.1 },
   {
-    label: '1분마다 적 5마리 웨이브, 적 공격력 +10%',
+    label: '1분마다 적 5마리 웨이브, 적 공격력 +10%, 보스 체력 +100%',
     wave: { startTime: 60, interval: 60, count: 5 },
     damageMul: 1.1,
+    bossHpMul: 2.0,
   },
   { label: '적 체력 +30%', hpMul: 1.3 },
   {
@@ -1048,9 +1050,9 @@ export const DIFFICULTY_STEPS: readonly DifficultyStep[] = [
     hpMul: 1.15,
   },
   {
-    label: '모든 적이 정예가 됨, 정예 표식 사라짐, 보스 체력·공격력 +15%',
+    label: '모든 적이 정예가 됨, 정예 표식 사라짐, 보스 체력 +100%, 보스 공격력 +15%',
     allElite: true,
-    bossHpMul: 1.15,
+    bossHpMul: 2.0,
     bossDamageMul: 1.15,
   },
   { label: '스폰율 +25%', spawnRateMul: 1.25 },
@@ -1060,15 +1062,17 @@ export const DIFFICULTY_STEPS: readonly DifficultyStep[] = [
     hpMul: 1.1,
   },
   {
-    label: '3분부터 30초마다 자폭병 5마리, 자폭병 능력 강화',
+    label: '3분부터 30초마다 자폭병 5마리, 자폭병 능력 강화, 보스 체력 +100%',
     bomberWave: { startTime: 180, interval: 30, count: 5 },
     bomberSpeedMul: 0.8,
     bomberDamageMul: 1.2,
+    bossHpMul: 2.0,
   },
   { label: '돌진적 능력 강화', chargerNoStun: true, chargerNoCooldown: true },
   { label: '분열적 능력 강화, 적 공격력 +20%, 체력 +25%', splitterShoot: true, damageMul: 1.2, hpMul: 1.25 },
   {
-    label: '무적 바보적 1마리 상시 등장, 바보적·겁쟁이·장판적 능력 강화, 접촉 피해 +50%',
+    label: '무적 바보적 1마리 상시 등장, 바보적·겁쟁이·장판적 능력 강화, 접촉 피해 +50%, 보스 체력 +100%',
+    bossHpMul: 2.0,
     foolInvuln: true,
     foolShotDirs: 8,
     contactDamageMul: 1.5,
@@ -1087,6 +1091,21 @@ export const DIFFICULTY = {
   coinMulPerLevel: 0.15,
   /** 난이도 -1 의 코인 배율 */
   easyCoinMul: 0.7,
+  /**
+   * 난이도 15 의 코인 **드랍 확률** 배율 (2026-09-14 사용자 확정).
+   *
+   * 2026-09-12 에 `ENEMY_BASE.coinChance` 와 `ELITE.coinChance` 를 절반으로 깎았는데,
+   * 그 깎인 몫을 난이도가 오를수록 되돌려 **일반 15 에서 원래 확률(-0%)** 이 되게 합니다.
+   * 0 에서 x1, 15 에서 이 값이고 그 사이는 직선입니다. 입문(-1)은 0 과 같습니다.
+   *
+   * `coinMul`(주운 코인에 곱하는 보상 배율)과 **다른 값입니다.** 이건 떨어지는 개수를
+   * 늘리고, 그건 판이 끝날 때 곱합니다. 둘이 같이 오르므로 높은 난이도의 판당 코인은
+   * 두 배율의 곱만큼 뜁니다.
+   *
+   * **보스 코인과 하수인 코인에는 안 겁니다.** 그 둘은 절반으로 깎은 적이 없습니다.
+   * 하드는 일반 15 에서 이어지므로 이 값 그대로입니다
+   */
+  coinDropMulMax: 2,
   /**
    * 보스 코인은 난이도 이 값마다 bossCoinMul 만큼 오릅니다.
    * 다른 배율과 같이 **합**입니다. 3단계마다 +20%p 이므로 15단계에서 x2.00 입니다

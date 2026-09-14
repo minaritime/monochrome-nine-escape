@@ -83,7 +83,6 @@ function foolShoot(e: Enemy, w: World): void {
       damage: e.damage,
       // 적탄은 쏜 적이 누구든 같은 빨강입니다 (ENEMY_BULLET 주석 참고)
       color: ENEMY_BULLET.color,
-      life: 6,
       source: killerOf(e),
     });
   }

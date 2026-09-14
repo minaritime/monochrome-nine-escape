@@ -1936,6 +1936,42 @@ console.log('8) 난이도: 단계가 오르면 적이 실제로 강해지는가'
   check('보스 코인은 같은 구간에서 그대로', difficultyMods(4).bossCoinMul === difficultyMods(3).bossCoinMul);
   check('보스 코인도 합으로 쌓인다', near(difficultyMods(15).bossCoinMul, 2.0), `${difficultyMods(15).bossCoinMul}`);
 
+  // 보스 체력은 난이도 3마다 +100%p, 15 에서 +500% (2026-09-14)
+  console.log(
+    `   보스 체력 · 2단계 x${difficultyMods(2).bossHpMul.toFixed(2)} · 3단계 x${difficultyMods(3).bossHpMul.toFixed(2)}` +
+      ` · 9단계 x${difficultyMods(9).bossHpMul.toFixed(2)} · 15단계 x${difficultyMods(15).bossHpMul.toFixed(2)}`,
+  );
+  check('보스 체력은 2단계까지 그대로', difficultyMods(2).bossHpMul === 1, `${difficultyMods(2).bossHpMul}`);
+  for (let lv = 3; lv <= DIFFICULTY.max; lv += 3) {
+    const want = 1 + lv / 3;
+    check(`보스 체력 ${lv}단계 x${want}`, near(difficultyMods(lv).bossHpMul, want), `${difficultyMods(lv).bossHpMul}`);
+    check(`보스 체력 ${lv + 1}단계는 ${lv}단계와 같다`, lv >= DIFFICULTY.max || near(difficultyMods(lv + 1).bossHpMul, want));
+  }
+
+  // 코인 드랍 확률은 0 에서 절반(x1), 15 에서 원래 확률(x2)로 돌아옵니다 (2026-09-14)
+  const drop = (lv: number, hard = false) => difficultyMods(lv, hard).coinDropMul;
+  console.log(`   코인 드랍 · -1 x${drop(-1).toFixed(2)} · 0 x${drop(0).toFixed(2)} · 8 x${drop(8).toFixed(2)} · 15 x${drop(15).toFixed(2)} · 하드 0 x${drop(0, true).toFixed(2)}`);
+  check('코인 드랍 0 은 그대로', drop(0) === 1);
+  check('코인 드랍 입문은 0 과 같다', drop(-1) === 1);
+  check('코인 드랍 15 에서 원래 확률', near(drop(15) * ENEMY_BASE.coinChance, ENEMY_BASE.coinChance * DIFFICULTY.coinDropMulMax) && DIFFICULTY.coinDropMulMax === 2);
+  check('코인 드랍 난이도마다 오른다', Array.from({ length: 15 }, (_, i) => drop(i + 1) > drop(i)).every(Boolean));
+  check('코인 드랍 하드는 일반 15 를 이어받는다', drop(0, true) === drop(15) && drop(15, true) === drop(15));
+  {
+    // 실제로 떨어지는 비율로도 봅니다. 9 부터는 전원 정예라 8 을 씁니다
+    const rateAt = (lv: number) => {
+      const w = new World(emptySave(), input, 7070, lv);
+      w.spawner.enabled = false;
+      const n = 6000;
+      for (let i = 0; i < n; i++) w.killEnemy(w.spawnEnemy('basic', 640, 360, {}));
+      return w.coins.length / n;
+    };
+    const r0 = rateAt(0);
+    const r8 = rateAt(8);
+    console.log(`   실제 드랍 · 0 ${(r0 * 100).toFixed(2)}% · 8 ${(r8 * 100).toFixed(2)}% (표 ${(ENEMY_BASE.coinChance * drop(8) * 100).toFixed(2)}%)`);
+    check('실제 드랍 0 은 표 확률 근처', Math.abs(r0 - ENEMY_BASE.coinChance) < 0.008, `${r0}`);
+    check('실제 드랍 8 은 표 확률 근처', Math.abs(r8 - ENEMY_BASE.coinChance * drop(8)) < 0.01, `${r8}`);
+  }
+
   // 난이도가 걸린 판이 실제로 굴러가는지 (예외·NaN 확인). 15 까지 전부 밟습니다
   for (let lv = DIFFICULTY.min; lv <= DIFFICULTY.max; lv++) {
     const run = new World(emptySave(), input, 8888, lv);
@@ -2659,6 +2695,42 @@ console.log('10-4-11) 정예 고유 능력 (바보 · 분열 · 장판 · 소환
     const gen2 = w.enemies.filter((o) => !o.dead);
     console.log(`   분열 ${label} · 1세대 ${gen1.length} → 2세대 ${gen2.length}`);
     check(`분열 ${label}은 2세대가 ${want === 9 ? 9 : 0}마리다`, gen2.length === (want === 9 ? 9 : 0), `${gen2.length}`);
+  }
+
+  // 난이도 14 분열 탄: 나뉠 때마다 플레이어 쪽으로 한 발 (2026-09-14)
+  {
+    const w = new World(emptySave(), stillInput, 11004, 14);
+    w.spawner.enabled = false;
+    w.player.x = 900;
+    w.player.y = 600;
+    const s = w.spawnEnemy('splitter', 300, 200, {});
+    w.killEnemy(s);
+    const shots = w.projectiles.filter((p) => !p.friendly && !p.dead);
+    const shot = shots[0];
+    const toPlayer = Math.atan2(600 - 200, 900 - 300);
+    const aim = shot ? Math.atan2(shot.vy, shot.vx) : NaN;
+    console.log(`   분열 탄 ${shots.length}발 · 조준 오차 ${Math.abs(aim - toPlayer).toFixed(4)}rad`);
+    check('분열 탄은 한 발이다', shots.length === 1, `${shots.length}`);
+    check('분열 탄은 플레이어를 향한다', Math.abs(aim - toPlayer) < 1e-6, `${aim} vs ${toPlayer}`);
+    check('난이도 13 에서는 안 쏜다', !difficultyMods(13).splitterShoot);
+  }
+
+  // 적탄은 수명이 없고 경기장 밖으로 나가야 사라집니다 (2026-09-14)
+  {
+    const w = new World(emptySave(), stillInput, 11005);
+    w.spawner.enabled = false;
+    w.player.x = 640;
+    w.player.y = 600;
+    const slow = w.addProjectile({ kind: 'enemy', friendly: false, x: 20, y: 30, vx: 20, vy: 0, radius: 5, damage: 1, life: 2 });
+    for (let i = 0; i < Math.round(15 / FIXED_DT); i++) w.update(FIXED_DT);
+    console.log(`   느린 적탄 15초 뒤 x ${slow.x.toFixed(0)} · 살아 있음 ${!slow.dead}`);
+    check('적탄에는 수명이 없다', slow.life === Infinity, `${slow.life}`);
+    check('적탄은 15초가 지나도 경기장 안이면 남는다', !slow.dead);
+    slow.vx = 3000;
+    for (let i = 0; i < Math.round(1 / FIXED_DT); i++) w.update(FIXED_DT);
+    check('적탄은 경기장 밖으로 나가면 사라진다', slow.dead);
+    const mine = w.addProjectile({ kind: 'bullet', x: 640, y: 360, life: 2 });
+    check('내 탄의 수명은 그대로다', mine.life === 2, `${mine.life}`);
   }
 
   // 장판: 정예는 두 배 넓고 1초 뒤부터 아픕니다

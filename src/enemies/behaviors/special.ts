@@ -84,7 +84,6 @@ export const sealer: EnemyBehavior = (e, w, dt) => {
           radius: B.bulletRadius,
           damage: e.damage,
           color: ENEMY_BULLET.color,
-          life: 6,
           seal,
           source: killerOf(e),
         });
@@ -141,7 +140,6 @@ export const ranged: EnemyBehavior = (e, w, dt) => {
         damage: e.damage,
         // 적탄은 쏜 적이 누구든 같은 빨강입니다 (ENEMY_BULLET 주석 참고)
         color: ENEMY_BULLET.color,
-        life: 6,
         source: killerOf(e),
       });
       w.effects.spray(e.x, e.y, e.state.angle, 0.2, 5, ENEMY_BULLET.glow, 120);
@@ -335,9 +333,8 @@ export function splitterOnDeath(e: Enemy, w: World): void {
   if (e.child && !(e.elite && eliteHas(e, w, 'splitAgain') && e.state.phase === 0)) return;
   const P = ENEMY_PARAMS.splitter;
 
-  // 난이도 14: 나뉘는 순간 사방으로 탄을 뿌립니다.
-  // 분열체를 피해 물러나는 자리가 곧 탄이 오는 자리라, 잡는 위치를 고르게 만듭니다
-  if (w.diff.splitterShoot) splitterBurst(e, w);
+  // 난이도 14: 나뉘는 순간 플레이어 쪽으로 한 발 쏩니다
+  if (w.diff.splitterShoot) splitterShot(e, w);
 
   for (let i = 0; i < P.children; i++) {
     const a = (i / P.children) * Math.PI * 2 + w.rng.range(-0.3, 0.3);
@@ -356,26 +353,24 @@ export function splitterOnDeath(e: Enemy, w: World): void {
   w.effects.burst(e.x, e.y, 12, e.def.color, 170, 3, 0.4);
 }
 
-/** 난이도 14: 나뉘는 순간의 방사 탄막. 자식이 흩어지는 각과 어긋나게 반 칸 돌려서 쏩니다 */
-function splitterBurst(e: Enemy, w: World): void {
+/**
+ * 난이도 14: 나뉘는 순간 **플레이어 쪽으로 한 발** 쏩니다 (2026-09-14).
+ * 나뉘는 횟수마다 한 발이라 정예 분열적은 1 + 3 = 4발입니다
+ */
+function splitterShot(e: Enemy, w: World): void {
   const P = ENEMY_PARAMS.splitter;
-  const step = (Math.PI * 2) / P.burstCount;
-  const base = w.rng.angle();
-  for (let i = 0; i < P.burstCount; i++) {
-    const a = base + step * i;
-    w.addProjectile({
-      kind: 'enemy',
-      friendly: false,
-      x: e.x,
-      y: e.y,
-      vx: Math.cos(a) * P.burstSpeed,
-      vy: Math.sin(a) * P.burstSpeed,
-      radius: P.burstRadius,
-      damage: e.damage * P.burstDamageMul,
-      color: ENEMY_BULLET.color,
-      life: 4,
-      source: killerOf(e),
-    });
-  }
-  w.effects.burst(e.x, e.y, 10, ENEMY_BULLET.glow, 200, 3, 0.35);
+  const a = Math.atan2(w.player.y - e.y, w.player.x - e.x);
+  w.addProjectile({
+    kind: 'enemy',
+    friendly: false,
+    x: e.x,
+    y: e.y,
+    vx: Math.cos(a) * P.burstSpeed,
+    vy: Math.sin(a) * P.burstSpeed,
+    radius: P.burstRadius,
+    damage: e.damage * P.burstDamageMul,
+    color: ENEMY_BULLET.color,
+    source: killerOf(e),
+  });
+  w.effects.spray(e.x, e.y, a, 0.2, 5, ENEMY_BULLET.glow, 120);
 }

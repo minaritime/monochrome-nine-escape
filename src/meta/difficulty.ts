@@ -67,6 +67,8 @@ export interface DifficultyMods {
   extraEnemies: EnemyId[];
   /** 판 종료 시 주운 코인에 곱해집니다 */
   coinMul: number;
+  /** 일반 적 · 정예의 코인 드랍 확률에 곱해집니다 (`DIFFICULTY.coinDropMulMax`) */
+  coinDropMul: number;
   /** 보스가 떨어뜨리는 코인 개수에 곱해집니다 */
   bossCoinMul: number;
 }
@@ -214,6 +216,9 @@ export function difficultyMods(level: number, hard = false): DifficultyMods {
     arenaLaser: false,
     extraEnemies: [],
     coinMul: lv < 0 ? DIFFICULTY.easyCoinMul : 1 + lv * DIFFICULTY.coinMulPerLevel,
+    // 0 에서 x1, 15 에서 x2 까지 직선입니다. 입문은 0 과 같습니다.
+    // **`softenMuls` 목록에 넣지 마십시오.** 하드는 일반 15 의 값을 그대로 이어받아야 합니다
+    coinDropMul: 1 + ((DIFFICULTY.coinDropMulMax - 1) * Math.max(0, lv)) / DIFFICULTY.max,
     // 보스 코인은 난이도 3당 +20%p. 다른 배율과 같이 합으로 쌓습니다 (3당 x1.2 를 곱하면 15단계에서 2.49 가 됩니다).
     // -1 은 전체 코인 배율에서 이미 30% 를 깎았으므로 여기서는 1 그대로 둡니다
     bossCoinMul:
@@ -434,6 +439,7 @@ export function difficultyEffects(level: number, hard = false): DifficultyEffect
   }
 
   // 보상은 마지막에. 유일하게 플레이어에게 좋은 항목입니다
+  if (m.coinDropMul !== 1) out.push({ label: '코인 드랍률', value: pct(m.coinDropMul), bad: false, device: false });
   out.push({ label: '코인 획득', value: `x${m.coinMul.toFixed(2)}`, bad: m.coinMul < 1, device: false });
   if (m.bossCoinMul !== 1) {
     out.push({ label: '보스 코인', value: `x${m.bossCoinMul.toFixed(2)}`, bad: false, device: false });

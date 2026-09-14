@@ -943,6 +943,13 @@ export class World {
       dead: false,
     };
     const proj: Projectile = { ...defaults, ...p };
+    // **적탄에는 수명이 없습니다** (2026-09-14 사용자 확정). 경기장 밖으로 나가야만
+    // 사라집니다 (`moveEnemyBullet` 의 `isOutside`). 수명이 있으면 느린 탄이 화면
+    // 한가운데서 갑자기 꺼져서, 피하려고 옮긴 자리가 헛수고가 됩니다.
+    // 쏘는 곳마다 적게 두면 하나가 옛 수명을 들고 남으므로 여기 한 곳에서 겁니다.
+    // **적탄은 전부 직진이라 반드시 밖으로 나갑니다.** 튕기는 적탄을 만들면 끝나는
+    // 길이 없어지므로 그때는 이 줄을 먼저 보십시오
+    if (!proj.friendly) proj.life = Infinity;
     // 난이도의 적탄 속도 배율은 여기 한 곳에서 겁니다.
     // 쏘는 곳(원거리적·바보적·보스 셋)이 흩어져 있어서, 각자 곱하게 두면 반드시 하나를 빠뜨립니다
     if (!proj.friendly && this.diff.bulletSpeedMul !== 1) {
@@ -1210,8 +1217,9 @@ export class World {
       //
       // 전원이 정예인 난이도(9 이상)에서는 이 확정 드랍을 끕니다. 전부 정예인데
       // 전부 확정으로 주면 그냥 "모든 적이 코인을 떨어뜨린다"가 되어, 난이도 배율과 겹쳐 코인이 폭증합니다
-      if (this.rng.chance(ELITE.coinChance)) this.dropCoin(e.x, e.y, 1, 14);
-    } else if (!e.child && this.rng.chance(ENEMY_BASE.coinChance)) {
+      // 드랍 확률은 난이도가 오를수록 되돌아옵니다 (`coinDropMul`, 일반 15 에서 원래 확률)
+      if (this.rng.chance(ELITE.coinChance * this.diff.coinDropMul)) this.dropCoin(e.x, e.y, 1, 14);
+    } else if (!e.child && this.rng.chance(ENEMY_BASE.coinChance * this.diff.coinDropMul)) {
       this.dropCoin(e.x, e.y);
     }
 
