@@ -10,7 +10,7 @@
 // main.ts 는 불러오는 순간 document 를 만지므로 아래에서 동적으로 불러옵니다.
 // 이 둘은 모듈을 읽는 것만으로는 DOM 을 건드리지 않아 정적으로 가져와도 안전합니다
 import { DEBUG, DIFFICULTY } from '../src/data/balance';
-import { PATCH_NOTES } from '../src/data/patchnotes';
+import { HIDDEN_PATCH_HINT, PATCH_NOTES } from '../src/data/patchnotes';
 import { emptySave } from '../src/meta/save';
 
 interface StubElement {
@@ -411,6 +411,27 @@ async function main(): Promise<void> {
     // **하드 항목은 안 보여야 합니다.** 하드모드는 히든이라 안 연 사람에게
     // 존재를 알리면 안 됩니다
     check('하드 항목은 안 보인다', !overlayText().includes('폭격기'), overlayText().trim().slice(0, 200));
+
+    // 하드 항목을 가린 버전을 펼치면 끝에 "무언가가 패치되었습니다..." 가 뜹니다 (2026-09-14).
+    // 하드 항목이 없는 최신 버전만 펼친 지금은 안 떠야 합니다
+    const hardNote = PATCH_NOTES.find((n) => n.groups.some((g) => g.items.some((it) => it.hardOnly)));
+    if (!latest.groups.some((g) => g.items.some((it) => it.hardOnly))) {
+      check('하드 항목이 없는 버전에는 힌트가 없다', !overlayText().includes(HIDDEN_PATCH_HINT));
+    }
+    if (hardNote) {
+      const findHead = (el: typeof overlay): typeof overlay | null => {
+        if (el.className.split(' ').includes('patch-head') && overlayText(el).includes(hardNote.version)) return el;
+        for (const c of el.children) {
+          const hit = findHead(c);
+          if (hit) return hit;
+        }
+        return null;
+      };
+      findHead(overlay)?.click();
+      frames(2);
+      check(`${hardNote.version} 을 펼치면 힌트가 보인다`, overlayText().includes(HIDDEN_PATCH_HINT), overlayText().trim().slice(-120));
+      check('펼쳐도 하드 항목 원문은 안 보인다', !overlayText().includes('폭격기'));
+    }
 
     press('Escape');
     frames(2);

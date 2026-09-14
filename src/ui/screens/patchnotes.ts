@@ -1,4 +1,4 @@
-import { lineTone, visiblePatchNotes, type PatchNote } from '../../data/patchnotes';
+import { HIDDEN_PATCH_HINT, lineTone, visiblePatchNotes, type VisiblePatchNote } from '../../data/patchnotes';
 import type { SaveData } from '../../meta/save';
 import { bindKeys, clearOverlay, h, overlayEl, screen } from './dom';
 
@@ -31,7 +31,7 @@ export function showPatchNotes(save: SaveData, onBack: () => void): () => void {
   });
 }
 
-function versionBlock(note: PatchNote, open: Set<string>, redraw: () => void): HTMLElement {
+function versionBlock(note: VisiblePatchNote, open: Set<string>, redraw: () => void): HTMLElement {
   const expanded = open.has(note.version);
 
   const head = h(
@@ -78,6 +78,8 @@ function versionBlock(note: PatchNote, open: Set<string>, redraw: () => void): H
         ),
       ),
     );
+    // 하드 항목을 가렸으면 맨 끝에 한 줄. 하드모드를 연 사람에게는 안 뜹니다
+    if (note.hiddenPatched) kids.push(h('div', { class: 'patch-hidden' }, [HIDDEN_PATCH_HINT]));
   }
 
   return h('div', { class: 'patch-note' }, kids);

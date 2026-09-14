@@ -1833,3 +1833,12 @@ body.mobile .shop-intro-row {
 .patch-line.nerf {
   color: var(--danger);
 }
+
+/* 하드 항목을 가린 버전 끝의 한 줄. 무엇인지는 말하지 않고 있다는 것만 흘립니다 */
+.patch-hidden {
+  padding: 0 var(--ui-pad-x) var(--ui-pad-y);
+  color: var(--muted);
+  font-size: 0.86em;
+  font-style: italic;
+  letter-spacing: 0.02em;
+}

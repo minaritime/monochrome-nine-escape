@@ -110,7 +110,7 @@ import {
 } from '../src/meta/achievements';
 import { ALL_ENEMY_IDS, getEnemyDef } from '../src/enemies/registry';
 import { HARD_LASER } from '../src/data/balance';
-import { LATEST_PATCH, PATCH_NOTES, TONE_SINCE, lineTone, visiblePatchNotes } from '../src/data/patchnotes';
+import { HIDDEN_PATCH_HINT, LATEST_PATCH, PATCH_NOTES, TONE_SINCE, lineTone, visiblePatchNotes } from '../src/data/patchnotes';
 import { ALL_SKILL_IDS, getSkillDef, lv, makeSlot, slotCooldown } from '../src/skills/registry';
 import { ATTACK_SKILL_IDS, UTILITY_SKILL_IDS } from '../src/skills/registry';
 import { SKILL_FAMILY_LABEL, type SkillFamily } from '../src/skills/types';
@@ -4868,6 +4868,17 @@ console.log('\n24) 패치로그');
   check('연 저장에는 보인다', hardTitles.every((t) => titles(shown).includes(t)));
   // 하드 항목만 있던 묶음이 빈 껍데기로 남으면 안 됩니다
   check('빈 묶음이 안 남는다', hidden.every((n) => n.groups.every((g) => g.items.length > 0)));
+
+  // 하드 항목을 가린 버전에만 "무언가가 패치되었습니다..." 가 붙습니다 (2026-09-14)
+  const hardVersions = PATCH_NOTES.filter((n) => n.groups.some((g) => g.items.some((it) => it.hardOnly))).map((n) => n.version);
+  check(
+    '잠긴 저장: 하드 항목을 가린 버전에만 힌트',
+    hidden.every((n) => n.hiddenPatched === hardVersions.includes(n.version)),
+    hidden.filter((n) => n.hiddenPatched).map((n) => n.version).join(','),
+  );
+  check('잠긴 저장: 하드 항목이 있던 버전이 전부 남는다', hardVersions.every((v) => hidden.some((n) => n.version === v)));
+  check('연 저장: 힌트가 하나도 없다', shown.every((n) => !n.hiddenPatched));
+  check('힌트 문구', HIDDEN_PATCH_HINT === '무언가가 패치되었습니다...');
 
   // `+ ` 버프(초록) · `- ` 너프(빨강). TONE_SINCE 부터는 모든 줄에 부호가 있어야 합니다 (2026-09-14)
   check('+ 는 버프', lineTone('+ 공격력 증가') === 'buff');

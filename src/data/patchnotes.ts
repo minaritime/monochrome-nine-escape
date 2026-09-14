@@ -227,6 +227,19 @@ export const PATCH_NOTES: readonly PatchNote[] = [
   },
 ];
 
+/**
+ * 하드 항목을 가린 버전 끝에 붙는 한 줄 (2026-09-14 사용자 확정).
+ *
+ * 무엇이 바뀌었는지는 안 알리고 **무언가가 있다는 것만** 흘립니다. 하드모드를 연
+ * 사람에게는 원문이 그대로 보이므로 이 줄이 안 뜹니다
+ */
+export const HIDDEN_PATCH_HINT = '무언가가 패치되었습니다...';
+
+/** 화면에 그릴 버전. 가려진 하드 항목이 있었는지를 같이 들고 갑니다 */
+export interface VisiblePatchNote extends PatchNote {
+  hiddenPatched: boolean;
+}
+
 /** 가장 최근 버전. 안 읽은 것이 있는지 판단하는 기준입니다 */
 export const LATEST_PATCH = PATCH_NOTES[0].version;
 
@@ -234,20 +247,26 @@ export const LATEST_PATCH = PATCH_NOTES[0].version;
  * 하드 항목을 걸러낸 목록. **화면과 점검이 같은 함수를 봐야 합니다.**
  *
  * 거르는 규칙을 화면 쪽에 두면 브라우저 없이 잴 수가 없어서, 하드 항목이 새는 것을
- * 아무도 못 잡습니다. 빈 묶음과 빈 버전은 통째로 뺍니다.
+ * 아무도 못 잡습니다. 빈 묶음은 통째로 뺍니다.
+ *
+ * **하드 항목을 가렸으면 `hiddenPatched` 가 켜집니다** (2026-09-14). 화면이 그 버전 끝에
+ * `HIDDEN_PATCH_HINT` 를 붙입니다. 하드 항목만 있던 버전도 그 한 줄로 남습니다.
+ * 빼버리면 "무언가가 패치됐다"를 알릴 자리가 없어집니다.
  */
-export function visiblePatchNotes(hardUnlocked: boolean): PatchNote[] {
-  const out: PatchNote[] = [];
+export function visiblePatchNotes(hardUnlocked: boolean): VisiblePatchNote[] {
+  const out: VisiblePatchNote[] = [];
   for (const note of PATCH_NOTES) {
     const groups: PatchGroup[] = [];
+    let hiddenPatched = false;
     for (const g of note.groups) {
       const items = g.items.filter((it) => !it.hardOnly || hardUnlocked);
+      if (items.length < g.items.length) hiddenPatched = true;
       if (items.length > 0) groups.push({ title: g.title, items });
     }
     // **칸을 새로 만들 때 빠뜨리기 쉽습니다.** 여기서 새 객체를 짓는 이유는 하드
     // 항목을 걸러낸 `groups` 를 갈아끼우기 위해서인데, 나머지 칸을 손으로 옮기다
     // 하나를 놓치면 그 값만 화면에서 조용히 사라집니다 (머리말이 실제로 그랬습니다)
-    if (groups.length > 0) out.push({ ...note, groups });
+    if (groups.length > 0 || hiddenPatched) out.push({ ...note, groups, hiddenPatched });
   }
   return out;
 }
