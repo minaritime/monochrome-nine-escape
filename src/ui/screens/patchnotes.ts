@@ -66,7 +66,8 @@ function versionBlock(note: PatchNote, open: Set<string>, redraw: () => void): H
             ...g.items.map((it, i) =>
               h('div', { class: 'patch-item' }, [
                 h('div', { class: 'patch-item-title' }, [`${i + 1}. ${it.title}`]),
-                ...it.lines.map((line) => h('div', { class: 'patch-line' }, [`- ${line}`])),
+                // `+ ` 로 시작하는 줄은 그대로 씁니다 (추가된 것). 나머지는 `- ` 를 붙입니다
+                ...it.lines.map((line) => h('div', { class: 'patch-line' }, [line.startsWith('+ ') ? line : `- ${line}`])),
               ]),
             ),
           ]),
