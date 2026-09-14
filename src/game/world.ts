@@ -21,7 +21,6 @@ import {
   SETTINGS,
   STATUS,
   OVERTIME,
-  CLEAR_BONUS,
   SPAWN,
   TIME_SCALING,
   type BossId,
@@ -41,7 +40,7 @@ import { bossIdForSpawn } from '../enemies/boss';
 import { eliteStatMul, eliteValue } from '../enemies/elite';
 import { rollStatGains } from '../progression/levelup';
 import { addStat } from './stats';
-import { clampDifficulty, difficultyMods, hasCleared, type DifficultyMods } from '../meta/difficulty';
+import { clampDifficulty, clearBonusCoins, difficultyMods, hasCleared, type DifficultyMods } from '../meta/difficulty';
 import { xpMultiplier } from '../meta/shop';
 import { killerOf } from './killer';
 import { emptyRunTrack } from './types';
@@ -181,6 +180,9 @@ export class World {
 
   /**
    * 클리어할 때 실제로 받은 보너스 코인. 게임오버 화면이 이 값을 그대로 씁니다.
+   *
+   * **난이도 배율까지 곱한 최종값입니다** (2026-09-14, `clearBonusCoins`). `stats.coins`
+   * 에는 안 섞이고 `earnedCoins` 에서만 더해집니다.
    *
    * **화면이 상수를 다시 읽으면 안 됩니다.** 첫 클리어인지에 따라 값이 갈리는데,
    * 화면에서 `hasCleared` 를 다시 물으면 그때는 이미 저장에 클리어가 남아 있어서
@@ -1202,8 +1204,11 @@ export class World {
         // 끝날 때(`commitRun`)라, 지금 묻는 `hasCleared` 는 **이 판 이전의 기록**입니다.
         // 그래서 첫 클리어인 판은 제값을 받고 그 다음 판부터 줄어듭니다
         const first = !hasCleared(this.save, this.difficulty, this.hard);
-        const bonus = first ? CLEAR_BONUS.coin : Math.round(CLEAR_BONUS.coin * CLEAR_BONUS.repeatRatio);
-        this.stats.coins += bonus;
+        // **보너스는 배율을 곱한 최종값으로 따로 들고 있습니다** (2026-09-14). 예전에는
+        // `stats.coins` 에 400 을 넣고 판 끝에 난이도 배율을 곱했는데, 그러면 첫 클리어를
+        // 100 단위로 끊을 수가 없고 알림의 `+400` 과 실제로 들어오는 1,300 이 갈렸습니다.
+        // 더하는 곳은 `earnedCoins` 한 곳입니다
+        const bonus = clearBonusCoins(this.diff.coinMul, first);
         this.clearBonus = bonus;
         this.clearBonusFirst = first;
         this.queueNotice(`${first ? '첫 클리어 보너스' : '클리어 보너스'} +${bonus}`, '#ffd45e', 20, 0, -60);
@@ -1668,7 +1673,8 @@ export class World {
    * 주운 개수에 난이도 보상 배율을 곱한 값입니다. 난이도 0 이면 주운 개수 그대로입니다.
    */
   earnedCoins(): number {
-    return Math.round(this.stats.coins * this.diff.coinMul);
+    // 주운 코인에만 난이도 배율을 곱하고, 클리어 보너스는 이미 최종값이라 그대로 더합니다
+    return Math.round(this.stats.coins * this.diff.coinMul) + this.clearBonus;
   }
 
   /** 시간 감속 스킬 적용 */

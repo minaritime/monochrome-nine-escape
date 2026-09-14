@@ -1,4 +1,5 @@
 import {
+  CLEAR_BONUS,
   DIFFICULTY,
   DIFFICULTY_EASY,
   DIFFICULTY_STEPS,
@@ -263,6 +264,18 @@ function hardMods(level: number): DifficultyMods {
 
   for (let i = 0; i < lv; i++) applyStep(mods, HARD_DIFFICULTY_STEPS[i]);
   return mods;
+}
+
+/**
+ * 클리어 보너스의 **최종 코인** (난이도 배율까지 곱한 값).
+ *
+ * 첫 클리어는 `CLEAR_BONUS.firstRoundTo`(100) 단위로 반올림합니다 (2026-09-14 사용자 확정).
+ * 반복 클리어는 반올림하지 않습니다. **판과 점검이 이 함수 하나를 봅니다**
+ */
+export function clearBonusCoins(coinMul: number, first: boolean): number {
+  if (!first) return Math.round(CLEAR_BONUS.coin * CLEAR_BONUS.repeatRatio * coinMul);
+  const step = CLEAR_BONUS.firstRoundTo;
+  return Math.round((CLEAR_BONUS.coin * coinMul) / step) * step;
 }
 
 /**

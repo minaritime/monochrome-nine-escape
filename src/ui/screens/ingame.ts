@@ -248,16 +248,17 @@ export function showGameOver(w: World, coinsTotal: number, onRetry: () => void, 
 
   // **"주운"이 아니라 "모은"입니다** (2026-09-12). 클리어 보너스는 바닥에 떨어지는
   // 코인이 아니라 즉시 적립이라, 주웠다고 하면 화면이 거짓말을 합니다
-  const bonusNote = w.cleared
-    ? ` · ${w.clearBonusFirst ? '첫 ' : ''}클리어 보너스 +${w.clearBonus} 포함`
+  // 클리어 보너스는 배율을 이미 곱한 최종값이라 곱셈 뒤에 따로 더해 적습니다 (2026-09-14)
+  const bonusNote = w.cleared && w.clearBonus > 0
+    ? ` + ${w.clearBonusFirst ? '첫 ' : ''}클리어 보너스 ${w.clearBonus}`
     : '';
   // 디버그 맵은 아무것도 저장하지 않습니다. 코인 줄을 그대로 두면 받지도 않은 코인을
   // 받은 것처럼 적게 됩니다
   const coinLine = w.sandbox
     ? '디버그 맵 · 코인과 기록은 남지 않습니다'
     : w.diff.coinMul > 1
-      ? `획득 코인 ${w.earnedCoins()}  (모은 ${w.stats.coins}${bonusNote} × 난이도 보상 ${w.diff.coinMul.toFixed(2)}배 · 보유 ${coinsTotal})`
-      : `획득 코인 ${w.earnedCoins()}  (보유 ${coinsTotal}${bonusNote})`;
+      ? `획득 코인 ${w.earnedCoins()}  (모은 ${w.stats.coins} × 난이도 보상 ${w.diff.coinMul.toFixed(2)}배${bonusNote} · 보유 ${coinsTotal})`
+      : `획득 코인 ${w.earnedCoins()}  (모은 ${w.stats.coins}${bonusNote} · 보유 ${coinsTotal})`;
 
   const body = [
     h('div', { class: 'big-num' }, [formatTime(w.time)]),

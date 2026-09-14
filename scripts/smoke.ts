@@ -67,7 +67,7 @@ import { createPlayer, ownedSlots } from '../src/game/player';
 import { rollStatGains } from '../src/progression/levelup';
 import { addStat, createStats } from '../src/game/stats';
 import { passiveKind, slotForPassive, togglePassive } from '../src/meta/shop';
-import { clampDifficulty, clearedAllFrom, difficultyEffects, difficultyKey, difficultyMods, hasCleared, unlockTimeFor } from '../src/meta/difficulty';
+import { clampDifficulty, clearBonusCoins, clearedAllFrom, difficultyEffects, difficultyKey, difficultyMods, hasCleared, unlockTimeFor } from '../src/meta/difficulty';
 import { commitRun } from '../src/meta/bestiary';
 import { DEBUG_MAP } from '../src/data/balance';
 import type { SkillId } from '../src/skills/types';
@@ -3473,11 +3473,17 @@ console.log('15) 업적');
     check('난이도 0 클리어가 열린다', names.includes('clear0'), names.join(','));
     check('난이도 1 클리어가 열린다', names.includes('clear1'));
     check('안 깬 난이도는 안 열린다', !names.includes('clear2'));
-    check('코인이 실제로 들어온다', save.coins === 40 + 60, `${save.coins}`);
+    // 난이도 클리어 업적은 코인이 없습니다 (2026-09-14). 돈은 첫 클리어 보너스가 줍니다
+    check('난이도 클리어 업적은 코인이 안 들어온다', save.coins === 0, `${save.coins}`);
+
+    // 코인이 있는 업적은 실제로 들어와야 합니다 (학살자 1단계: 누적 50 처치 · 20 코인)
+    save.records.totalKills = 50;
+    const paid = checkAchievements(save, null, false);
+    check('코인이 실제로 들어온다', paid.some((g) => g.id === 'kills') && save.coins === 20, `${save.coins}`);
 
     // 두 번 훑어도 또 주면 안 됩니다
     const again = checkAchievements(save, null, false);
-    check('같은 업적을 두 번 주지 않는다', again.length === 0 && save.coins === 100, `${save.coins}`);
+    check('같은 업적을 두 번 주지 않는다', again.length === 0 && save.coins === 20, `${save.coins}`);
   }
 
   // 단계형은 한 번에 여러 단계가 열려도 코인을 전부 줍니다
@@ -4746,21 +4752,23 @@ console.log('\n23) 클리어 뒤 급상승 (OVERTIME)');
       w.time = w.diff.clearTime - 1;
       step(w, 3);
       const boss = w.enemies.find((e) => e.id === w.clearBossId)!;
-      const before = w.stats.coins;
+      const before = w.earnedCoins();
       w.killEnemy(boss);
-      // 보스 코인은 바닥에 떨어지는 것이라 주워야 `stats.coins` 에 들어옵니다.
+      // 보스 코인은 바닥에 떨어지는 것이라 주워야 들어옵니다.
       // 여기서 늘어난 것은 즉시 적립되는 보너스뿐입니다
-      return { w, gained: w.stats.coins - before };
+      return { w, gained: w.earnedCoins() - before };
     };
 
     const first = clearOnce(save);
-    check('첫 클리어는 제값', first.w.clearBonus === CLEAR_BONUS.coin, `${first.w.clearBonus}`);
+    check('첫 클리어는 제값', first.w.clearBonus === clearBonusCoins(first.w.diff.coinMul, true), `${first.w.clearBonus}`);
     check('첫 클리어임을 기억한다', first.w.clearBonusFirst);
-    check('실제로 코인이 들어온다', first.gained === CLEAR_BONUS.coin, `${first.gained}`);
+    check('실제로 코인이 들어온다', first.gained === first.w.clearBonus, `${first.gained}`);
+    // 보너스는 배율을 이미 곱한 최종값이라 주운 코인(`stats.coins`)에 섞이지 않습니다 (2026-09-14)
+    check('보너스는 주운 코인에 안 섞인다', first.w.earnedCoins() === Math.round(first.w.stats.coins * first.w.diff.coinMul) + first.w.clearBonus);
     commitRun(save, first.w);
 
     const again = clearOnce(save);
-    const want = Math.round(CLEAR_BONUS.coin * CLEAR_BONUS.repeatRatio);
+    const want = clearBonusCoins(again.w.diff.coinMul, false);
     check('두 번째부터는 줄어든다', again.w.clearBonus === want, `${again.w.clearBonus} (기대 ${want})`);
     check('첫 클리어가 아니라고 표시된다', !again.w.clearBonusFirst);
     check('줄어든 값이 제값보다 확실히 작다', want < CLEAR_BONUS.coin * 0.5, `${want}`);
@@ -4771,7 +4779,28 @@ console.log('\n23) 클리어 뒤 급상승 (OVERTIME)');
     check('다른 난이도는 여전히 첫 클리어', !hasCleared(save, 1), '난이도 1');
     check('그 판의 난이도가 1 이다', other.difficulty === 1, `${other.difficulty}`);
 
-    console.log(`   첫 클리어 ${CLEAR_BONUS.coin} → 재클리어 ${want} (난이도 배율은 그 위에 곱해집니다)`);
+    console.log(`   첫 클리어 ${first.w.clearBonus} → 재클리어 ${want}`);
+  }
+
+  // --- 첫 클리어 보너스는 100 단위 · 클리어 업적은 코인 없음 (2026-09-14) ---
+  {
+    const normal: number[] = [];
+    for (let lv = DIFFICULTY.min; lv <= DIFFICULTY.max; lv++) normal.push(clearBonusCoins(difficultyMods(lv).coinMul, true));
+    const hard: number[] = [];
+    for (let lv = 0; lv <= DIFFICULTY.max; lv++) hard.push(clearBonusCoins(difficultyMods(lv, true).coinMul, true));
+    console.log(`   첫 클리어 일반 ${normal.join(' ')} · 하드 ${hard.join(' ')}`);
+    check('첫 클리어는 전부 100 단위', [...normal, ...hard].every((v) => v % CLEAR_BONUS.firstRoundTo === 0));
+    check(
+      '일반 첫 클리어 표',
+      normal.join(',') === [300, 400, 500, 500, 600, 600, 700, 800, 800, 900, 900, 1000, 1100, 1100, 1200, 1200, 1300].join(','),
+      normal.join(','),
+    );
+    check('하드 첫 클리어 0 은 1400 · 15 는 2900', hard[0] === 1400 && hard[15] === 2900, `${hard[0]} ${hard[15]}`);
+    check('첫 클리어는 난이도가 올라도 안 내려간다', normal.every((v, i) => i === 0 || v >= normal[i - 1]));
+    check('반복 클리어는 반올림하지 않는다', clearBonusCoins(difficultyMods(1).coinMul, false) === 92, `${clearBonusCoins(difficultyMods(1).coinMul, false)}`);
+    const clears = ACHIEVEMENTS.filter((a) => /^clear-?\d+$/.test(a.id));
+    check('난이도 클리어 업적은 17개', clears.length === DIFFICULTY.max - DIFFICULTY.min + 1, `${clears.length}`);
+    check('난이도 클리어 업적은 코인이 없다', clears.every((a) => a.tiers.every((t) => t.coin === 0)));
   }
 
   // --- 화면이 타이머 정지를 계속 알리는가 ---

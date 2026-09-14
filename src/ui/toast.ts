@@ -62,12 +62,15 @@ function show(item: AchieveUnlock): void {
   name.className = 'toast-name';
   name.textContent = item.name;
 
-  const coin = document.createElement('div');
-  coin.className = 'toast-coin';
-  coin.textContent = `+${item.coin}`;
-
   body.append(label, name);
-  el.append(badge, body, coin);
+  el.append(badge, body);
+  // 보상이 없는 업적(난이도 클리어)은 `+0` 을 띄우지 않습니다
+  if (item.coin > 0) {
+    const coin = document.createElement('div');
+    coin.className = 'toast-coin';
+    coin.textContent = `+${item.coin}`;
+    el.append(coin);
+  }
   containerEl().append(el);
 
   // 애니메이션이 끝나면 스스로 사라집니다. 타이머를 따로 들고 있으면

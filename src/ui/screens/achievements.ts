@@ -70,7 +70,8 @@ function rowOf(save: SaveData, def: AchieveDef): HTMLElement {
     // 단계마다 이름이 다른 업적(부자 → 집주인 → 땅주인)에서 이 자리가 목표가 됩니다
     title: secret ? '???' : tierName(def, Math.min(have, def.tiers.length - 1)),
     desc: secret ? '숨겨진 업적입니다' : def.desc,
-    price: complete ? '완료' : `${nextCoin} 코인`,
+    // 보상이 없는 업적(난이도 클리어)은 가격 칸을 비웁니다. `0 코인` 은 보상인 척합니다
+    price: complete ? '완료' : nextCoin > 0 ? `${nextCoin} 코인` : undefined,
   });
   el.classList.add(secret ? 'ach-hidden' : complete ? 'ach-done' : 'ach-todo');
 

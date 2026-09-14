@@ -30,7 +30,7 @@ import type { World } from '../game/world';
  * 업적 목록.
  *
  * 코인 값은 `ACHIEVEMENT` 의 등급 상수에서 가져옵니다. 여기에 숫자를 직접 쓰는 것은
- * 난이도 클리어 사다리(`ACHIEVEMENT.difficultyClear`)와 단계형 업적의 목표치뿐입니다.
+ * 단계형 업적의 목표치뿐입니다. 난이도 클리어 업적은 코인이 없습니다 (2026-09-14).
  * 전체 명세는 `업적.md` 에 있습니다.
  */
 
@@ -171,7 +171,10 @@ const ROLLABLE_STATS = STAT_DEFS.filter((s) => isStatRollable(s.key)).map((s) =>
 
 const difficultyClears: AchieveDef[] = [];
 for (let lv = DIFFICULTY.min; lv <= DIFFICULTY.max; lv++) {
-  const coin = A.difficultyClear[lv - DIFFICULTY.min] ?? A.gold;
+  // **코인이 없습니다** (2026-09-14 사용자 확정). 같은 일(그 난이도를 처음 깸)에
+  // 첫 클리어 보너스가 이미 붙어서 보상이 두 번 나오고 있었습니다. 목록 · 사슬 ·
+  // 진행도는 그대로 남깁니다. 돈은 클리어 보너스 하나로 모읍니다
+  const coin = 0;
   difficultyClears.push({
     id: `clear${lv}`,
     name: `난이도 ${lv} 클리어`,
