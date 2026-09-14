@@ -4883,13 +4883,14 @@ console.log('\n24) 패치로그');
   // `+ ` 버프(초록) · `- ` 너프(빨강). TONE_SINCE 부터는 모든 줄에 부호가 있어야 합니다 (2026-09-14)
   check('+ 는 버프', lineTone('+ 공격력 증가') === 'buff');
   check('- 는 너프', lineTone('- 공격력 감소') === 'nerf');
+  check('~ 는 조정', lineTone('~ 분열에서 관통으로 교체') === 'tweak');
   check('부호 없는 줄은 색 없음', lineTone('공격력 감소') === 'plain');
   const sinceIdx = PATCH_NOTES.findIndex((n) => n.version === TONE_SINCE);
   check('부호 시작 버전이 목록에 있다', sinceIdx >= 0, TONE_SINCE);
   for (const note of PATCH_NOTES.slice(0, sinceIdx + 1)) {
     for (const g of note.groups) {
       for (const it of g.items) {
-        for (const line of it.lines) check(`${note.version} "${line}" 에 +/- 부호가 있다`, lineTone(line) !== 'plain', line);
+        for (const line of it.lines) check(`${note.version} "${line}" 에 +/-/~ 부호가 있다`, lineTone(line) !== 'plain', line);
       }
     }
   }

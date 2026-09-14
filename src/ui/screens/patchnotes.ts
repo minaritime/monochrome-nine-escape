@@ -67,7 +67,7 @@ function versionBlock(note: VisiblePatchNote, open: Set<string>, redraw: () => v
             ...g.items.map((it, i) =>
               h('div', { class: 'patch-item' }, [
                 h('div', { class: 'patch-item-title' }, [`${i + 1}. ${it.title}`]),
-                // `+ ` 는 버프(초록), `- ` 는 너프(빨강). 부호가 없는 옛 줄은 색 없이 `- ` 만 붙입니다
+                // `+ ` 버프(초록) · `- ` 너프(빨강) · `~ ` 조정(노랑). 부호가 없는 옛 줄은 색 없이 `- ` 만 붙입니다
                 ...it.lines.map((line) => {
                   const tone = lineTone(line);
                   return h('div', { class: `patch-line ${tone}` }, [tone === 'plain' ? `- ${line}` : line]);

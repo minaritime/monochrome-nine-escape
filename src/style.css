@@ -9,6 +9,8 @@
   --accent-2: #4dd2ff;
   --danger: #ff5d5d;
   --ok: #6ee7a0;
+  /* 패치로그의 `~` 조정 줄. 좋지도 나쁘지도 않은 변화라 초록·빨강 사이의 노랑입니다 */
+  --tweak: #ffd45e;
 
   /*
    * 반투명 표면. 색이 있는데도 변수로 안 뽑혀 있던 자리들입니다.
@@ -1832,6 +1834,10 @@ body.mobile .shop-intro-row {
 
 .patch-line.nerf {
   color: var(--danger);
+}
+
+.patch-line.tweak {
+  color: var(--tweak);
 }
 
 /* 하드 항목을 가린 버전 끝의 한 줄. 무엇인지는 말하지 않고 있다는 것만 흘립니다 */
