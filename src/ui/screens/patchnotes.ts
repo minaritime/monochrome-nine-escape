@@ -62,7 +62,8 @@ function versionBlock(note: PatchNote, open: Set<string>, redraw: () => void): H
         { class: 'patch-body' },
         note.groups.map((g) =>
           h('div', { class: 'patch-group' }, [
-            h('div', { class: 'patch-group-title' }, [`* ${g.title}`]),
+            // 제목이 빈 묶음은 `* ` 줄 없이 항목만 늘어섭니다
+            ...(g.title ? [h('div', { class: 'patch-group-title' }, [`* ${g.title}`])] : []),
             ...g.items.map((it, i) =>
               h('div', { class: 'patch-item' }, [
                 h('div', { class: 'patch-item-title' }, [`${i + 1}. ${it.title}`]),
