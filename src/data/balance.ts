@@ -1511,8 +1511,11 @@ export const SKILLS = {
   sniper: {
     cooldown: 2.5, damage: 10.0, damagePerLevel: 1.866,
     speed: 1150, radius: 7,
-    /** 1레벨 10% → 만렙 30%. `(0.30 - 0.10) / (SKILL_MAX_LEVEL - 1)` 입니다 */
-    hpRatio: 0.10, hpRatioPerLevel: 0.2 / 9,
+    /**
+     * 1레벨 10% → 만렙 20%. `(0.20 - 0.10) / (SKILL_MAX_LEVEL - 1)` 입니다.
+     * 2026-09-14 에 만렙 30% 에서 내렸습니다 (사용자 확정)
+     */
+    hpRatio: 0.10, hpRatioPerLevel: 0.1 / 9,
   },
   flame: {
     // damage 는 "초당 공격력 배수"입니다

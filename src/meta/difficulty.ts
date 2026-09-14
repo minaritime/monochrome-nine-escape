@@ -93,6 +93,10 @@ export function clampDifficulty(level: number, hard = false): number {
  *
  * **배율만 건드립니다.** 장치(불리언 · 웨이브 · 선택지 수 · 클리어 시간)는 그대로
  * 가져옵니다. 그것이 하드 0 을 일반 15 와 같은 판으로 만드는 부분입니다.
+ *
+ * **보스 배율(체력 · 공격력)은 안 낮춥니다** (2026-09-14 사용자 확정). 낮추면 보스
+ * 체력이 일반 15 는 x6 인데 하드 0 은 x4.5 가 되어, 하드로 들어가는 순간 보스가
+ * 약해집니다. 하드는 일반 15 의 보스 배율을 그대로 이어받습니다.
  */
 function softenMuls(mods: DifficultyMods, ratio: number): void {
   const keys = [
@@ -102,8 +106,6 @@ function softenMuls(mods: DifficultyMods, ratio: number): void {
     'rangeMul',
     'spawnRateMul',
     'eliteRatioMul',
-    'bossHpMul',
-    'bossDamageMul',
     'bulletSpeedMul',
     'contactDamageMul',
     'bomberSpeedMul',

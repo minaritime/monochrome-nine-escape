@@ -960,7 +960,7 @@ console.log('3-3) 스나이퍼: 대상 최대 체력 비례 추가 피해');
   // 규칙이 깨지면 스나이퍼는 다시 "그냥 한 발 세게 때리는 스킬"로 돌아갑니다
   const ratio = (l: number) => lv(SKILLS.sniper.hpRatio, SKILLS.sniper.hpRatioPerLevel, l);
   check('1레벨 10%', Math.abs(ratio(1) - 0.10) < 1e-9, `${(ratio(1) * 100).toFixed(1)}%`);
-  check('만렙 30%', Math.abs(ratio(SKILL_MAX_LEVEL) - 0.30) < 1e-9, `${(ratio(SKILL_MAX_LEVEL) * 100).toFixed(1)}%`);
+  check('만렙 20%', Math.abs(ratio(SKILL_MAX_LEVEL) - 0.20) < 1e-9, `${(ratio(SKILL_MAX_LEVEL) * 100).toFixed(1)}%`);
 
   /** 최대 체력만 다른 적을 하나 세워두고 한 발 쏴서 실제로 들어간 피해를 잽니다 */
   const shoot = (maxHp: number, level: number): number => {
@@ -995,7 +995,7 @@ console.log('3-3) 스나이퍼: 대상 최대 체력 비례 추가 피해');
   check('만렙이 1레벨보다 아프다', maxed > hard, `${maxed.toFixed(0)} vs ${hard.toFixed(0)}`);
 
   // **치명타는 비례항에 안 걸립니다.** 걸리면 치명타 배율 상한 4.0 에서
-  // 대상 최대 체력의 120% 가 한 발에 들어가 무엇이든 크리 한 방에 지워집니다
+  // 대상 최대 체력의 80% 가 한 발에 들어가 무엇이든 크리 한 방에 지워집니다
   {
     const w = new World(emptySave(), input, 778);
     w.spawner.enabled = false;
@@ -1011,7 +1011,7 @@ console.log('3-3) 스나이퍼: 대상 최대 체력 비례 추가 피해');
     getSkillDef('sniper').activate(w, slot);
     step(w, 1.5);
     const dealt = 2400 - Math.max(0, e.hp);
-    const want = atk * lv(SKILLS.sniper.damage, SKILLS.sniper.damagePerLevel, SKILL_MAX_LEVEL) * 4 + 2400 * 0.3;
+    const want = atk * lv(SKILLS.sniper.damage, SKILLS.sniper.damagePerLevel, SKILL_MAX_LEVEL) * 4 + 2400 * ratio(SKILL_MAX_LEVEL);
     check('치명타는 비례항에 안 곱해진다', Math.abs(dealt - want) < 1, `${dealt.toFixed(0)} (기대 ${want.toFixed(0)})`);
   }
 }
@@ -1947,6 +1947,10 @@ console.log('8) 난이도: 단계가 오르면 적이 실제로 강해지는가'
     check(`보스 체력 ${lv}단계 x${want}`, near(difficultyMods(lv).bossHpMul, want), `${difficultyMods(lv).bossHpMul}`);
     check(`보스 체력 ${lv + 1}단계는 ${lv}단계와 같다`, lv >= DIFFICULTY.max || near(difficultyMods(lv + 1).bossHpMul, want));
   }
+  // 하드는 보스 배율을 낮추지 않고 일반 15 를 그대로 이어받습니다 (2026-09-14)
+  check('하드 0 보스 체력 = 일반 15', difficultyMods(0, true).bossHpMul === difficultyMods(15).bossHpMul, `${difficultyMods(0, true).bossHpMul}`);
+  check('하드 0 보스 공격력 = 일반 15', difficultyMods(0, true).bossDamageMul === difficultyMods(15).bossDamageMul, `${difficultyMods(0, true).bossDamageMul}`);
+  check('하드 15 보스 체력도 일반 15 아래로 안 내려간다', difficultyMods(15, true).bossHpMul >= difficultyMods(15).bossHpMul);
 
   // 코인 드랍 확률은 0 에서 절반(x1), 15 에서 원래 확률(x2)로 돌아옵니다 (2026-09-14)
   const drop = (lv: number, hard = false) => difficultyMods(lv, hard).coinDropMul;
