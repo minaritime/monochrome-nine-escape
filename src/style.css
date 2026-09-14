@@ -1821,3 +1821,15 @@ body.mobile .shop-intro-row {
   line-height: 1.5;
   padding-left: 10px;
 }
+
+/*
+ * `+ ` 버프는 초록, `- ` 너프는 빨강 (2026-09-14).
+ * 뜻을 나르는 두 색이라 하드 테마에서도 안 옮겨갑니다. 부호 없는 옛 줄은 위의 흐린 색 그대로입니다
+ */
+.patch-line.buff {
+  color: var(--ok);
+}
+
+.patch-line.nerf {
+  color: var(--danger);
+}

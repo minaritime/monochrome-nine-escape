@@ -110,7 +110,7 @@ import {
 } from '../src/meta/achievements';
 import { ALL_ENEMY_IDS, getEnemyDef } from '../src/enemies/registry';
 import { HARD_LASER } from '../src/data/balance';
-import { LATEST_PATCH, PATCH_NOTES, visiblePatchNotes } from '../src/data/patchnotes';
+import { LATEST_PATCH, PATCH_NOTES, TONE_SINCE, lineTone, visiblePatchNotes } from '../src/data/patchnotes';
 import { ALL_SKILL_IDS, getSkillDef, lv, makeSlot, slotCooldown } from '../src/skills/registry';
 import { ATTACK_SKILL_IDS, UTILITY_SKILL_IDS } from '../src/skills/registry';
 import { SKILL_FAMILY_LABEL, type SkillFamily } from '../src/skills/types';
@@ -4868,6 +4868,20 @@ console.log('\n24) 패치로그');
   check('연 저장에는 보인다', hardTitles.every((t) => titles(shown).includes(t)));
   // 하드 항목만 있던 묶음이 빈 껍데기로 남으면 안 됩니다
   check('빈 묶음이 안 남는다', hidden.every((n) => n.groups.every((g) => g.items.length > 0)));
+
+  // `+ ` 버프(초록) · `- ` 너프(빨강). TONE_SINCE 부터는 모든 줄에 부호가 있어야 합니다 (2026-09-14)
+  check('+ 는 버프', lineTone('+ 공격력 증가') === 'buff');
+  check('- 는 너프', lineTone('- 공격력 감소') === 'nerf');
+  check('부호 없는 줄은 색 없음', lineTone('공격력 감소') === 'plain');
+  const sinceIdx = PATCH_NOTES.findIndex((n) => n.version === TONE_SINCE);
+  check('부호 시작 버전이 목록에 있다', sinceIdx >= 0, TONE_SINCE);
+  for (const note of PATCH_NOTES.slice(0, sinceIdx + 1)) {
+    for (const g of note.groups) {
+      for (const it of g.items) {
+        for (const line of it.lines) check(`${note.version} "${line}" 에 +/- 부호가 있다`, lineTone(line) !== 'plain', line);
+      }
+    }
+  }
 
   console.log(`   ${PATCH_NOTES.length}개 버전 · 최신 ${LATEST_PATCH} · 하드 전용 ${hardTitles.length}개`);
 }
