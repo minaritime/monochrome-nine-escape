@@ -18,12 +18,23 @@ export const chase: EnemyBehavior = (e, w) => {
  * 플레이어를 쫓지 않아서 오히려 예측이 어렵습니다.
  */
 export const bounce: EnemyBehavior = (e, w, dt) => {
+  // 무적 바보적은 스폰 직후 잠시 멈춰 있습니다 (2026-09-14). 못 죽이는 적이 나오자마자
+  // 달려들면 반응할 틈이 없습니다. 조여드는 링은 `render/scene.ts` 가 그립니다
+  if (e.immortal && e.state.timer2 > 0) {
+    e.state.timer2 -= dt;
+    e.vx = 0;
+    e.vy = 0;
+    return;
+  }
   if (!e.state.flag) {
     // 스폰 직후 한 번만 화면 안쪽을 향해 방향을 잡습니다
     e.state.flag = true;
     e.state.angle = angleTo(e.x, e.y, w.player.x, w.player.y) + w.rng.range(-0.5, 0.5);
   }
-  const next = { x: e.x + Math.cos(e.state.angle) * e.speed * dt, y: e.y + Math.sin(e.state.angle) * e.speed * dt };
+  // 무적 바보적은 등장 후 흐른 시간을 `timer3` 에 셉니다. 멈춤 · 기절 중에는 이 줄에 안 옵니다
+  if (e.immortal) e.state.timer3 += dt;
+  const speed = e.speed * immortalFoolSpeedMul(e);
+  const next = { x: e.x + Math.cos(e.state.angle) * speed * dt, y: e.y + Math.sin(e.state.angle) * speed * dt };
   let bounced = false;
   if (next.x < e.radius || next.x > CANVAS.w - e.radius) {
     e.state.angle = Math.PI - e.state.angle;
@@ -37,10 +48,20 @@ export const bounce: EnemyBehavior = (e, w, dt) => {
     w.effects.burst(e.x, e.y, 4, e.def.accent, 90, 2, 0.2);
     foolShoot(e, w);
   }
-  e.vx = Math.cos(e.state.angle) * e.speed;
-  e.vy = Math.sin(e.state.angle) * e.speed;
+  e.vx = Math.cos(e.state.angle) * speed;
+  e.vy = Math.sin(e.state.angle) * speed;
   e.facing = e.state.angle;
 };
+
+/**
+ * 무적 바보적의 경과 시간 속도 배율 (2026-09-14). 일반 바보적은 언제나 1 입니다.
+ * 등장 후 `immortalRampTime` 에 걸쳐 1 → `immortalRampMax` 로 곧게 오릅니다
+ */
+export function immortalFoolSpeedMul(e: Enemy): number {
+  if (!e.immortal) return 1;
+  const P = ENEMY_PARAMS.fool;
+  return 1 + (P.immortalRampMax - 1) * Math.min(1, e.state.timer3 / P.immortalRampTime);
+}
 
 /**
  * 벽에 튕길 때마다 플레이어 쪽으로 쏩니다.

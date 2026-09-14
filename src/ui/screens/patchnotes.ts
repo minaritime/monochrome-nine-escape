@@ -15,7 +15,8 @@ import { bindKeys, clearOverlay, h, overlayEl, screen } from './dom';
 export function showPatchNotes(save: SaveData, onBack: () => void): () => void {
   clearOverlay();
 
-  const notes = visiblePatchNotes(save.hardUnlocked);
+  // 하드 항목과 잠긴 난이도 항목은 연 사람에게만 보입니다
+  const notes = visiblePatchNotes(save);
   // 펼침 상태는 화면이 살아 있는 동안만 유지합니다. 저장에 남길 값이 아닙니다
   const open = new Set<string>(notes.length > 0 ? [notes[0].version] : []);
 

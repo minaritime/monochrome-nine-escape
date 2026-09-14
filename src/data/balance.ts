@@ -401,6 +401,23 @@ export const ENEMY_PARAMS = {
     immortalBulletSpeedMul: 0.5,
     immortalSpread: 0.3,
     immortalSpeedMul: 1.5,
+    /**
+     * 판 시작에 1마리, 그 뒤로 이 간격(초)마다 1마리씩 늘어납니다 (2026-09-14 사용자 확정).
+     * **클리어하면 더 안 나옵니다.** 급상승 구간은 이미 속도와 체력으로 판을 끝내는 자리라
+     * 못 죽이는 적까지 계속 쌓을 이유가 없습니다
+     */
+    immortalSpawnInterval: 300,
+    /** 스폰 직후 제자리에 멈춰 있는 시간(초). 자폭적(`bomber.spawnDelay`)과 같은 방식입니다 */
+    immortalSpawnDelay: 1.0,
+    /**
+     * **개체마다 등장 후 경과 시간**으로 빨라집니다. 이 시간(초)에 걸쳐 속도 배율이
+     * 1 에서 `immortalRampMax` 까지 곧게 오르고 그 뒤로 고정입니다. `immortalSpeedMul`
+     * 위에 곱합니다. 멈춰 있던 시간과 기절한 시간은 안 셉니다
+     */
+    immortalRampTime: 600,
+    immortalRampMax: 2,
+    /** 판 중에 나올 모서리가 플레이어와 이 거리보다 가까우면 반대편 모서리로 옮깁니다 */
+    immortalSafeDist: 300,
   },
   /**
    * 자폭적의 방아쇠는 셋입니다.
@@ -1076,7 +1093,7 @@ export const DIFFICULTY_STEPS: readonly DifficultyStep[] = [
   { label: '돌진적 능력 강화', chargerNoStun: true, chargerNoCooldown: true },
   { label: '분열적 능력 강화, 적 공격력 +20%, 체력 +25%', splitterShoot: true, damageMul: 1.2, hpMul: 1.25 },
   {
-    label: '무적 바보적 1마리 상시 등장, 바보적·겁쟁이·장판적 능력 강화, 접촉 피해 +50%, 보스 체력 +100%',
+    label: '무적 바보적 등장(점점 늘어남), 바보적·겁쟁이·장판적 능력 강화, 접촉 피해 +50%, 보스 체력 +100%',
     bossHpMul: 2.0,
     foolInvuln: true,
     foolShotDirs: 8,

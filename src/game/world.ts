@@ -193,6 +193,9 @@ export class World {
   /** 그 보너스가 첫 클리어 몫이었는가 */
   clearBonusFirst = false;
 
+  /** 이 판에서 나온 무적 바보적 수. 5분마다 1마리 규칙이 이 값으로 밀린 몫을 셉니다 */
+  immortalFoolsSpawned = 0;
+
   /**
    * 하드 5의 경기장 레이저. 주인이 없어서 적 목록이 아니라 여기 따로 둡니다
    */
@@ -311,19 +314,42 @@ export class World {
     // 시작 스킬도 이 판에서 쓴 스킬입니다
     for (const s of ownedSlots(this.player)) this.noteSkill(s);
 
-    // 난이도 15: 처치할 수 없는 바보적 한 마리가 판 내내 벽을 튕겨 다닙니다.
-    // 적이라기보다 움직이는 장애물이라 스폰 표에 넣지 않고 여기서 딱 한 번만 냅니다
+    // 난이도 15: 처치할 수 없는 바보적이 벽을 튕겨 다닙니다.
+    // 적이라기보다 움직이는 장애물이라 스폰 표에 넣지 않습니다. 판 시작에 1마리를 내고
+    // 그 뒤로는 `updateImmortalFools` 가 5분마다 1마리씩 더합니다 (2026-09-14)
     if (this.diff.foolInvuln) this.spawnImmortalFool();
   }
 
   private spawnImmortalFool(): void {
-    // 플레이어 시작 위치(중앙)와 겹치지 않게 모서리 쪽에서 시작합니다
-    const x = this.rng.chance(0.5) ? CANVAS.w * 0.15 : CANVAS.w * 0.85;
-    const y = this.rng.chance(0.5) ? CANVAS.h * 0.15 : CANVAS.h * 0.85;
+    // 모서리 쪽에서 시작합니다. 난수는 예전과 똑같이 두 번만 뽑습니다 (시드가 안 밀리게)
+    let x = this.rng.chance(0.5) ? CANVAS.w * 0.15 : CANVAS.w * 0.85;
+    let y = this.rng.chance(0.5) ? CANVAS.h * 0.15 : CANVAS.h * 0.85;
+    // 판 중에 나오는 개체는 플레이어 곁 모서리일 수 있어서, 가까우면 반대편 모서리로 옮깁니다
+    if (Math.hypot(x - this.player.x, y - this.player.y) < ENEMY_PARAMS.fool.immortalSafeDist) {
+      x = CANVAS.w - x;
+      y = CANVAS.h - y;
+    }
     const e = this.spawnEnemy('fool', x, y, { immortal: true });
     // 타겟도 안 되고 탄도 느려진 대신 빠르게 돌아다닙니다. 셋이 한 묶음이라
     // 하나만 만지면 "무시하고 지나칠 수 있는 적"이 되어 존재 이유가 사라집니다
     e.speed *= ENEMY_PARAMS.fool.immortalSpeedMul;
+    // 자폭적처럼 나오자마자 잠시 멈춰 섭니다. 경과 시간(`timer3`)은 멈춤이 끝난 뒤부터 셉니다
+    e.state.timer2 = ENEMY_PARAMS.fool.immortalSpawnDelay;
+    e.state.timer3 = 0;
+    this.immortalFoolsSpawned++;
+  }
+
+  /**
+   * 무적 바보적을 5분마다 1마리씩 더합니다 (2026-09-14 사용자 확정).
+   *
+   * **클리어하면 멈춥니다.** 타이머가 클리어 시간에 멈춰 있는 동안(보스전)은 그 시점의
+   * 몫까지 나오고, 보스를 잡은 뒤로는 더 안 나옵니다. 몇 마리가 나왔는지를 세어 두므로
+   * 디버그 맵에서 시간을 크게 건너뛰면 밀린 만큼 한꺼번에 나옵니다
+   */
+  private updateImmortalFools(): void {
+    if (!this.diff.foolInvuln || this.cleared) return;
+    const due = Math.floor(this.time / ENEMY_PARAMS.fool.immortalSpawnInterval) + 1;
+    while (this.immortalFoolsSpawned < due) this.spawnImmortalFool();
   }
 
   /**
@@ -342,7 +368,11 @@ export class World {
     this.diff = difficultyMods(this.difficulty, hard);
 
     const fools = this.enemies.filter((e) => e.immortal && !e.dead);
-    if (this.diff.foolInvuln && fools.length === 0) this.spawnImmortalFool();
+    if (this.diff.foolInvuln && fools.length === 0) {
+      // 켜는 순간 밀린 몫을 한꺼번에 내지 않고 1마리만 냅니다. 그 뒤 주기는 평소대로입니다
+      this.immortalFoolsSpawned = Math.floor(this.time / ENEMY_PARAMS.fool.immortalSpawnInterval);
+      this.spawnImmortalFool();
+    }
     // 보상 없이 지웁니다. `killEnemy` 를 타면 못 죽이는 적에게 경험치가 붙습니다
     if (!this.diff.foolInvuln) for (const e of fools) e.dead = true;
     return true;
@@ -364,6 +394,7 @@ export class World {
       // 디버그 맵 전용. 시계만 세우고 나머지는 그대로 돕니다
     } else if (this.cleared) this.time += dt;
     else if (this.time < this.diff.clearTime) this.time = Math.min(this.diff.clearTime, this.time + dt);
+    this.updateImmortalFools();
 
     // 업적: "첫 보스까지 안 움직이기" 는 조작 여부를 봐야 합니다.
     // 위치로 재면 넉백이나 장판 감속에 밀린 것도 움직인 것이 됩니다

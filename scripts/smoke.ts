@@ -110,7 +110,7 @@ import {
 } from '../src/meta/achievements';
 import { ALL_ENEMY_IDS, getEnemyDef } from '../src/enemies/registry';
 import { HARD_LASER } from '../src/data/balance';
-import { HIDDEN_PATCH_HINT, LATEST_PATCH, PATCH_NOTES, TONE_SINCE, lineTone, visiblePatchNotes } from '../src/data/patchnotes';
+import { HIDDEN_PATCH_HINT, LATEST_PATCH, PATCH_NOTES, TONE_SINCE, isGatedItem, lineTone, patchItemVisible, visiblePatchNotes } from '../src/data/patchnotes';
 import { ALL_SKILL_IDS, getSkillDef, lv, makeSlot, slotCooldown } from '../src/skills/registry';
 import { ATTACK_SKILL_IDS, UTILITY_SKILL_IDS } from '../src/skills/registry';
 import { SKILL_FAMILY_LABEL, type SkillFamily } from '../src/skills/types';
@@ -2029,11 +2029,64 @@ console.log('8-2) 난이도 단계별 새 장치가 실제로 걸리는가');
   w15.spawner.enabled = false;
   const immortals = w15.enemies.filter((e) => e.immortal);
   console.log(`   무적 바보적 ${immortals.length}마리 · 종류 ${immortals[0]?.defId}`);
-  check('15단계는 무적 바보적이 딱 한 마리', immortals.length === 1 && immortals[0].defId === 'fool');
+  check('15단계는 판 시작에 무적 바보적이 한 마리', immortals.length === 1 && immortals[0].defId === 'fool');
   const before = immortals[0].hp;
   w15.damageEnemy(immortals[0], 99999);
   check('무적 바보적은 피해를 안 받는다', immortals[0].hp === before && !immortals[0].dead);
   check('14단계에는 무적 바보적이 없다', new World(emptySave(), input, 77, 14).enemies.every((e) => !e.immortal));
+
+  // 무적 바보적: 스폰 후 멈춤 · 경과 시간으로 빨라짐 · 5분마다 1마리 · 클리어 뒤 멈춤 (2026-09-14)
+  {
+    const P = ENEMY_PARAMS.fool;
+    const w = new World(emptySave(), input, 78, 15);
+    w.spawner.enabled = false;
+    const f = w.enemies.find((e) => e.immortal)!;
+    check('스폰 직후 멈춰 있다', f.state.timer2 === P.immortalSpawnDelay, `${f.state.timer2}`);
+    for (let i = 0; i < Math.round((P.immortalSpawnDelay * 0.5) / FIXED_DT); i++) f.def.behavior(f, w, FIXED_DT);
+    check('멈춤 중에는 속도가 0 이다', f.vx === 0 && f.vy === 0);
+    for (let i = 0; i < Math.round((P.immortalSpawnDelay * 0.6) / FIXED_DT); i++) f.def.behavior(f, w, FIXED_DT);
+    check('멈춤이 끝나면 움직인다', Math.hypot(f.vx, f.vy) > 0);
+
+    const speedAt = (age: number) => {
+      f.state.timer2 = 0;
+      f.state.timer3 = age;
+      f.def.behavior(f, w, 0);
+      return Math.hypot(f.vx, f.vy) / f.speed;
+    };
+    const s0 = speedAt(0);
+    const s5 = speedAt(P.immortalRampTime / 2);
+    const s10 = speedAt(P.immortalRampTime);
+    const s20 = speedAt(P.immortalRampTime * 2);
+    console.log(`   무적 바보적 경과 속도 · 0분 x${s0.toFixed(2)} · 5분 x${s5.toFixed(2)} · 10분 x${s10.toFixed(2)} · 20분 x${s20.toFixed(2)}`);
+    check('등장 직후는 1배', Math.abs(s0 - 1) < 1e-6, `${s0}`);
+    check('절반 시간에 1.5배', Math.abs(s5 - 1.5) < 1e-6, `${s5}`);
+    check('10분에 2배', Math.abs(s10 - P.immortalRampMax) < 1e-6 && P.immortalRampTime === 600, `${s10}`);
+    check('그 뒤로는 2배에서 멈춘다', Math.abs(s20 - P.immortalRampMax) < 1e-6, `${s20}`);
+    const plainFool = w.spawnEnemy('fool', 640, 200, {});
+    plainFool.state.timer3 = P.immortalRampTime;
+    plainFool.def.behavior(plainFool, w, 0);
+    check('일반 바보적은 안 빨라진다', Math.abs(Math.hypot(plainFool.vx, plainFool.vy) - plainFool.speed) < 1e-6);
+    plainFool.dead = true;
+
+    const count = () => w.enemies.filter((e) => e.immortal && !e.dead).length;
+    w.time = P.immortalSpawnInterval - 1;
+    step(w, FIXED_DT * 2);
+    check('5분 전에는 1마리', count() === 1, `${count()}`);
+    w.time = P.immortalSpawnInterval;
+    step(w, FIXED_DT * 2);
+    const fresh = w.enemies.filter((e) => e.immortal && !e.dead).at(-1)!;
+    check('5분에 2마리', count() === 2, `${count()}`);
+    check('새로 나온 개체도 멈춘 채 나온다', fresh.state.timer2 > 0 && fresh.state.timer3 === 0, `${fresh.state.timer2}`);
+    check('새로 나온 개체는 플레이어 곁에 안 붙는다', Math.hypot(fresh.x - w.player.x, fresh.y - w.player.y) > 150);
+    w.time = w.diff.clearTime;
+    step(w, FIXED_DT * 2);
+    const atClear = count();
+    check('클리어 시간까지 몫이 다 나온다 (30분 · 7마리)', atClear === Math.floor(w.diff.clearTime / P.immortalSpawnInterval) + 1, `${atClear}`);
+    w.cleared = true;
+    w.time = w.diff.clearTime + P.immortalSpawnInterval * 2;
+    step(w, FIXED_DT * 2);
+    check('클리어한 뒤로는 더 안 나온다', count() === atClear, `${count()}`);
+  }
 
   // 무적 바보적의 세 가지는 한 묶음입니다 (2026-08-12).
   // 하나만 빠져도 "화력을 통째로 빨아먹는 적" 이거나 "무시하고 지나칠 수 있는 적"이 됩니다
@@ -2059,6 +2112,8 @@ console.log('8-2) 난이도 단계별 새 장치가 실제로 걸리는가');
       e.y = 360;
       e.state.flag = true;
       e.state.angle = Math.PI;
+      // 스폰 직후 멈춤이 끝난 상태로 봅니다. 멈춰 있으면 벽까지 안 가서 한 발도 안 나옵니다
+      e.state.timer2 = 0;
       for (let i = 0; i < 5 && w15.projectiles.length === 0; i++) e.def.behavior(e, w15, FIXED_DT);
       return w15.projectiles.filter((p) => !p.friendly);
     };
@@ -4886,8 +4941,22 @@ console.log('\n24) 패치로그');
   }
 
   // --- 하드 항목은 하드모드를 연 사람에게만 ---
-  const hidden = visiblePatchNotes(false);
-  const shown = visiblePatchNotes(true);
+  const hidden = visiblePatchNotes({ hardUnlocked: false, maxDifficulty: 0, maxHardDifficulty: 0 });
+  const shown = visiblePatchNotes({ hardUnlocked: true, maxDifficulty: DIFFICULTY.max, maxHardDifficulty: DIFFICULTY.max });
+
+  // 잠긴 난이도 항목도 하드 항목처럼 가립니다 (2026-09-14). 규칙은 `patchItemVisible` 한 곳입니다
+  {
+    const viewer = (hardUnlocked: boolean, maxDifficulty: number, maxHardDifficulty = 0) => ({ hardUnlocked, maxDifficulty, maxHardDifficulty });
+    const lv15 = { title: 't', lines: ['- x'], unlockDifficulty: 15 };
+    check('난이도 15 항목은 14 까지 연 사람에게 안 보인다', !patchItemVisible(lv15, viewer(false, 14)));
+    check('난이도 15 항목은 15 를 연 사람에게 보인다', patchItemVisible(lv15, viewer(false, 15)));
+    const hard3 = { title: 't', lines: ['- x'], unlockHardDifficulty: 3 };
+    check('하드 3 항목은 하드를 안 열면 안 보인다', !patchItemVisible(hard3, viewer(false, 15, 15)));
+    check('하드 3 항목은 하드 2 까지면 안 보인다', !patchItemVisible(hard3, viewer(true, 15, 2)));
+    check('하드 3 항목은 하드 3 을 열면 보인다', patchItemVisible(hard3, viewer(true, 15, 3)));
+    check('조건 없는 항목은 누구에게나 보인다', patchItemVisible({ title: 't', lines: ['- x'] }, viewer(false, -1)));
+    check('가림 여부 판정', isGatedItem(lv15) && isGatedItem(hard3) && !isGatedItem({ title: 't', lines: [] }));
+  }
   const titles = (list: ReturnType<typeof visiblePatchNotes>) =>
     list.flatMap((n) => n.groups.flatMap((g) => g.items.map((it) => it.title)));
   const hardTitles = PATCH_NOTES.flatMap((n) => n.groups.flatMap((g) => g.items.filter((it) => it.hardOnly).map((it) => it.title)));
@@ -4899,7 +4968,7 @@ console.log('\n24) 패치로그');
   check('빈 묶음이 안 남는다', hidden.every((n) => n.groups.every((g) => g.items.length > 0)));
 
   // 하드 항목을 가린 버전에만 "무언가가 패치되었습니다..." 가 붙습니다 (2026-09-14)
-  const hardVersions = PATCH_NOTES.filter((n) => n.groups.some((g) => g.items.some((it) => it.hardOnly))).map((n) => n.version);
+  const hardVersions = PATCH_NOTES.filter((n) => n.groups.some((g) => g.items.some((it) => isGatedItem(it)))).map((n) => n.version);
   check(
     '잠긴 저장: 하드 항목을 가린 버전에만 힌트',
     hidden.every((n) => n.hiddenPatched === hardVersions.includes(n.version)),

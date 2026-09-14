@@ -48,6 +48,34 @@ export interface PatchItem {
   lines: string[];
   /** 하드모드를 연 사람에게만 보입니다 */
   hardOnly?: boolean;
+  /**
+   * 일반 난이도 이 단계를 **열어야** 보입니다 (2026-09-14 사용자 확정).
+   * 잠긴 난이도에 붙은 강화는 아직 모르는 사람에게 스포일러라 하드 항목처럼 가립니다.
+   * 예: 난이도 15 의 무적 바보적 조정 → `unlockDifficulty: 15`
+   */
+  unlockDifficulty?: number;
+  /** 하드 난이도 이 단계를 열어야 보입니다. 하드모드를 안 열었으면 당연히 안 보입니다 */
+  unlockHardDifficulty?: number;
+}
+
+/** 패치로그를 보는 사람이 무엇을 열었는가. `SaveData` 에서 이 셋만 봅니다 */
+export interface PatchViewer {
+  hardUnlocked: boolean;
+  maxDifficulty: number;
+  maxHardDifficulty: number;
+}
+
+/** 조건이 붙어 누군가에게는 가려질 수 있는 항목인가 */
+export function isGatedItem(it: PatchItem): boolean {
+  return !!it.hardOnly || it.unlockDifficulty !== undefined || it.unlockHardDifficulty !== undefined;
+}
+
+/** 이 사람에게 이 항목이 보이는가. **거르는 규칙은 여기 한 곳입니다** */
+export function patchItemVisible(it: PatchItem, v: PatchViewer): boolean {
+  if (it.hardOnly && !v.hardUnlocked) return false;
+  if (it.unlockDifficulty !== undefined && v.maxDifficulty < it.unlockDifficulty) return false;
+  if (it.unlockHardDifficulty !== undefined && (!v.hardUnlocked || v.maxHardDifficulty < it.unlockHardDifficulty)) return false;
+  return true;
 }
 
 /** 한 갈래 (`* 스킬 변경점`) */
@@ -259,13 +287,14 @@ export const LATEST_PATCH = PATCH_NOTES[0].version;
  * `HIDDEN_PATCH_HINT` 를 붙입니다. 하드 항목만 있던 버전도 그 한 줄로 남습니다.
  * 빼버리면 "무언가가 패치됐다"를 알릴 자리가 없어집니다.
  */
-export function visiblePatchNotes(hardUnlocked: boolean): VisiblePatchNote[] {
+export function visiblePatchNotes(viewer: PatchViewer): VisiblePatchNote[] {
   const out: VisiblePatchNote[] = [];
   for (const note of PATCH_NOTES) {
     const groups: PatchGroup[] = [];
     let hiddenPatched = false;
     for (const g of note.groups) {
-      const items = g.items.filter((it) => !it.hardOnly || hardUnlocked);
+      // 하드 항목과 **잠긴 난이도 항목**을 같은 규칙으로 가립니다 (2026-09-14)
+      const items = g.items.filter((it) => patchItemVisible(it, viewer));
       if (items.length < g.items.length) hiddenPatched = true;
       if (items.length > 0) groups.push({ title: g.title, items });
     }

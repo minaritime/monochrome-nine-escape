@@ -308,6 +308,11 @@ function drawEnemy(r: Renderer, e: Enemy, w: World): void {
     r.circle(e.x, e.y, e.radius + 12, '#8fa6c8', 0.12 * alpha);
     r.ring(e.x, e.y, (e.radius + 6) * pulse, '#dbe6f7', 2.5, 0.8 * alpha);
     r.ring(e.x, e.y, e.radius + 11, '#8fa6c8', 1, 0.5 * alpha);
+    // 스폰 직후 멈춰 있는 동안 링이 몸 쪽으로 조여듭니다. 다 조여든 순간 출발합니다 (자폭적과 같은 표시)
+    if (e.state.timer2 > 0) {
+      const left = e.state.timer2 / ENEMY_PARAMS.fool.immortalSpawnDelay;
+      r.ring(e.x, e.y, e.radius + 6 + left * 26, '#dbe6f7', 2, (0.8 - left * 0.3) * alpha);
+    }
   }
 
   if (e.boss) {

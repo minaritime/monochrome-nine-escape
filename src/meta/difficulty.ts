@@ -433,7 +433,7 @@ export function difficultyEffects(level: number, hard = false): DifficultyEffect
   if (m.allElite) device('정예', m.eliteStatsOff ? '모든 적이 정예 (배율 없이 능력만)' : '모든 적이 정예');
   // 이것만은 접지 않습니다. 강화된 적이 아니라 판 내내 남는 못 죽이는 장애물이라,
   // 있는 줄 모르고 들어가면 대응 자체가 달라집니다
-  if (m.foolInvuln) device('무적 바보적', '1마리가 판 내내 남음');
+  if (m.foolInvuln) device('무적 바보적', '판 시작과 5분마다 1마리 · 등장 후 점점 빨라짐');
   // 하드 1~4 의 장치 (2026-09-10 에 채웠습니다). 예전에는 이 넷이 목록에 아예 없어서,
   // 하드 6 을 골라도 거대 포식자와 사제적이 켜져 있다는 것을 화면에서 알 수 없었습니다.
   // 그 단계를 고른 순간의 `새로 붙은 것` 상자에만 나왔습니다
