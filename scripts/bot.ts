@@ -182,7 +182,7 @@ export function useSkills(w: World, slots: (import('../src/game/types').SkillSlo
     if (!shouldUse(w, slot.id)) continue;
     const def = getSkillDef(slot.id);
     // 쿨다운 감소 스탯은 예전처럼 일부러 무시합니다. 여기서 같이 고치면 봇 생존 시간이
-    // 통째로 움직여서 CLAUDE.md 의 비교표가 끊깁니다. 갈래 배율만 반영합니다
+    // 통째로 움직여서 docs/기획/측정.md 의 비교표가 끊깁니다. 갈래 배율만 반영합니다
     if (def.activate(w, slot)) slot.cooldown = def.cooldown * branchMods(slot).cooldownMul;
   }
 }
