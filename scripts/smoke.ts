@@ -1748,7 +1748,8 @@ console.log('7) 레벨업: 서로 다른 스탯이 정해진 개수만큼 오르
   const w2 = new World(emptySave(), input, 5678);
   w2.spawner.enabled = false;
   const snapshot = { ...w2.player.stats };
-  w2.gainXp(w2.player.xpToNext);
+  // raw: 전역 경험치 배율이 곱해지면 한 번에 여러 레벨이 올라 "한 번에 2종"을 못 잽니다
+  w2.gainXp(w2.player.xpToNext, true);
   const changed = (Object.keys(snapshot) as StatKey[]).filter((k) => w2.player.stats[k] !== snapshot[k]);
   check('레벨업 한 번에 스탯 2종이 바뀐다', changed.length === STAT_GAINS_PER_LEVEL, changed.join(','));
 }
@@ -2569,10 +2570,11 @@ console.log('10-4-7) 레벨업 알림이 창을 닫은 뒤에 스탯 → 스킬 
   w.spawner.enabled = false;
 
   // 스킬 선택창이 뜨는 레벨까지 올립니다
-  while (!isSkillLevel(w.player.level + 1)) w.gainXp(w.player.xpToNext);
+  // raw: 한 레벨씩만 올려야 스킬 레벨 바로 앞에서 멈출 수 있습니다 (전역 경험치 배율을 안 탑니다)
+  while (!isSkillLevel(w.player.level + 1)) w.gainXp(w.player.xpToNext, true);
   w.effects.texts.length = 0;
   w.notices.length = 0;
-  w.gainXp(w.player.xpToNext);
+  w.gainXp(w.player.xpToNext, true);
 
   check('스킬 선택창이 예약됐다', w.pendingSkillChoices > 0);
   check('스탯 글자는 아직 안 떴다', w.effects.texts.length === 0, `${w.effects.texts.length}`);
@@ -4174,10 +4176,14 @@ console.log('\n17) 하드모드 상점');
       `x${mul.toFixed(2)}`,
     );
 
-    // **곱하는 곳이 `gainXp` 한 곳뿐인지**를 실제로 넣어 보고 잽니다
+    // **곱하는 곳이 `gainXp` 한 곳뿐인지**를 실제로 넣어 보고 잽니다.
+    // 레벨이 안 오를 만큼만 넣습니다 (오르면 xp 가 깎여 비교가 안 됩니다)
     const w = new World(s, input, 777, 0);
-    w.gainXp(10);
-    check('경험치에 배율이 먹는다', Math.abs(w.player.xp - 10 * mul) < 1e-6, `${w.player.xp}`);
+    w.gainXp(1);
+    check('경험치에 상점 배율과 전역 배율이 둘 다 먹는다', Math.abs(w.player.xp - mul * LEVEL.xpGainMul) < 1e-6, `${w.player.xp}`);
+    const w0 = new World(emptySave(), input, 777, 0);
+    w0.gainXp(1);
+    check('상점을 안 사도 전역 배율은 먹는다', Math.abs(w0.player.xp - LEVEL.xpGainMul) < 1e-6, `${w0.player.xp}`);
 
     // 강제 레벨업(F1)은 "모자란 만큼"을 넣는 자리라 배율이 곱해지면 두 레벨이 오릅니다
     const w2 = new World(s, input, 777, 0);

@@ -1663,8 +1663,9 @@ export class World {
   /**
    * 경험치를 넣습니다.
    *
-   * **상점의 경험치 강화가 여기 한 곳에서만 곱해집니다** (`xpMultiplier`). 출처마다
-   * 곱하면 새 출처가 생겼을 때 반드시 하나를 빠뜨립니다.
+   * **경험치 배율은 여기 한 곳에서만 곱해집니다.** 상점의 경험치 강화(`xpMultiplier`)와
+   * 전역 배율(`LEVEL.xpGainMul`) 둘 다입니다. 출처마다 곱하면 새 출처가 생겼을 때 반드시
+   * 하나를 빠뜨립니다.
    *
    * `raw` 는 강제 레벨업(F1 디버그) 전용입니다. "다음 레벨까지 모자란 만큼"을 넣는
    * 자리라 배율이 곱해지면 한 번에 두 레벨이 오릅니다.
@@ -1672,7 +1673,7 @@ export class World {
   gainXp(amount: number, raw = false): void {
     if (this.xpBlocked && !raw) return;
     const p = this.player;
-    p.xp += raw ? amount : amount * this.xpMul;
+    p.xp += raw ? amount : amount * this.xpMul * LEVEL.xpGainMul;
     while (p.xp >= p.xpToNext) {
       p.xp -= p.xpToNext;
       p.level++;
