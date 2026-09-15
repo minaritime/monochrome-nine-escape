@@ -3215,6 +3215,34 @@ console.log('10-4-12) 군체왕: 잡몹에 비례해 강해지고 삼키고 분�
   console.log(`   잡몹 ${before} → ${after} (삼킴) · 남은 적탄 ${w.projectiles.filter((p) => !p.friendly).length}`);
   check('임계치를 넘으면 잡몹을 삼킨다', after < before, `${before} → ${after}`);
 
+  // 무적 바보적은 삼키지 않습니다 (2026-09-15). 흡수가 무적 바보적보다 먼저 생겨서
+  // 빠져 있던 줄이고, 그래서 30분 판에서도 무적 바보적 7마리 상태가 한 번도 안 생겼습니다
+  {
+    const w3 = new World(emptySave(), stillInput, 12004);
+    w3.spawner.enabled = false;
+    const b3 = w3.spawnBoss('swarm');
+    b3.y = 360;
+    w3.player.x = 200;
+    w3.player.y = 200;
+    const fool = w3.spawnEnemy('fool', b3.x + 40, b3.y, { immortal: true });
+    const total = S.devourThreshold + 6;
+    for (let i = 0; i < total; i++) {
+      const a = (i / total) * Math.PI * 2;
+      w3.spawnEnemy('basic', b3.x + Math.cos(a) * 120, b3.y + Math.sin(a) * 120, {});
+    }
+    // 보스도 바보적도 움직이므로 매 프레임 보스 곁에 붙여 둡니다. 흡수 순간에 반경 밖에
+    // 있으면 고치기 전 코드로도 이 점검이 통과해 버립니다
+    const dur = S.devourInterval + S.devourTelegraph + 0.4;
+    for (let t = 0; t < dur; t += FIXED_DT) {
+      fool.x = b3.x + 40;
+      fool.y = b3.y;
+      step(w3, FIXED_DT);
+    }
+    const left = w3.enemies.filter((e) => !e.boss && !e.dead && !e.immortal).length;
+    check('흡수가 실제로 일어났다', left < total, `${total} → ${left}`);
+    check('흡수가 무적 바보적을 삼키지 않는다', !fool.dead);
+  }
+
   // 체력 절반에서 한 번 무적 + 대량 소환
   const w2 = new World(emptySave(), stillInput, 12003);
   w2.spawner.enabled = false;

@@ -561,11 +561,16 @@ const swarmBehavior: EnemyBehavior = (e, w, dt) => {
   }
 };
 
-/** 보스를 뺀 화면 위의 적 수 */
+/**
+ * 보스를 뺀 화면 위의 적 수.
+ *
+ * **무적 개체는 안 셉니다** (2026-09-15). 흡수로도 못 치우는 몫이 늘 깔려 있으면
+ * 나선 갈래 수와 흡수 문턱이 판 내내 그만큼 부풀어 있습니다
+ */
 function countMinions(w: World): number {
   let n = 0;
   for (const o of w.enemies) {
-    if (!o.dead && !o.boss) n++;
+    if (!o.dead && !o.boss && !o.immortal) n++;
   }
   return n;
 }
@@ -574,12 +579,18 @@ function countMinions(w: World): number {
  * 주변 잡몹을 삼켜 없애고, 삼킨 수만큼 사방으로 탄을 뱉습니다.
  * 화면은 정리되지만 그 대가를 탄막으로 치릅니다.
  * 삼켜진 잡몹은 경험치도 코인도 남기지 않습니다 (killEnemy 를 거치지 않습니다).
+ *
+ * **무적 개체(무적 바보적)는 안 삼킵니다** (2026-09-15). 흡수가 무적 바보적보다 먼저
+ * 생겨서 빠져 있던 줄입니다. 흡수는 "내가 치울까, 보스가 먹게 둘까"의 선택인데 내가
+ * 치울 수 없는 적은 그 선택에 들어갈 수 없고, 무적 바보적은 나온 수를 세므로 먹힌
+ * 몫이 다시 안 채워져 30분 판에서도 7마리 상태가 한 번도 안 생겼습니다.
+ * 피해 · 파편 · 디버그 맵 전멸이 전부 무적을 지키는 것과 같은 규칙입니다
  */
 function devour(e: Enemy, w: World): void {
   const S = BOSS_SWARM;
   let eaten = 0;
   for (const o of w.enemies) {
-    if (o.dead || o.boss) continue;
+    if (o.dead || o.boss || o.immortal) continue;
     if (dist(e.x, e.y, o.x, o.y) > S.devourRadius) continue;
     o.dead = true;
     w.effects.burst(o.x, o.y, 4, e.def.accent, 120, 2, 0.3);
