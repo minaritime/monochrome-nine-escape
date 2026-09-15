@@ -110,7 +110,7 @@ import {
 } from '../src/meta/achievements';
 import { ALL_ENEMY_IDS, getEnemyDef } from '../src/enemies/registry';
 import { HARD_LASER } from '../src/data/balance';
-import { HIDDEN_PATCH_HINT, LATEST_PATCH, PATCH_NOTES, TONE_SINCE, isGatedItem, lineTone, patchItemVisible, visiblePatchNotes } from '../src/data/patchnotes';
+import { HIDDEN_PATCH_HINT, LATEST_PATCH, PATCH_NOTES, TONE_SINCE, isGatedItem, lineText, lineTone, patchItemVisible, visiblePatchNotes } from '../src/data/patchnotes';
 import { ALL_SKILL_IDS, getSkillDef, lv, makeSlot, slotCooldown } from '../src/skills/registry';
 import { ATTACK_SKILL_IDS, UTILITY_SKILL_IDS } from '../src/skills/registry';
 import { SKILL_FAMILY_LABEL, type SkillFamily } from '../src/skills/types';
@@ -4998,7 +4998,7 @@ console.log('\n24) 패치로그');
         // **수치는 안 적습니다** (2026-09-10 사용자 지시). 반경 380 이 아니라 "범위 증가"입니다.
         // 판마다 배율이 달라 그 숫자가 화면에서 뜻을 갖지 않고, 다음에 손볼 때 여기까지
         // 고쳐야 합니다. 배율·단위 표기만 막고 "난이도 3" 같은 것은 그대로 둡니다
-        for (const line of it.lines) {
+        for (const line of it.lines.map(lineText)) {
           check(
             `"${line}" 에 수치가 없다`,
             !/(x\s*\d|\d\s*(배|초|%|px))/.test(line),
@@ -5025,6 +5025,20 @@ console.log('\n24) 패치로그');
     check('하드 3 항목은 하드 3 을 열면 보인다', patchItemVisible(hard3, viewer(true, 15, 3)));
     check('조건 없는 항목은 누구에게나 보인다', patchItemVisible({ title: 't', lines: ['- x'] }, viewer(false, -1)));
     check('가림 여부 판정', isGatedItem(lv15) && isGatedItem(hard3) && !isGatedItem({ title: 't', lines: [] }));
+
+    // 줄 하나에만 잠금을 걸 수 있습니다 (2026-09-15). 무적바보적 줄을 `적` 항목 안에 두려고 생겼습니다
+    const mixed = { title: '적', lines: ['- 열린 줄', { text: '- 잠긴 줄', unlockDifficulty: 15 }] };
+    const allLocked = { title: '잠긴 항목', lines: [{ text: '- 잠긴 줄', unlockDifficulty: 15 }] };
+    check('줄에만 잠금이 있어도 가림 항목이다', isGatedItem(mixed));
+    const sample = [{ version: 'vT', date: '2026-01-01', groups: [{ title: '', items: [mixed, allLocked] }] }];
+    const low = visiblePatchNotes(viewer(false, 14), sample);
+    const lowItems = low[0]?.groups[0]?.items ?? [];
+    check('못 연 사람: 잠긴 줄만 빠지고 항목은 남는다', lowItems.length === 1 && lowItems[0].lines.join('|') === '- 열린 줄', JSON.stringify(lowItems));
+    check('못 연 사람: 줄을 가려도 힌트가 붙는다', low[0]?.hiddenPatched === true);
+    const high = visiblePatchNotes(viewer(false, 15), sample);
+    const highItems = high[0]?.groups[0]?.items ?? [];
+    check('연 사람: 줄이 순서대로 전부 보인다', highItems.length === 2 && highItems[0].lines.join('|') === '- 열린 줄|- 잠긴 줄', JSON.stringify(highItems));
+    check('연 사람: 힌트가 없다', high[0]?.hiddenPatched === false);
   }
   const titles = (list: ReturnType<typeof visiblePatchNotes>) =>
     list.flatMap((n) => n.groups.flatMap((g) => g.items.map((it) => it.title)));
@@ -5057,7 +5071,7 @@ console.log('\n24) 패치로그');
   for (const note of PATCH_NOTES.slice(0, sinceIdx + 1)) {
     for (const g of note.groups) {
       for (const it of g.items) {
-        for (const line of it.lines) check(`${note.version} "${line}" 에 +/-/~ 부호가 있다`, lineTone(line) !== 'plain', line);
+        for (const line of it.lines.map(lineText)) check(`${note.version} "${line}" 에 +/-/~ 부호가 있다`, lineTone(line) !== 'plain', line);
       }
     }
   }

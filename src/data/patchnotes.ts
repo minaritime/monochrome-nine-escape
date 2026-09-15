@@ -42,10 +42,8 @@ export function lineTone(line: string): PatchTone {
 /** 부호가 반드시 붙어야 하는 첫 버전. 이 버전과 그 뒤는 `plain` 줄이 있으면 안 됩니다 */
 export const TONE_SINCE = 'v0.2.02';
 
-/** 한 묶음 (`* 스킬 변경점` 아래의 `1. 추적 미사일`) */
-export interface PatchItem {
-  title: string;
-  lines: string[];
+/** 누가 볼 수 있는가. 항목에도 줄에도 붙습니다 */
+export interface PatchGate {
   /** 하드모드를 연 사람에게만 보입니다 */
   hardOnly?: boolean;
   /**
@@ -58,6 +56,30 @@ export interface PatchItem {
   unlockHardDifficulty?: number;
 }
 
+/**
+ * 잠금이 붙은 한 줄 (2026-09-15 사용자 확정).
+ *
+ * **같은 묶음의 줄을 잠금 때문에 항목째 떼지 않으려고 둡니다.** 무적바보적은 적이라 `적`
+ * 항목에 들어가야 읽기 자연스러운데, 가리는 단위가 항목뿐이면 난이도 15 줄 때문에 적탄
+ * 줄까지 같이 가려지거나 `무적바보적` 항목을 따로 세워야 했습니다
+ */
+export interface PatchLine extends PatchGate {
+  text: string;
+}
+
+/** 조건 없는 줄은 문자열 그대로 씁니다 */
+export type PatchLineEntry = string | PatchLine;
+
+export function lineText(entry: PatchLineEntry): string {
+  return typeof entry === 'string' ? entry : entry.text;
+}
+
+/** 한 묶음 (`* 스킬 변경점` 아래의 `1. 추적 미사일`) */
+export interface PatchItem extends PatchGate {
+  title: string;
+  lines: PatchLineEntry[];
+}
+
 /** 패치로그를 보는 사람이 무엇을 열었는가. `SaveData` 에서 이 셋만 봅니다 */
 export interface PatchViewer {
   hardUnlocked: boolean;
@@ -65,17 +87,26 @@ export interface PatchViewer {
   maxHardDifficulty: number;
 }
 
-/** 조건이 붙어 누군가에게는 가려질 수 있는 항목인가 */
-export function isGatedItem(it: PatchItem): boolean {
-  return !!it.hardOnly || it.unlockDifficulty !== undefined || it.unlockHardDifficulty !== undefined;
+function isGated(g: PatchGate): boolean {
+  return !!g.hardOnly || g.unlockDifficulty !== undefined || g.unlockHardDifficulty !== undefined;
 }
 
-/** 이 사람에게 이 항목이 보이는가. **거르는 규칙은 여기 한 곳입니다** */
-export function patchItemVisible(it: PatchItem, v: PatchViewer): boolean {
-  if (it.hardOnly && !v.hardUnlocked) return false;
-  if (it.unlockDifficulty !== undefined && v.maxDifficulty < it.unlockDifficulty) return false;
-  if (it.unlockHardDifficulty !== undefined && (!v.hardUnlocked || v.maxHardDifficulty < it.unlockHardDifficulty)) return false;
+/** 조건이 붙어 누군가에게는 가려질 수 있는 항목인가. **줄 하나에만 붙어도 그렇습니다** */
+export function isGatedItem(it: PatchItem): boolean {
+  return isGated(it) || it.lines.some((l) => typeof l !== 'string' && isGated(l));
+}
+
+/** 이 사람에게 이 조건이 열렸는가. **거르는 규칙은 여기 한 곳입니다** (항목 · 줄 공통) */
+function gateOpen(g: PatchGate, v: PatchViewer): boolean {
+  if (g.hardOnly && !v.hardUnlocked) return false;
+  if (g.unlockDifficulty !== undefined && v.maxDifficulty < g.unlockDifficulty) return false;
+  if (g.unlockHardDifficulty !== undefined && (!v.hardUnlocked || v.maxHardDifficulty < g.unlockHardDifficulty)) return false;
   return true;
+}
+
+/** 이 사람에게 이 항목이 보이는가 (항목에 붙은 조건만 봅니다. 줄은 `visiblePatchNotes` 가 거릅니다) */
+export function patchItemVisible(it: PatchItem, v: PatchViewer): boolean {
+  return gateOpen(it, v);
 }
 
 /** 한 갈래 (`* 스킬 변경점`) */
@@ -122,16 +153,12 @@ export const PATCH_NOTES: readonly PatchNote[] = [
           },
           {
             title: '적',
-            lines: ['- 적의 탄환이 더이상 중간에 사라지지 않습니다.'],
-          },
-          {
-            // 무적바보적은 난이도 15 장치라 연 사람에게만 보입니다 (가리는 단위가 항목이라 적에서 뗐습니다)
-            title: '무적바보적',
-            unlockDifficulty: 15,
+            // 무적바보적은 난이도 15 장치라 그 세 줄만 연 사람에게 보입니다
             lines: [
-              '- 무적바보적의 등장 방식이 변경되었습니다.',
-              '- 무적바보적이 시간에 따라 강화됩니다.',
-              '- 군체왕이 무적바보적을 흡수하는 현상이 수정되었습니다.',
+              '- 적의 탄환이 더이상 중간에 사라지지 않습니다.',
+              { text: '- 무적바보적의 등장 방식이 변경되었습니다.', unlockDifficulty: 15 },
+              { text: '- 무적바보적이 시간에 따라 강화됩니다.', unlockDifficulty: 15 },
+              { text: '- 군체왕이 무적바보적을 흡수하는 현상이 수정되었습니다.', unlockDifficulty: 15 },
             ],
           },
           {
@@ -321,8 +348,20 @@ export const PATCH_NOTES: readonly PatchNote[] = [
  */
 export const HIDDEN_PATCH_HINT = '무언가가 패치되었습니다...';
 
-/** 화면에 그릴 버전. 가려진 하드 항목이 있었는지를 같이 들고 갑니다 */
-export interface VisiblePatchNote extends PatchNote {
+/** 화면에 그릴 항목. 가릴 줄을 걸러낸 뒤라 줄은 전부 문자열입니다 */
+export interface VisiblePatchItem {
+  title: string;
+  lines: string[];
+}
+
+export interface VisiblePatchGroup {
+  title: string;
+  items: VisiblePatchItem[];
+}
+
+/** 화면에 그릴 버전. 가려진 항목이나 줄이 있었는지를 같이 들고 갑니다 */
+export interface VisiblePatchNote extends Omit<PatchNote, 'groups'> {
+  groups: VisiblePatchGroup[];
   hiddenPatched: boolean;
 }
 
@@ -339,15 +378,24 @@ export const LATEST_PATCH = PATCH_NOTES[0].version;
  * `HIDDEN_PATCH_HINT` 를 붙입니다. 하드 항목만 있던 버전도 그 한 줄로 남습니다.
  * 빼버리면 "무언가가 패치됐다"를 알릴 자리가 없어집니다.
  */
-export function visiblePatchNotes(viewer: PatchViewer): VisiblePatchNote[] {
+export function visiblePatchNotes(viewer: PatchViewer, notes: readonly PatchNote[] = PATCH_NOTES): VisiblePatchNote[] {
   const out: VisiblePatchNote[] = [];
-  for (const note of PATCH_NOTES) {
-    const groups: PatchGroup[] = [];
+  for (const note of notes) {
+    const groups: VisiblePatchGroup[] = [];
     let hiddenPatched = false;
     for (const g of note.groups) {
-      // 하드 항목과 **잠긴 난이도 항목**을 같은 규칙으로 가립니다 (2026-09-14)
-      const items = g.items.filter((it) => patchItemVisible(it, viewer));
-      if (items.length < g.items.length) hiddenPatched = true;
+      const items: VisiblePatchItem[] = [];
+      for (const it of g.items) {
+        // 하드 항목과 **잠긴 난이도 항목**을 같은 규칙으로 가립니다 (2026-09-14)
+        if (!gateOpen(it, viewer)) {
+          hiddenPatched = true;
+          continue;
+        }
+        // 줄에 붙은 잠금도 같은 규칙입니다 (2026-09-15). 줄이 다 가려진 항목은 제목만 남기지 않습니다
+        const lines = it.lines.filter((l) => typeof l === 'string' || gateOpen(l, viewer)).map(lineText);
+        if (lines.length < it.lines.length) hiddenPatched = true;
+        if (lines.length > 0) items.push({ title: it.title, lines });
+      }
       if (items.length > 0) groups.push({ title: g.title, items });
     }
     // **칸을 새로 만들 때 빠뜨리기 쉽습니다.** 여기서 새 객체를 짓는 이유는 하드

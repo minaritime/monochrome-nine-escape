@@ -10,7 +10,7 @@
 // main.ts 는 불러오는 순간 document 를 만지므로 아래에서 동적으로 불러옵니다.
 // 이 둘은 모듈을 읽는 것만으로는 DOM 을 건드리지 않아 정적으로 가져와도 안전합니다
 import { DEBUG, DIFFICULTY } from '../src/data/balance';
-import { HIDDEN_PATCH_HINT, PATCH_NOTES, isGatedItem } from '../src/data/patchnotes';
+import { HIDDEN_PATCH_HINT, PATCH_NOTES, isGatedItem, lineText } from '../src/data/patchnotes';
 import { emptySave } from '../src/meta/save';
 
 interface StubElement {
@@ -403,8 +403,8 @@ async function main(): Promise<void> {
     // **문구를 손으로 적지 않습니다.** 적어두면 패치를 쓸 때마다 이 시험이 깨지고,
     // 그러면 시험을 고치는 일이 패치를 쓰는 일의 일부가 됩니다
     const latest = PATCH_NOTES[0];
-    check('최신 버전이 펼쳐져 있다', overlayText().includes(latest.groups[0].items[0].lines[0]), overlayText().trim().slice(0, 120));
-    check('옛 버전은 접혀 있다', !overlayText().includes(PATCH_NOTES[1].groups[0].items[0].lines[0]));
+    check('최신 버전이 펼쳐져 있다', overlayText().includes(lineText(latest.groups[0].items[0].lines[0])), overlayText().trim().slice(0, 120));
+    check('옛 버전은 접혀 있다', !overlayText().includes(lineText(PATCH_NOTES[1].groups[0].items[0].lines[0])));
     // 머리말은 있을 때만 봅니다. `visiblePatchNotes` 가 새 객체를 지으면서 이 칸을
     // 빠뜨린 적이 있어서, 화면까지 닿는지를 여기서 한 번 잡습니다
     if (latest.intro) check('머리말이 보인다', overlayText().includes(latest.intro.slice(0, 20)));
