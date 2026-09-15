@@ -757,7 +757,9 @@ export class World {
     const over = this.overtimeMinutes();
     return {
       hp: (1 + minutes * TIME_SCALING.hpPerMinute + over * OVERTIME.hpPerMinute) * this.diff.hpMul,
-      dmg: (1 + minutes * TIME_SCALING.damagePerMinute + over * OVERTIME.damagePerMinute) * this.diff.damageMul,
+      dmg:
+        (1 + minutes * (TIME_SCALING.damagePerMinute + this.diff.damagePerMinuteAdd) + over * OVERTIME.damagePerMinute) *
+        this.diff.damageMul,
       speed: this.lateSpeedMultiplier() * this.overtimeSpeedMul() * this.diff.speedMul,
     };
   }

@@ -2081,7 +2081,7 @@ console.log('8-2) 난이도 단계별 새 장치가 실제로 걸리는가');
     w.time = w.diff.clearTime;
     step(w, FIXED_DT * 2);
     const atClear = count();
-    check('클리어 시간까지 몫이 다 나온다 (30분 · 7마리)', atClear === Math.floor(w.diff.clearTime / P.immortalSpawnInterval) + 1, `${atClear}`);
+    check('클리어 시간까지 몫이 다 나온다 (15분 · 4마리)', atClear === Math.floor(w.diff.clearTime / P.immortalSpawnInterval) + 1, `${atClear}`);
     w.cleared = true;
     w.time = w.diff.clearTime + P.immortalSpawnInterval * 2;
     step(w, FIXED_DT * 2);
@@ -3267,13 +3267,41 @@ for (const id of ALL_BOSS_IDS) {
   check('보스 종류가 돌아가며 나온다', order[0] !== order[1] && order[1] !== order[2] && order[3] === order[0]);
 }
 
-console.log('11) 난이도 해금 시간 규칙');
+console.log('11) 난이도 클리어 시간 규칙');
 {
-  console.log(
-    `   난이도 0 ${unlockTimeFor(0) / 60}분 · 2 ${unlockTimeFor(2) / 60}분 · 3 ${unlockTimeFor(3) / 60}분 · 9 ${unlockTimeFor(9) / 60}분`,
-  );
-  check('앞쪽 난이도는 15분', unlockTimeFor(0) === 900 && unlockTimeFor(2) === 900);
-  check('3단계부터 30분', unlockTimeFor(3) === 1800 && unlockTimeFor(9) === 1800);
+  // --- 클리어 시간은 전 난이도 15분입니다 (2026-09-15 사용자 확정) ---
+  const times: number[] = [];
+  for (let lv = DIFFICULTY.min; lv <= DIFFICULTY.max; lv++) times.push(unlockTimeFor(lv));
+  for (let lv = 0; lv <= DIFFICULTY.max; lv++) times.push(unlockTimeFor(lv, true));
+  console.log(`   클리어 시간 ${[...new Set(times)].map((t) => `${t / 60}분`).join(' · ')}`);
+  check('모든 난이도와 하드가 15분', times.every((t) => t === DIFFICULTY.baseClearTime && t === 900), times.join(','));
+
+  // --- 3단계의 빈칸은 적 공격력 기울기입니다 ---
+  // 판 시작 배율이 아니라 분당 상승량에 더해지므로 0분에는 차이가 없고 뒤로 갈수록 벌어집니다
+  {
+    const m2 = difficultyMods(2);
+    const m3 = difficultyMods(3);
+    check('2단계까지는 기울기가 없다', m2.damagePerMinuteAdd === 0, `${m2.damagePerMinuteAdd}`);
+    check('3단계부터 기울기가 붙는다', m3.damagePerMinuteAdd > 0, `${m3.damagePerMinuteAdd}`);
+    check('뒤 단계도 기울기를 이어받는다', difficultyMods(DIFFICULTY.max).damagePerMinuteAdd >= m3.damagePerMinuteAdd);
+    check(
+      '하드는 기울기를 낮추지 않고 물려받는다',
+      difficultyMods(0, true).damagePerMinuteAdd === difficultyMods(DIFFICULTY.max).damagePerMinuteAdd,
+    );
+
+    const w3 = new World(emptySave(), stillInput, 1103, 3);
+    w3.spawner.enabled = false;
+    w3.time = 0;
+    const at0 = w3.timeScale().dmg;
+    w3.time = 600;
+    const at10 = w3.timeScale().dmg;
+    const want10 = (1 + 10 * (TIME_SCALING.damagePerMinute + m3.damagePerMinuteAdd)) * m3.damageMul;
+    console.log(`   난이도 3 적 공격력 · 0분 x${at0.toFixed(3)} · 10분 x${at10.toFixed(3)}`);
+    check('0분에는 기울기가 안 보인다', Math.abs(at0 - m3.damageMul) < 1e-9, `${at0}`);
+    check('10분에는 기울기만큼 더 오른다', Math.abs(at10 - want10) < 1e-9, `${at10} vs ${want10}`);
+    check('난이도 화면에 기울기가 뜬다', difficultyEffects(3).some((e) => e.label === '적 공격력 상승 속도'));
+    check('2단계 화면에는 안 뜬다', !difficultyEffects(2).some((e) => e.label === '적 공격력 상승 속도'));
+  }
 
   // --- 클리어는 시계가 아니라 보스 처치입니다 (2026-09-10) ---
   //
@@ -4188,7 +4216,7 @@ console.log('\n18) 하드모드 난이도');
   check('하드 0 은 선택지 2장', hard0.skillChoices === normal15.skillChoices, `${hard0.skillChoices}`);
   check('하드 0 은 돌진 쿨 없음', hard0.chargerNoCooldown === normal15.chargerNoCooldown);
   check('하드 0 은 분열 탄막', hard0.splitterShoot === normal15.splitterShoot);
-  check('하드 0 도 30분 클리어', hard0.clearTime === normal15.clearTime, `${hard0.clearTime}`);
+  check('하드 0 도 15분 클리어', hard0.clearTime === normal15.clearTime, `${hard0.clearTime}`);
   check('하드 0 의 웨이브가 일반 15 와 같다', hard0.wave?.count === normal15.wave?.count);
 
   // --- 배율은 낮춥니다 ---
@@ -4887,20 +4915,27 @@ console.log('\n23) 클리어 뒤 급상승 (OVERTIME)');
   {
     // 시간으로 깼던 판은 클리어로 읽어야 합니다. 안 하면 이미 15까지 깬 사람의
     // 해금 사슬과 하드모드 스위치가 통째로 날아갑니다
+    //
+    // **기준은 옛 클리어 시간입니다** (2026-09-15). 클리어 시간을 전 난이도 15분으로
+    // 통일한 뒤에 지금 값을 읽으면, 옛 규칙으로 30분이던 칸에서 15분만 버틴 판이 들어옵니다
     const old = fromJSON({
       records: {
         bestTimeByDifficulty: {
-          '0': unlockTimeFor(0),
-          '3': unlockTimeFor(3),
-          '4': unlockTimeFor(4) - 1,
-          h0: unlockTimeFor(0, true),
+          '0': DIFFICULTY.legacyClearTime,
+          '3': DIFFICULTY.legacyLongClearTime,
+          '4': DIFFICULTY.legacyLongClearTime - 1,
+          '5': DIFFICULTY.legacyClearTime,
+          h0: DIFFICULTY.legacyLongClearTime,
+          h1: DIFFICULTY.legacyClearTime,
         },
       },
     });
     check('옛 시간 기록이 클리어로 소급된다', hasCleared(old, 0));
-    check('30분짜리도 소급된다', hasCleared(old, 3));
+    check('옛 30분짜리도 소급된다', hasCleared(old, 3));
     check('1초 모자란 것은 소급 안 된다', !hasCleared(old, 4));
+    check('옛 30분 칸에서 15분만 버틴 판은 소급 안 된다', !hasCleared(old, 5));
     check('하드 키도 소급된다', hasCleared(old, 0, true));
+    check('하드도 옛 30분 기준이다', !hasCleared(old, 1, true));
 
     // 이미 클리어 칸이 있는 저장은 그대로 둡니다. 소급이 덮어쓰면
     // "보스를 못 잡았는데 시간만 채운 판"이 클리어로 바뀝니다

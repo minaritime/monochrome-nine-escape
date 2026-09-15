@@ -1,7 +1,6 @@
 import { DIFFICULTY, PASSIVE, SETTINGS, SKILLS, SKILL_MAX_LEVEL, STAT_DEFS, type StatKey } from '../data/balance';
 import { branchesFor } from '../skills/branches';
 import type { SkillId } from '../skills/types';
-import { unlockTimeFor } from './difficulty';
 
 const STORAGE_KEY = 'dodge-game-save';
 const VERSION = 1;
@@ -444,8 +443,9 @@ function boolMap(v: unknown): Record<string, boolean> {
  * 클리어 판정이 시간에서 보스 처치로 바뀌기 전에 시간으로 깬 것은 클리어로 인정합니다.
  * 안 하면 이미 15까지 깬 사람의 해금 사슬과 하드모드 스위치가 통째로 날아갑니다.
  *
- * **`unlockTimeFor` 를 쓰므로 `meta/difficulty.ts` 를 부릅니다.** 그쪽은 save 를
- * 타입으로만 가져가므로 실행 시점에 순환이 생기지 않습니다
+ * **지금 클리어 시간이 아니라 옛 클리어 시간으로 봅니다** (2026-09-15). 소급 대상은
+ * 옛 규칙으로 뛴 판이라, 클리어 시간을 15분으로 통일한 뒤에 지금 값을 읽으면 옛 규칙으로
+ * 30분이던 난이도 3 이상에서 15~30분에 죽은 판이 클리어로 들어옵니다
  */
 function clearedFromTimes(times: Record<string, number>): Record<string, boolean> {
   const out: Record<string, boolean> = {};
@@ -453,9 +453,15 @@ function clearedFromTimes(times: Record<string, number>): Record<string, boolean
     const hard = key.startsWith('h');
     const lv = Number(hard ? key.slice(1) : key);
     if (!Number.isFinite(lv)) continue;
-    if (t >= unlockTimeFor(lv, hard)) out[key] = true;
+    if (t >= legacyClearTime(lv, hard)) out[key] = true;
   }
   return out;
+}
+
+/** 2026-09-15 전의 클리어 시간 (옛 저장 소급 전용) */
+export function legacyClearTime(level: number, hard: boolean): number {
+  const long = hard || level >= DIFFICULTY.legacyLongFromLevel;
+  return long ? DIFFICULTY.legacyLongClearTime : DIFFICULTY.legacyClearTime;
 }
 
 function numberMap(v: unknown): Record<string, number> {

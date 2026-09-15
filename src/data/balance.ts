@@ -965,8 +965,16 @@ export interface DifficultyStep {
   cowardPatienceMul?: number;
   /** 장판 지속 시간 */
   hazardDurationMul?: number;
-  /** 다음 난이도를 열려면 버텨야 하는 시간에 더해집니다 */
-  clearTimeAdd?: number;
+  /**
+   * **분당 적 공격력 상승량에 더해집니다** (합연산, 2026-09-15 사용자 확정).
+   *
+   * 클리어 시간을 전 난이도 15분으로 줄이면서 3단계의 "클리어 조건 +15분"을 이것으로
+   * 갈아끼웠습니다. 판 시작 배율은 그대로 두고 **기울기만** 가파르게 하므로 초반은
+   * 거의 안 바뀌고 뒤로 갈수록 벌어집니다. 체력이 아니라 공격력인 이유는, 15분 판에서
+   * 적 체력은 플레이어 화력과 같이 줄어 되찾을 것이 없고 빠진 것은 피해 압박이었기
+   * 때문입니다 (`docs/기획/난이도.md`)
+   */
+  damagePerMinuteAdd?: number;
   /** 레벨업 선택지 수에 더해집니다 (음수면 줄어듭니다) */
   skillChoiceAdd?: number;
   /** 일반 스폰 웨이브. 뒤 단계가 다시 정하면 앞의 것을 대체합니다 */
@@ -1054,7 +1062,12 @@ export const DIFFICULTY_EASY: DifficultyStep = {
 export const DIFFICULTY_STEPS: readonly DifficultyStep[] = [
   { label: '적 체력 +20%', hpMul: 1.2 },
   { label: '적 공격력 +20%', damageMul: 1.2 },
-  { label: '클리어 조건 +15분, 적 체력 +10%, 보스 체력 +100%', clearTimeAdd: 900, hpMul: 1.1, bossHpMul: 2.0 },
+  {
+    label: '시간이 갈수록 적 공격력이 더 빨리 오름, 적 체력 +10%, 보스 체력 +100%',
+    damagePerMinuteAdd: 0.02,
+    hpMul: 1.1,
+    bossHpMul: 2.0,
+  },
   { label: '적 이동속도 +10%, 적 공격력 +10%', speedMul: 1.1, damageMul: 1.1 },
   { label: '스폰율 +25%, 적탄 속도 +10%', spawnRateMul: 1.25, bulletSpeedMul: 1.1 },
   {
@@ -1107,8 +1120,22 @@ export const DIFFICULTY = {
   /** 고를 수 있는 범위. 16 이상은 없습니다 */
   min: -1,
   max: DIFFICULTY_STEPS.length,
-  /** 다음 난이도를 열기 위한 기본 생존 시간(초). 3단계의 clearTimeAdd 가 여기에 더해집니다 */
+  /**
+   * 클리어 시간(초). **모든 난이도와 하드가 같습니다** (2026-09-15 사용자 확정).
+   * 예전에는 난이도 3 부터 30분이었는데 "판이 너무 길다"는 판단으로 줄였습니다
+   */
   baseClearTime: 900,
+  /**
+   * **옛 저장 소급에만 쓰는 옛 클리어 시간** (`save.ts` 의 `clearedFromTimes`).
+   *
+   * 클리어 기록 칸이 없던 저장은 최고 생존 시간으로 클리어를 거꾸로 채웁니다. 그 기준이
+   * 지금 클리어 시간을 따라가면, 옛 규칙으로 30분이던 난이도 3 이상에서 **15~30분에
+   * 죽은 판이 깨지도 않았는데 클리어로 들어옵니다.** 그래서 옛 규칙을 여기 못박습니다
+   */
+  legacyClearTime: 900,
+  legacyLongClearTime: 1800,
+  /** 이 난이도부터(하드는 전부) 옛 클리어 시간이 `legacyLongClearTime` 이었습니다 */
+  legacyLongFromLevel: 3,
   /** 난이도 1단계당 코인 획득 배율 증가. 높은 난이도를 고를 이유를 만듭니다 */
   coinMulPerLevel: 0.15,
   /** 난이도 -1 의 코인 배율 */

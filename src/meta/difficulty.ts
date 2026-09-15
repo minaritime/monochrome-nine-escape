@@ -6,6 +6,7 @@ import {
   HARD,
   HARD_LASER,
   HARD_DIFFICULTY_STEPS,
+  TIME_SCALING,
   type DifficultyStep,
   type EnemyId,
   type WaveSpec,
@@ -37,7 +38,9 @@ export interface DifficultyMods {
   bomberDamageMul: number;
   cowardPatienceMul: number;
   hazardDurationMul: number;
-  /** 이 난이도로 다음 단계를 열려면 버텨야 하는 시간(초) */
+  /** 분당 적 공격력 상승량에 더해지는 값 (`TIME_SCALING.damagePerMinute` 위에 합) */
+  damagePerMinuteAdd: number;
+  /** 클리어 시간(초). 이 시간에 나오는 클리어 보스를 잡으면 클리어입니다 */
   clearTime: number;
   /** 레벨업에 뜨는 선택지 수 */
   skillChoices: number;
@@ -154,7 +157,7 @@ function applyStep(mods: DifficultyMods, step: DifficultyStep): void {
   mods.cowardPatienceMul = addMul(mods.cowardPatienceMul, step.cowardPatienceMul);
   mods.hazardDurationMul = addMul(mods.hazardDurationMul, step.hazardDurationMul);
   mods.shieldDurabilityMul = addMul(mods.shieldDurabilityMul, step.shieldDurabilityMul);
-  mods.clearTime += step.clearTimeAdd ?? 0;
+  mods.damagePerMinuteAdd += step.damagePerMinuteAdd ?? 0;
   mods.skillChoices += step.skillChoiceAdd ?? 0;
 
   // 웨이브만은 곱하지 않고 갈아끼웁니다 ("1분마다 5마리"와 "1분마다 15마리"는 동시에 성립하지 않습니다)
@@ -202,6 +205,9 @@ export function difficultyMods(level: number, hard = false): DifficultyMods {
     cowardPatienceMul: 1,
     hazardDurationMul: 1,
     shieldDurabilityMul: 1,
+    // **`softenMuls` 에 넣지 마십시오.** 하드는 이 기울기를 그대로 물려받습니다 (2026-09-15).
+    // 하드 0 의 배율을 낮춘 이유는 "들어가자마자 불쾌하다"인데 기울기는 판 뒤쪽에만 걸립니다
+    damagePerMinuteAdd: 0,
     clearTime: DIFFICULTY.baseClearTime,
     skillChoices: BASE_SKILL_CHOICES,
     wave: null,
@@ -279,9 +285,9 @@ export function clearBonusCoins(coinMul: number, first: boolean): number {
 }
 
 /**
- * 그 난이도로 다음 단계를 열려면 버텨야 하는 시간(초).
- * 기본 15분이고, 난이도 3의 "클리어 조건 +15분"이 붙으면 그 뒤로는 30분입니다.
- * 하드는 출발선이 일반 15 라 언제나 30분입니다.
+ * 그 난이도의 클리어 시간(초).
+ * **모든 난이도와 하드가 15분입니다** (2026-09-15). 예전에는 3 부터 30분이었고,
+ * 옛 저장 소급은 그 옛 규칙을 따로 봅니다 (`DIFFICULTY.legacyClearTime`)
  */
 export function unlockTimeFor(level: number, hard = false): number {
   return difficultyMods(level, hard).clearTime;
@@ -408,6 +414,16 @@ export function difficultyEffects(level: number, hard = false): DifficultyEffect
 
   mul('적 체력', m.hpMul);
   mul('적 공격력', m.damageMul);
+  // 기울기는 배율이 아니라서 `mul` 로 저절로 안 뜹니다. 안 적으면 패치로그에만 있고
+  // 화면에는 없는 변경이 됩니다. 기본 기울기 대비 몇 % 빨라지는지로 보여줍니다
+  if (m.damagePerMinuteAdd > 0) {
+    out.push({
+      label: '적 공격력 상승 속도',
+      value: `+${Math.round((m.damagePerMinuteAdd / TIME_SCALING.damagePerMinute) * 100)}%`,
+      bad: true,
+      device: false,
+    });
+  }
   mul('접촉 피해', m.contactDamageMul);
   mul('적 이동속도', m.speedMul);
   mul('적 사거리', m.rangeMul);
@@ -448,10 +464,6 @@ export function difficultyEffects(level: number, hard = false): DifficultyEffect
   // 한 줄로 접지만, 이건 들어가서 겪기 전에 알아야 대응이 달라지는 종류입니다
   // (무적 바보적을 예외로 둔 것과 같은 이유)
   if (m.arenaLaser) device('경기장 레이저', `${fmtSec(HARD_LASER.intervalMin)}~${fmtSec(HARD_LASER.intervalMax)}마다 가로 또는 세로로`);
-
-  if (m.clearTime !== DIFFICULTY.baseClearTime) {
-    device('다음 난이도 해금', `${Math.round(m.clearTime / 60)}분 생존`);
-  }
 
   // 보상은 마지막에. 유일하게 플레이어에게 좋은 항목입니다
   if (m.coinDropMul !== 1) out.push({ label: '코인 드랍률', value: pct(m.coinDropMul), bad: false, device: false });
