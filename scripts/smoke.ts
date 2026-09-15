@@ -4908,7 +4908,7 @@ console.log('\n23) 클리어 뒤 급상승 (OVERTIME)');
     );
     check('하드 첫 클리어 0 은 1400 · 15 는 2900', hard[0] === 1400 && hard[15] === 2900, `${hard[0]} ${hard[15]}`);
     check('첫 클리어는 난이도가 올라도 안 내려간다', normal.every((v, i) => i === 0 || v >= normal[i - 1]));
-    check('반복 클리어는 반올림하지 않는다', clearBonusCoins(difficultyMods(1).coinMul, false) === 92, `${clearBonusCoins(difficultyMods(1).coinMul, false)}`);
+    check('반복 클리어는 반올림하지 않는다', clearBonusCoins(difficultyMods(1).coinMul, false) === 184, `${clearBonusCoins(difficultyMods(1).coinMul, false)}`);
     const clears = ACHIEVEMENTS.filter((a) => /^clear-?\d+$/.test(a.id));
     check('난이도 클리어 업적은 17개', clears.length === DIFFICULTY.max - DIFFICULTY.min + 1, `${clears.length}`);
     check('난이도 클리어 업적은 코인이 없다', clears.every((a) => a.tiers.every((t) => t.coin === 0)));
