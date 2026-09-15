@@ -367,10 +367,10 @@ export const ACHIEVEMENTS: readonly AchieveDef[] = [
     A.silver,
     (c) => !!c.w && ownedSlots(c.w.player).some((s) => s.level >= SKILL_MAX_LEVEL),
   ),
-  // id 를 'level70' 으로 바꿨습니다. 조건이 30 → 70 으로 통째로 달라졌는데 id 를 그대로
-  // 두면, 예전에 레벨 30 으로 딴 사람이 70 에 닿은 적도 없이 달성 상태로 남습니다.
-  // 저장에 남은 'level30' 키는 목록에 없는 값이라 그냥 무시됩니다 (진행도 분모는 표에서 셉니다)
-  one('level70', '폭주', '한 판에 레벨 70 에 도달합니다', A.gold, (c) => (c.w?.player.level ?? 0) >= 70),
+  // "폭주"(한 판 레벨 70, id 'level70')는 삭제했습니다 (2026-09-15 사용자 결정).
+  // 클리어 시간이 15분이 되면서 레벨 70 은 하드 상점(히든)을 산 사람만 사실상 닿는 조건이
+  // 됐습니다. 저장에 남은 'level70' 키는 목록에 없는 값이라 그냥 무시됩니다
+  // (진행도 분모는 표에서 셉니다. 'level30' 을 바꿨을 때와 같습니다)
   one(
     'complete-build',
     '완성형',

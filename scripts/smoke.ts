@@ -3608,15 +3608,15 @@ console.log('15) 업적');
     check('알림은 마지막 단계 하나만', got.filter((g) => g.id === 'kills').length === 1);
   }
 
-  // 판 안에서 열리는 업적 (레벨 70)
+  // 삭제한 업적 "폭주"(level70)는 목록에 없고, 저장에 남은 키도 진행도에 안 섞입니다 (2026-09-15)
   {
     const save = emptySave();
+    save.achievements.level70 = 1;
     const w = new World(save, input, 5, 0);
-    w.player.level = 69;
-    check('레벨 69 로는 안 열린다', !checkAchievements(save, w, false).some((g) => g.id === 'level70'));
-    w.player.level = 70;
+    w.player.level = 99;
     const got = checkAchievements(save, w, false);
-    check('폭주(레벨 70)가 열린다', got.some((g) => g.id === 'level70'), got.map((g) => g.id).join(','));
+    check('폭주가 목록에 없다', !ACHIEVEMENTS.some((a) => a.id === 'level70'));
+    check('레벨이 높아도 폭주가 안 열린다', !got.some((g) => g.id === 'level70'), got.map((g) => g.id).join(','));
   }
 
   // 죽는 순간 파편 처치가 누적으로 쌓이고 그것으로 업적이 열립니다
