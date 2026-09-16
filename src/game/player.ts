@@ -147,7 +147,9 @@ function updateBasicAttack(w: World, dt: number): void {
   p.attackTimer -= dt;
   if (p.attackTimer > 0) return;
 
-  const target = nearestEnemy(w, p.x, p.y, p.stats.range);
+  // 마지막 인자가 "도발 무시"입니다. **기본공격은 도발에 안 걸립니다** (2026-09-16).
+  // 도발은 스킬만 끌어갑니다
+  const target = nearestEnemy(w, p.x, p.y, p.stats.range, true);
   if (!target) return;
 
   const a = angleTo(p.x, p.y, target.x, target.y);

@@ -46,8 +46,10 @@ export function isPick(e: Enemy, taunt: EnemyId | null): boolean {
   return canTarget(e) && (taunt === null || e.defId === taunt);
 }
 
-export function nearestEnemy(w: World, x: number, y: number, maxRange = Infinity): Enemy | null {
-  const taunt = tauntId(w, x, y, maxRange);
+export function nearestEnemy(w: World, x: number, y: number, maxRange = Infinity, ignoreTaunt = false): Enemy | null {
+  // **기본공격만 도발에 안 걸립니다** (2026-09-16 사용자 지시). 그쪽에서만 이 인자를
+  // 켭니다. 스킬은 유도탄 재조준까지 전부 기본값이라 도발을 그대로 따릅니다
+  const taunt = ignoreTaunt ? null : tauntId(w, x, y, maxRange);
   let best: Enemy | null = null;
   let bestD = maxRange * maxRange;
   for (const e of w.enemies) {
