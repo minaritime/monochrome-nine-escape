@@ -1,4 +1,9 @@
-import { CHALLENGE_IMPLEMENTED, CHALLENGE_STAGES, type ChallengeStageDef } from '../../data/balance';
+import {
+  CHALLENGE_IMPLEMENTED,
+  CHALLENGE_STAGES,
+  type ChallengeStageDef,
+  type ChallengeStageId,
+} from '../../data/balance';
 import type { SaveData } from '../../meta/save';
 import { bindKeys, card, clearOverlay, formatTime, h, overlayEl, screen } from './dom';
 
@@ -12,10 +17,14 @@ import { bindKeys, card, clearOverlay, formatTime, h, overlayEl, screen } from '
  * **`disabled` 가 아니라 `info` 를 씁니다.** `disabled` 는 상점의 "못 사는 항목"
  * 흐림이라, 읽으라고 만든 화면 전체가 희미해집니다 (도감이 실제로 그랬습니다).
  */
-export function showChallengeList(save: SaveData, onBack: () => void): () => void {
+export function showChallengeList(
+  save: SaveData,
+  onBack: () => void,
+  onStart: (id: ChallengeStageId) => void,
+): () => void {
   clearOverlay();
 
-  const rows = CHALLENGE_STAGES.map((stage, i) => stageCard(save, stage, i + 1));
+  const rows = CHALLENGE_STAGES.map((stage, i) => stageCard(save, stage, i + 1, onStart));
 
   const note = h('div', { class: 'hint' }, [
     '개발자 모드 전용입니다. 정식 개방은 난이도 1 클리어입니다',
@@ -37,7 +46,12 @@ export function showChallengeList(save: SaveData, onBack: () => void): () => voi
  * **`ready` 와 "구현됨"은 다른 값입니다.** 앞은 "1차 범위인가"고 뒤는 "지금 돌아가는가"라,
  * 경기장 공사를 기다리는 둘과 아직 안 만든 것을 갈라서 보여줘야 합니다
  */
-function stageCard(save: SaveData, stage: ChallengeStageDef, no: number): HTMLElement {
+function stageCard(
+  save: SaveData,
+  stage: ChallengeStageDef,
+  no: number,
+  onStart: (id: ChallengeStageId) => void,
+): HTMLElement {
   const clearedRules = save.challenge.cleared[stage.id];
   const done = typeof clearedRules === 'number';
   const playable = CHALLENGE_IMPLEMENTED.includes(stage.id);
@@ -50,11 +64,16 @@ function stageCard(save: SaveData, stage: ChallengeStageDef, no: number): HTMLEl
       : '규칙을 아직 안 만들었습니다';
 
   const desc = why ? `${stage.summary} · ${why}` : stage.summary;
+  const right = h('div', { class: 'toggle-value' }, [`[ ${state} · ${formatTime(stage.clearTime)} ]`]);
+
+  // 규칙까지 만든 스테이지만 실제로 누를 수 있습니다. 나머지는 읽기만 하는
+  // 정보 카드입니다 (`info`. `disabled` 를 쓰면 화면 전체가 흐려집니다)
+  if (!playable) return card({ title: `${no}. ${stage.name}`, desc, info: true, right });
 
   return card({
     title: `${no}. ${stage.name}`,
     desc,
-    info: true,
-    right: h('div', { class: 'toggle-value' }, [`[ ${state} · ${formatTime(stage.clearTime)} ]`]),
+    right,
+    onClick: () => onStart(stage.id),
   });
 }

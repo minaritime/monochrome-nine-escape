@@ -2777,7 +2777,28 @@ export const CHALLENGE = {
  * `ready` 가 참이어도 여기 없으면 "준비 중"으로 섭니다. **둘은 다른 값입니다.**
  * `ready` 는 "1차 범위인가"이고 이것은 "지금 돌아가는가"입니다
  */
-export const CHALLENGE_IMPLEMENTED: readonly ChallengeStageId[] = [];
+export const CHALLENGE_IMPLEMENTED: readonly ChallengeStageId[] = ['shieldMarch'];
+
+/**
+ * 스테이지별 규칙 수치.
+ *
+ * ⚠ **전부 초안입니다** (2026-09-16). 사용자가 "실질적 난이도는 직접 해보고 나서
+ * 정하자"고 했으므로, 플레이 전까지 이 값들은 근거가 없는 자리표입니다.
+ * 클리어 코인 등급도 같은 이유로 아직 없습니다
+ */
+export const CHALLENGE_RULES = {
+  /** 1번 방패 행진 */
+  shieldMarch: {
+    /** 동시에 유지할 방패적 수 (초안) */
+    shieldAlive: 4,
+    /** 동시에 유지할 정예 돌진적 수 (초안) */
+    chargerAlive: 3,
+    /** 방패적 이동속도 배율. 원문의 "이속 -70%" 입니다 */
+    shieldSpeedMul: 0.3,
+    /** 방패적이 스스로 사라지기까지 걸리는 시간(초) */
+    shieldLife: 10,
+  },
+} as const;
 
 /** 스테이지 표 (1차 설계 원문은 `docs/기획/콘텐츠.md`) */
 export const CHALLENGE_STAGES: readonly ChallengeStageDef[] = [

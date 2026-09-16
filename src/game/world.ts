@@ -28,6 +28,7 @@ import {
   type EnemyId,
 } from '../data/balance';
 import { Effects } from '../render/effects';
+import { shieldUnbreakable, updateChallenge } from './challenge';
 import { SpatialGrid, clampToArena } from './collision';
 import { createPlayer, ownedSlots, updatePlayer } from './player';
 import { Spawner } from './spawner';
@@ -394,13 +395,22 @@ export class World {
     return true;
   }
 
+  /**
+   * 도전 스테이지를 버텨내 판이 끝났는가 (2026-09-16).
+   *
+   * **`gameOver` 와 다른 칸입니다.** 저건 죽음이라 파편 연출을 달고 있고, 이건
+   * 살아남은 끝이라 연출 없이 클리어 화면으로 갑니다. `main.ts` 의 루프가 봅니다
+   */
+  challengeCleared = false;
+
   // -------------------------------------------------------------------------
   // 갱신
   // -------------------------------------------------------------------------
 
   update(dt: number): void {
     this.effects.update(dt);
-    if (this.gameOver) return;
+    // 죽었거나 도전을 버텨냈으면 판은 멈춥니다
+    if (this.gameOver || this.challengeCleared) return;
 
     // **클리어 보스를 잡을 때까지 타이머가 멈춥니다** (2026-09-10).
     // 멈춘 동안에도 스폰과 적 행동은 평소대로 돕니다. 멈추는 것은 시계뿐이라
@@ -411,6 +421,10 @@ export class World {
     } else if (this.cleared) this.time += dt;
     else if (this.time < this.diff.clearTime) this.time = Math.min(this.diff.clearTime, this.time + dt);
     this.updateImmortalFools();
+
+    // 도전 스테이지 규칙. **평소 스폰 표는 꺼져 있고**(`startChallenge`) 무엇을
+    // 낼지 이 안에서 정합니다. 버티는 시간을 채웠는지도 여기서 봅니다
+    if (this.challenge) updateChallenge(this);
 
     // 업적: "첫 보스까지 안 움직이기" 는 조작 여부를 봐야 합니다.
     // 위치로 재면 넉백이나 장판 감속에 밀린 것도 움직인 것이 됩니다
@@ -1097,6 +1111,10 @@ export class World {
    * 각각 검사를 두면 새 출처가 생겼을 때 반드시 하나를 빠뜨립니다.
    */
   dropCoin(x: number, y: number, value = COIN.value, spread = 0): void {
+    // **도전 판은 판 중에 코인이 안 떨어집니다** (`docs/기획/콘텐츠.md` 공통 규칙).
+    // 보상은 클리어할 때 한 번에 나오고 그것도 첫 클리어뿐입니다. 거르는 자리가
+    // 여기 하나여야 한다는 위 규칙을 그대로 따릅니다
+    if (this.challenge) return;
     if (this.cleared && !this.rng.chance(OVERTIME.coinDropMul)) return;
     const a = this.rng.angle();
     const s = spread > 0 ? this.rng.range(0, spread) : 0;
@@ -1142,7 +1160,13 @@ export class World {
     // 방패는 정면 피해를 대신 받습니다. 다 닳으면 무효화가 사라지고 대신 빨라집니다
     if (e.shieldHp > 0 && !opts.ignoreShield && opts.fromX !== undefined && opts.fromY !== undefined) {
       if (e.def.blocks?.(e, opts.fromX, opts.fromY)) {
-        e.shieldHp -= amount;
+        // 도전 1번 "방패 행진"은 방패가 안 깨집니다. 피해는 그대로 막되 내구도만
+        // 안 깎습니다.
+        //
+        // **매 프레임 내구도를 되채우는 방법은 안 됩니다.** 0 에 닿는 그 프레임에
+        // 파괴 연출과 `brokenSpeedMul` 이 한 번 먹어서 방패적이 영구히 빨라집니다.
+        // 깎기 전에 막아야 그 경로를 아예 안 탑니다
+        if (!shieldUnbreakable(this)) e.shieldHp -= amount;
         e.hitFlash = ENEMY_BASE.hitFlash;
         this.effects.burst(e.x + Math.cos(e.facing) * e.radius, e.y + Math.sin(e.facing) * e.radius, 2, '#dbe6f7', 90, 2, 0.2);
         if (e.shieldHp <= 0) {

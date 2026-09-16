@@ -1,12 +1,13 @@
 import './style.css';
 
-import { ACHIEVEMENT, DIFFICULTY, SETTINGS } from './data/balance';
+import { ACHIEVEMENT, CHALLENGE, DIFFICULTY, SETTINGS, type ChallengeStageId } from './data/balance';
+import { startChallenge as beginChallenge } from './game/challenge';
 import { GameLoop } from './core/loop';
 import { Input } from './core/input';
 import { Debug } from './game/debug';
 import { World } from './game/world';
 import { commitCoins, commitRun } from './meta/bestiary';
-import { loadSave, resetSave, saveGame } from './meta/save';
+import { loadSave, resetSave, saveGame, type SaveData } from './meta/save';
 import { clearedAllFrom } from './meta/difficulty';
 import { Canvas2DRenderer } from './render/renderer';
 import { createTouchUi, isMobileLayout, isTouchDevice, type TouchUi } from './ui/touch';
@@ -359,7 +360,37 @@ function goBestiary(): void {
  */
 function goChallenge(): void {
   if (!save.devMode) return;
-  open('challenge', () => showChallengeList(save, goSettings));
+  open('challenge', () => showChallengeList(save, goSettings, startChallengeStage));
+}
+
+/**
+ * 도전 스테이지를 시작합니다 (2026-09-16).
+ *
+ * **상점 영구 강화를 벗겨낸 저장본으로 엽니다.** 도전모드의 공통 규칙입니다
+ * (`docs/기획/콘텐츠.md`). `createPlayer` 와 `xpMultiplier` 가 저장을 읽어 스펙을
+ * 정하므로, 판에 넘기는 저장을 갈아끼우는 것이 가장 확실합니다. 판 도중에 원본
+ * 저장을 읽는 곳은 클리어 보너스 판정과 디버그 맵 둘뿐이고 도전은 둘 다 안 탑니다.
+ *
+ * **코인 적립은 이 저장본이 아니라 바깥의 진짜 저장에 들어갑니다** (`finishRun`).
+ *
+ * 난이도는 0 입니다. `difficultyMods(0, false)` 가 전부 1 이라 난이도 배율이
+ * 안 붙습니다 (도전모드 공통 규칙)
+ */
+function startChallengeStage(id: ChallengeStageId): void {
+  if (!save.devMode) return;
+  const stripped: SaveData = {
+    ...save,
+    perm: {},
+    hardMode: false,
+    hardUnlocked: false,
+    // 칸 수는 그대로 두고 내용만 비웁니다. 길이가 달라지면 패시브 추첨이 어긋납니다
+    equippedPassives: save.equippedPassives.map(() => null),
+    equippedStartSkills: [],
+  };
+  world = new World(stripped, input, seedFromUrl(), 0, { challenge: id });
+  beginChallenge(world);
+  input.clear();
+  closeOverlay('playing');
 }
 
 function goRecords(): void {
@@ -592,6 +623,10 @@ function finishRun(w: World): void {
   // 통과시키기로 했는데 아직 그 업적이 없어서, 생기면 이 자리에 답니다
   if (w.challenge) {
     commitCoins(save, w);
+    // 클리어는 **그때의 규칙 버전과 함께** 남깁니다 (결정 18). 스테이지 규칙을 손보면
+    // `CHALLENGE.rulesVersion` 이 오르고, 옛 규칙으로 깬 기록과 섞이지 않습니다.
+    // 클리어 여부만 남기면 난이도 기록이 클리어 시간 통일 때 섞인 일이 되풀이됩니다
+    if (w.cleared) save.challenge.cleared[w.challenge] = CHALLENGE.rulesVersion;
     saveGame(save);
     save = loadSave();
     return;
@@ -741,6 +776,13 @@ const loop = new GameLoop({
     if (!world.sandbox && achieveTimer <= 0) {
       achieveTimer = ACHIEVEMENT.checkInterval;
       sweepAchievements(world);
+    }
+
+    // **도전을 버텨낸 판은 파편 연출을 안 탑니다.** 살아남은 끝이라 곧바로
+    // 클리어 화면으로 갑니다 (2026-09-16 사용자 확정)
+    if (world.challengeCleared) {
+      endRun();
+      return;
     }
 
     if (world.gameOver) {

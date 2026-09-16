@@ -253,10 +253,16 @@ export function showGameOver(w: World, coinsTotal: number, onRetry: () => void, 
     ? ` + ${w.clearBonusFirst ? '첫 ' : ''}클리어 보너스 ${w.clearBonus}`
     : '';
   // 디버그 맵은 아무것도 저장하지 않습니다. 코인 줄을 그대로 두면 받지도 않은 코인을
-  // 받은 것처럼 적게 됩니다
+  // 받은 것처럼 적게 됩니다.
+  //
+  // 도전 판도 따로 적습니다. 판 중에 코인이 안 떨어지고 클리어 등급도 아직 안 정해서
+  // (`docs/기획/경제.md`) 지금은 실제로 0 인데, 그대로 "획득 코인 0" 이라고 적으면
+  // 보상이 없는 판으로 읽힙니다
   const coinLine = w.sandbox
     ? '디버그 맵 · 코인과 기록은 남지 않습니다'
-    : w.diff.coinMul > 1
+    : w.challenge
+      ? '도전모드 · 클리어 코인 등급은 아직 정해지지 않았습니다'
+      : w.diff.coinMul > 1
       ? `획득 코인 ${w.earnedCoins()}  (모은 ${w.stats.coins} × 난이도 보상 ${w.diff.coinMul.toFixed(2)}배${bonusNote} · 보유 ${coinsTotal})`
       : `획득 코인 ${w.earnedCoins()}  (모은 ${w.stats.coins}${bonusNote} · 보유 ${coinsTotal})`;
 
@@ -276,8 +282,10 @@ export function showGameOver(w: World, coinsTotal: number, onRetry: () => void, 
     ]),
   ];
 
-  const el = screen('쓰러졌습니다', '', body, 'narrow');
-  const killer = killerBadge(w);
+  // 도전을 버텨낸 판은 죽은 판이 아닙니다. 제목도 사인 배지도 그대로 두면
+  // 살아남은 사람에게 "쓰러졌습니다"와 "나를 쓰러뜨린 적"을 보여주게 됩니다
+  const el = screen(w.challengeCleared ? '버텨냈습니다' : '쓰러졌습니다', '', body, 'narrow');
+  const killer = w.challengeCleared ? null : killerBadge(w);
   if (killer) el.append(killer);
   overlayEl().append(el);
 
