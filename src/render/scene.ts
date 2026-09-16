@@ -174,8 +174,9 @@ function drawLasers(r: Renderer, w: World): void {
 function drawTelegraphs(r: Renderer, w: World): void {
   for (const t of w.telegraphs) {
     // **예고도 어둠에 묻힙니다** (2026-09-16 사용자 확정, (나)안).
-    // `docs/기획/콘텐츠.md` 결정 14 의 "예고는 보여준다"를 뒤집은 자리입니다
-    if (!visible(w, t.x, t.y)) continue;
+    // `docs/기획/콘텐츠.md` 결정 14 의 "예고는 보여준다"를 뒤집은 자리입니다.
+    // 터지는 순간의 폭발만 `throughDark` 로 어둠을 뚫습니다
+    if (!t.throughDark && !visible(w, t.x, t.y)) continue;
     const k = t.life / t.maxLife;
     switch (t.kind) {
       case 'spawn': {
@@ -692,10 +693,15 @@ function drawShards(r: Renderer, w: World): void {
 
 function drawParticles(r: Renderer, w: World): void {
   for (const pt of w.effects.particles) {
+    // 어둠 속 이펙트는 안 보입니다 (2026-09-16 사용자 지시). 겁쟁이적이 달려들
+      // 때의 불꽃 같은 것이 시야 밖에서 보이면 그 자체가 위치 알림이 됩니다.
+    // **터지는 순간만 예외로 뚫고 나옵니다** (`throughDark`)
+    if (!pt.throughDark && !visible(w, pt.x, pt.y)) continue;
     const a = pt.life / pt.maxLife;
     r.circle(pt.x, pt.y, pt.radius * a, pt.color, a * 0.9);
   }
   for (const t of w.effects.texts) {
+    if (!visible(w, t.x, t.y)) continue;
     const a = Math.min(1, t.life / t.maxLife * 1.6);
     r.text(t.text, t.x, t.y, { size: t.size, color: t.color, align: 'center', alpha: a, weight: 800 });
   }

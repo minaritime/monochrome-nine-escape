@@ -11,6 +11,13 @@ export interface Particle {
   radius: number;
   color: string;
   drag: number;
+  /**
+   * 어둠 속에서도 보이는가 (2026-09-16, 도전 2번 암전).
+   *
+   * 평소에는 거짓이라 시야 밖 파티클은 안 그려집니다. **자폭의 터지는 순간만**
+   * 참으로 켭니다 (`World.blastVisual`). 사전 예고는 그대로 묻힙니다
+   */
+  throughDark: boolean;
 }
 
 export interface FloatingText {
@@ -57,7 +64,16 @@ export class Effects {
     return Math.round(count * this.particleScale);
   }
 
-  burst(x: number, y: number, count: number, color: string, speed = 130, size = 3, life = 0.45): void {
+  burst(
+    x: number,
+    y: number,
+    count: number,
+    color: string,
+    speed = 130,
+    size = 3,
+    life = 0.45,
+    throughDark = false,
+  ): void {
     if (this.particles.length > 1400) return;
     count = this.scaled(count);
     for (let i = 0; i < count; i++) {
@@ -73,6 +89,7 @@ export class Effects {
         radius: size * this.rng.range(0.6, 1.3),
         color,
         drag: 3.2,
+        throughDark,
       });
     }
   }
@@ -94,6 +111,9 @@ export class Effects {
         radius: size * this.rng.range(0.7, 1.4),
         color,
         drag: 2.4,
+        // 분출은 어둠에 묻힙니다. 겁쟁이적이 달려들 때 나는 것이라 시야 밖에서
+        // 보이면 그 자체가 위치 알림이 됩니다
+        throughDark: false,
       });
     }
   }
@@ -123,6 +143,8 @@ export class Effects {
         radius: (2.5 + t * 5) * this.rng.range(0.7, 1.2),
         color: colors[Math.min(colors.length - 1, Math.floor(t * colors.length))],
         drag: 2.6,
+        // 플레이어를 중심으로 뿜으므로 어차피 시야 안입니다
+        throughDark: false,
       });
     }
   }
@@ -150,6 +172,8 @@ export class Effects {
         radius: this.rng.range(1.6, 3.4),
         color,
         drag: 1.1,
+        // 오라도 플레이어 주변이라 시야 안입니다
+        throughDark: false,
       });
     }
   }

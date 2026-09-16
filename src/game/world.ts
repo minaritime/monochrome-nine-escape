@@ -1123,6 +1123,8 @@ export class World {
       maxLife: 1,
       color: '#ff5d5d',
       owner: 0,
+      // 예고는 기본적으로 어둠에 묻힙니다. 뚫고 나오는 것은 `blastVisual` 뿐입니다
+      throughDark: false,
       dead: false,
     };
     const tel: Telegraph = { ...defaults, ...t, maxLife: t.maxLife ?? t.life };
@@ -1714,10 +1716,17 @@ export class World {
     if (aliveBefore && !this.player.alive) this.track.diedToOwnCorpseBlast = true;
   }
 
+  /**
+   * 터지는 순간의 연출.
+   *
+   * **어둠을 뚫습니다** (2026-09-16 사용자 지시). 도전 2번 암전에서 자폭이 어디서
+   * 터졌는지는 사거리와 무관하게 보여야 합니다. 예고는 그대로 묻히므로,
+   * "경고는 없고 터진 것만 보인다"가 됩니다
+   */
   private blastVisual(x: number, y: number, radius: number, color: string): void {
-    this.effects.burst(x, y, 22, color, 260, 4, 0.5);
+    this.effects.burst(x, y, 22, color, 260, 4, 0.5, true);
     this.effects.addShake(5);
-    this.addTelegraph({ kind: 'blast', x, y, radius, life: 0.22, color });
+    this.addTelegraph({ kind: 'blast', x, y, radius, life: 0.22, color, throughDark: true });
   }
 
   /**
