@@ -2833,7 +2833,7 @@ export const CHALLENGE_RULES = {
      * 밀어내는 판이 아니라 40마리 사이를 빠져나가는 판이라, 성장이 곧 기동성입니다.
      * 상한(510)은 그대로 걸립니다
      */
-    levelMoveSpeedStep: 3,
+    levelMoveSpeedStep: 10,
   },
 } as const;
 

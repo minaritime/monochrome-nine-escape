@@ -5,6 +5,7 @@ import {
   SPAWN,
   type ChallengeStageDef,
   type ChallengeStageId,
+  type EnemyId,
   type StatKey,
 } from '../data/balance';
 import type { World } from './world';
@@ -214,6 +215,20 @@ export function shieldUnbreakable(w: World): boolean {
  */
 export function chargerIgnoresWall(w: World): boolean {
   return w.challenge === 'shieldMarch';
+}
+
+/**
+ * 이 스테이지에서 **도발하는 적의 종류** (2026-09-16 사용자 지시).
+ *
+ * 그 종류가 살아 있는 동안에는 기본공격과 스킬이 전부 그쪽으로만 조준합니다.
+ * 방패 행진은 방패적이 도발합니다.
+ *
+ * **조준에만 걸고 피해 판정에는 안 겁니다.** `canTarget` 을 건드리면 도탄의
+ * 피해 대상 선택(`projectile.ts` 의 `hitRicochet`)까지 같이 바뀌어서, 날아가던
+ * 탄이 돌진적을 그냥 통과합니다. 도발은 "어디를 겨누는가"이지 무적이 아닙니다
+ */
+export function challengeTauntId(w: World): EnemyId | null {
+  return w.challenge === 'shieldMarch' ? 'shield' : null;
 }
 
 /** 돌진 속도 배율. 도전 스테이지가 아니면 1 입니다 */
