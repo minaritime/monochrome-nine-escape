@@ -4,6 +4,7 @@ import { clampToArena, isOutside } from '../game/collision';
 import type { Enemy, Projectile } from '../game/types';
 import type { World } from '../game/world';
 import { canTarget, enemyById, isPick, nearestEnemy, tauntId } from './targeting';
+import { challengeVisionRadius } from '../game/challenge';
 
 const OUT_MARGIN = 60;
 const buf: Enemy[] = [];
@@ -132,6 +133,20 @@ function moveHoming(w: World, p: Projectile, dt: number): void {
     target = nearestEnemy(w, p.x, p.y);
     p.targetId = target ? target.id : 0;
   }
+
+  // **어둠이 있는 판에서는 대상을 못 찾으면 그 자리에서 터집니다** (2026-09-16 사용자 지시).
+  //
+  // 안 그러면 마지막 방향으로 어둠 속을 날아가 화면 밖에서 조용히 사라집니다.
+  // `onExpire` 를 그대로 부르므로 수명이 다했을 때와 **같은 규칙**으로 터집니다
+  // (방패 존중 · 집속탄 · 장판까지 전부). 여기서 따로 터뜨리면 그 규칙이 갈립니다.
+  //
+  // **어둠이 없는 판은 그대로입니다.** 대상이 없으면 직진하다 수명이 다해 터지는
+  // 지금 동작이 의도된 것이고, 로직 점검 3-6 이 그것을 재고 있습니다
+  if (!target && challengeVisionRadius(w) > 0) {
+    onExpire(w, p);
+    return;
+  }
+
   if (target) {
     const desired = angleTo(p.x, p.y, target.x, target.y);
     const current = Math.atan2(p.vy, p.vx);
@@ -233,6 +248,19 @@ function updateRicochet(w: World, p: Projectile, dt: number): void {
   // **거리를 안 봅니다.** 도탄은 사거리 없이 경기장을 돌아다니므로 "사거리 안에
   // 도발 대상이 있는가"를 물을 기준이 없습니다. 그래서 방패적이 살아 있기만 하면
   // 걸리고, 그동안 도탄은 돌진적을 사실상 못 때립니다
+  // **어둠이 있는 판에서는 보이는 적이 없으면 사라집니다** (2026-09-16 사용자 지시).
+  //
+  // 도탄은 맞아야 없어지는 탄이라, 어둠 속으로 들어가면 보이지도 않는 곳에서
+  // 계속 튕겨 다닙니다. `nearestEnemy` 가 이미 시야와 도발을 거치므로 그 결과가
+  // 비면 곧 "보이는 적이 없다"입니다.
+  //
+  // **어둠이 없는 판은 그대로입니다.** 적이 없어도 명중 횟수가 남는 한 계속
+  // 튕기는 것이 의도된 동작이고, 로직 점검 3-6 이 그것을 재고 있습니다
+  if (challengeVisionRadius(w) > 0 && !nearestEnemy(w, p.x, p.y)) {
+    p.dead = true;
+    return;
+  }
+
   const taunt = tauntId(w, p.x, p.y, Infinity);
   const near = w.grid.query(p.x, p.y, p.radius + 46, buf);
   for (const e of near) {
