@@ -169,8 +169,16 @@ Object.assign(globalThis, {
   window: stubWindow,
   // 시드를 고정해야 매번 같은 흐름으로 재현됩니다.
   // **다만 `?seed` 는 개발자 모드에서만 듣습니다.** 5번에서 잠금을 풀기 전까지는
-  // 안 걸리므로 첫 판은 시드가 안 잡힙니다. 그 구간의 점검은 시드와 무관한
-  // 것들뿐이라(강제 레벨업 · 즉사 키) 결과가 흔들리지 않습니다
+  // 안 걸리므로 첫 판은 시드가 안 잡힙니다.
+  //
+  // ⚠ **그 구간이 시드와 무관하다고 적혀 있었는데 틀린 말이었습니다** (2026-09-16).
+  // 3번 끝의 `frames(600)` 은 10초를 실제로 플레이하므로 레벨업 시점이 실행할 때마다
+  // 다릅니다. 그 10초 안에 스킬 선택 레벨에 닿으면 선택창이 뜬 채로 4번에 들어가고,
+  // Esc 가 일시정지를 안 열어 뒤가 통째로 밀립니다. **세 번에 한 번꼴로 8건이
+  // 실패했고 배포가 그만큼 막혔습니다.** 지금은 4번이 `drainChoices` 로 먼저 비웁니다.
+  //
+  // 잠금 전 구간에 검사를 더할 때는 **판의 진행에 기대는 것인지 먼저 따지십시오.**
+  // 강제 레벨업이나 즉사 키처럼 키 하나로 끝나는 것만 시드와 무관합니다
   location: { search: '?seed=20260804' },
   document: {
     getElementById: (id: string) => {
@@ -470,11 +478,40 @@ async function main(): Promise<void> {
   frames(2);
   check('오버레이가 비었다 (게임 중)', overlayText().trim() === '');
 
+  // 화면 판별은 문구가 아니라 **표식(class)** 으로 합니다.
+  // 예전에는 부제 문구를 봤는데, 그 문구를 지우자 갈래 창과 구분이 안 됐습니다
+  //
+  // **4번보다 위에 둡니다** (2026-09-16). 아래 `drainChoices` 가 이걸 쓰는데, 예전에는
+  // 5번 앞에 정의되어 있어서 4번에서는 쓸 수가 없었습니다
+  const skillChoiceOpen = () => overlay.querySelector('.skill-choice') !== null;
+  const branchChoiceOpen = () => overlay.querySelector('.branch-choice') !== null;
+
+  /**
+   * 열려 있는 선택창을 눌러 없앱니다.
+   *
+   * **선택은 거절할 수 없습니다.** 창이 떠 있으면 판이 멈추고 Esc 도 일시정지로 안 갑니다.
+   * 5번 · 6번 · 7번은 예전부터 이 처리를 했는데 4번만 빠져 있었습니다
+   */
+  const drainChoices = (): void => {
+    for (let i = 0; i < 8 && (skillChoiceOpen() || branchChoiceOpen()); i++) {
+      press('Digit1');
+      frames(3);
+    }
+  };
+
   // 10초쯤 진행
   frames(600);
   check('게임이 진행됐다', true);
 
   console.log('4) 일시정지');
+  // **먼저 선택창을 비웁니다** (2026-09-16).
+  //
+  // 위 10초는 시드가 안 걸린 판입니다 (`?seed` 는 개발자 모드 전용인데 잠금은 5번에서
+  // 풉니다). 그래서 레벨업 시점이 실행할 때마다 달라지고, 그 10초 안에 스킬 선택
+  // 레벨에 닿으면 선택창이 뜬 채로 여기에 옵니다. 그러면 Esc 가 일시정지를 안 열고
+  // 뒤의 검사가 통째로 밀려서 **세 번에 한 번꼴로 8건이 실패했습니다.**
+  // 경험치 배율을 올릴 때마다 이 확률이 같이 올라갑니다
+  drainChoices();
   press('Escape');
   frames(2);
   check('일시정지 화면이 떴다', overlayText().includes('일시정지'));
@@ -496,10 +533,6 @@ async function main(): Promise<void> {
   for (const code of DEBUG.unlockSequence) press(code);
   frames(2);
   check('비밀번호를 치면 열린다', overlayText().trim() === '', overlayText().trim().slice(0, 40));
-  // 화면 판별은 문구가 아니라 **표식(class)** 으로 합니다.
-  // 예전에는 부제 문구를 봤는데, 그 문구를 지우자 갈래 창과 구분이 안 됐습니다
-  const skillChoiceOpen = () => overlay.querySelector('.skill-choice') !== null;
-  const branchChoiceOpen = () => overlay.querySelector('.branch-choice') !== null;
 
   let opened = false;
   for (let i = 0; i < 40 && !opened; i++) {
