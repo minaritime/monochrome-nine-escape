@@ -122,9 +122,10 @@ function shieldMarch(w: World): void {
 
   // **5초마다 한 마리씩 늡니다** (2026-09-16 사용자 지시).
   //
-  // 방패와 돌진을 1:3 으로 나눠 채웁니다. 1 + 3 으로 시작해 180초에 10 + 30 이
-  // 되고, 36번 늘어 정확히 상한에 닿습니다. 예전에는 고정이라 30초만 버티면
-  // 그 뒤로 화면이 끝까지 똑같았습니다
+  // 방패와 돌진을 1:3 으로 나눠 채웁니다. 1 + 3 으로 시작해 클리어(2분)까지 24번
+  // 늘어 방패 7 · 돌진 21 에서 끝납니다. **상한 10 · 30 에는 안 닿습니다.** 그 값은
+  // 클리어가 3분이던 때의 끝점이고, 판을 줄이면서 리듬을 그대로 두기로 했습니다.
+  // 예전에는 마릿수가 고정이라 30초만 버티면 그 뒤로 화면이 끝까지 똑같았습니다
   const ticks = Math.floor(w.time / R.spawnStep);
   const shieldTicks = Math.floor(ticks / 4);
   const shieldWant = Math.min(R.shieldAliveMax, R.shieldAliveStart + shieldTicks);
