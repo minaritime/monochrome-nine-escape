@@ -194,6 +194,7 @@ function spawnCharger(w: World): void {
   e.state.timer2 = 0;
   e.maxHp = w.player.stats.attack * R.chargerHitsToKill;
   e.hp = e.maxHp;
+  e.damage = R.chargerDamage;
 }
 
 /**

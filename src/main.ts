@@ -686,12 +686,17 @@ function endRun(): void {
   if (!world) return;
   const w = world;
   finishRun(w);
-  open('gameover', () =>
-    // 디버그 맵에서 죽었으면 "다시 도전"도 디버그 맵으로 돌아갑니다.
-    // 도전 판은 스테이지 목록으로 보냅니다. 같은 스테이지를 바로 다시 여는 것은
-    // 스테이지 진입이 생긴 뒤에 답니다
-    showGameOver(w, save.coins, w.sandbox ? startSandbox : w.challenge ? goChallenge : startRun, goMain),
-  );
+
+  // "다시 도전"이 가는 곳. 디버그 맵은 디버그 맵으로, 도전 판은 **같은 스테이지로**
+  // 곧장 돌아갑니다 (2026-09-16 사용자 지시). 예전에는 스테이지 목록으로 보냈는데,
+  // 한 판이 3분이라 다시 들어가는 데 두 번을 더 눌러야 했습니다.
+  //
+  // **지역 변수에 담아 둡니다.** `w.challenge` 를 삼항 안에서 그대로 쓰면 닫힌 함수
+  // 안에서 타입이 좁혀지지 않습니다
+  const stage = w.challenge;
+  const retry = w.sandbox ? startSandbox : stage ? () => startChallengeStage(stage) : startRun;
+
+  open('gameover', () => showGameOver(w, save.coins, retry, goMain));
 }
 
 // ---------------------------------------------------------------------------

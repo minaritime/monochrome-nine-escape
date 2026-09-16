@@ -705,11 +705,20 @@ export class World {
    * 상한도 구간도 없이 분당 +0.2 로 쭉 오릅니다 (`TIME_SCALING` 주석 참고).
    */
   timeMultiplier(): number {
+    // **도전 판은 시간 강화가 없으므로 표시도 1 입니다** (2026-09-16).
+    //
+    // 이 값은 화면에 보여주려고만 쓰는데(`hud.ts` 의 "적 강화 xN", F1 오버레이),
+    // 실제 강화(`timeScale`)를 껐으면서 이쪽을 안 끄면 **적은 그대로인데 숫자만
+    // 올라갑니다.** 화면이 거짓말을 하게 되므로 둘은 반드시 같이 움직여야 합니다
+    if (this.challenge) return 1;
     return 1 + (this.time / 60) * TIME_SCALING.hpPerMinute + this.overtimeMinutes() * OVERTIME.hpPerMinute;
   }
 
   /** 후반 속도 배율. 15분부터, 체력·공격력보다 훨씬 느리게 오릅니다 */
   lateSpeedMultiplier(): number {
+    // 위와 같은 이유로 도전 판은 1 입니다. 같은 줄에 찍히는 값이고, 9번처럼
+    // 15분이 넘는 스테이지에서는 이쪽만 혼자 올라갑니다
+    if (this.challenge) return 1;
     const over = Math.max(0, this.time / 60 - TIME_SCALING.speedStartMinute);
     return 1 + over * TIME_SCALING.speedPerMinute;
   }
