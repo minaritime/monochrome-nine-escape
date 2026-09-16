@@ -1,4 +1,11 @@
-import { CHALLENGE_RULES, CHALLENGE_STAGES, type ChallengeStageDef, type ChallengeStageId } from '../data/balance';
+import {
+  CANVAS,
+  CHALLENGE_RULES,
+  CHALLENGE_STAGES,
+  type ChallengeStageDef,
+  type ChallengeStageId,
+} from '../data/balance';
+import { lerp, progress } from '../core/math';
 import { randomEdge } from './spawner';
 import type { World } from './world';
 
@@ -112,11 +119,17 @@ function shieldMarch(w: World): void {
     }
   }
 
+  // **판이 갈수록 마릿수가 늡니다** (2026-09-16 사용자 지시). 예전에는 고정이라
+  // 30초만 버티면 그 뒤로 화면이 끝까지 똑같았습니다. 클리어 시간에 끝 값에 닿습니다
+  const t = progress(w.time, 0, challengeStage('shieldMarch').clearTime);
+  const shieldWant = Math.round(lerp(R.shieldAliveStart, R.shieldAliveEnd, t));
+  const chargerWant = Math.round(lerp(R.chargerAliveStart, R.chargerAliveEnd, t));
+
   // 모자란 쪽을 채웁니다. **번갈아 나오게 하려고 따로 순번을 들고 있지 않습니다.**
   // 부족분이 큰 쪽을 먼저 내면 둘이 같은 속도로 줄어들 때 저절로 번갈아 나옵니다.
   // 순번을 상태로 들고 있으면 판 중에 한쪽만 많이 죽었을 때 어긋납니다
-  const shieldShort = R.shieldAlive - shields;
-  const chargerShort = R.chargerAlive - chargers;
+  const shieldShort = shieldWant - shields;
+  const chargerShort = chargerWant - chargers;
   if (shieldShort <= 0 && chargerShort <= 0) return;
 
   if (shieldShort >= chargerShort) spawnShield(w);
@@ -130,9 +143,31 @@ function spawnShield(w: World): void {
   e.speed *= CHALLENGE_RULES.shieldMarch.shieldSpeedMul;
 }
 
+/**
+ * 정예 돌진적을 냅니다 (2026-09-16 사용자 지시 반영).
+ *
+ * **가장자리가 아니라 경기장 안쪽에 냅니다.** 돌진적은 벽에서 `wallClearance`(70)
+ * 만큼 떨어지기 전에는 예고를 시작하지 않고 가운데로 걸어 나옵니다
+ * (`advanced.ts` 의 `nearWall`). 가장자리에서 내면 "바로 돌진준비"가 안 됩니다.
+ *
+ * **쿨타임을 0 으로 둡니다.** 배회 단계(phase 0)는 `timer2` 가 다 돌아야 예고로
+ * 넘어가는데, 0 이면 첫 프레임에 곧바로 준비에 들어갑니다.
+ *
+ * **체력은 평타 몇 대로 직접 잡습니다.** `rollDamage` 가 평타를 `stats.attack x 1`
+ * 로 내므로(`skills/registry.ts:18-22`) 그 배수를 그대로 씁니다. 고정 숫자로 박으면
+ * 레벨업으로 공격력이 오른 뒤에는 한 대에 죽습니다. 치명타가 뜨면 한 대에 죽는데,
+ * 그건 치명타가 하는 일이라 그대로 둡니다
+ */
 function spawnCharger(w: World): void {
-  const pos = randomEdge(w);
-  w.spawnEnemy('charger', pos.x, pos.y, { elite: true });
+  const R = CHALLENGE_RULES.shieldMarch;
+  const m = R.chargerSpawnMargin;
+  const x = w.rng.range(m, CANVAS.w - m);
+  const y = w.rng.range(m, CANVAS.h - m);
+
+  const e = w.spawnEnemy('charger', x, y, { elite: true });
+  e.state.timer2 = 0;
+  e.maxHp = w.player.stats.attack * R.chargerHitsToKill;
+  e.hp = e.maxHp;
 }
 
 /**

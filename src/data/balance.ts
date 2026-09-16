@@ -2789,14 +2789,36 @@ export const CHALLENGE_IMPLEMENTED: readonly ChallengeStageId[] = ['shieldMarch'
 export const CHALLENGE_RULES = {
   /** 1번 방패 행진 */
   shieldMarch: {
-    /** 동시에 유지할 방패적 수 (초안) */
-    shieldAlive: 4,
-    /** 동시에 유지할 정예 돌진적 수 (초안) */
-    chargerAlive: 3,
+    /**
+     * 동시에 유지할 마릿수. **판이 갈수록 늘어납니다** (2026-09-16 사용자 지시).
+     * 처음 값에서 시작해 클리어 시간에 끝 값에 닿습니다.
+     *
+     * 예전에는 고정이라 30초만 버티면 그 뒤로는 화면이 똑같았습니다
+     */
+    shieldAliveStart: 3,
+    shieldAliveEnd: 9,
+    chargerAliveStart: 2,
+    chargerAliveEnd: 7,
     /** 방패적 이동속도 배율. 원문의 "이속 -70%" 입니다 */
     shieldSpeedMul: 0.3,
     /** 방패적이 스스로 사라지기까지 걸리는 시간(초) */
     shieldLife: 10,
+    /**
+     * 돌진적 체력을 **평타 몇 대**에 맞출 것인가 (2026-09-16 사용자 지시).
+     *
+     * 고정 숫자로 박지 않는 이유는 플레이어 공격력이 레벨업으로 계속 오르기 때문입니다.
+     * 스폰하는 그 순간의 평타 피해를 재서 그 배수로 체력을 잡으므로, 판 내내
+     * "두 대면 죽는 적"이라는 성격이 유지됩니다
+     */
+    chargerHitsToKill: 2,
+    /**
+     * 돌진적을 벽에서 이만큼 떨어뜨려 냅니다.
+     *
+     * **`ENEMY_PARAMS.charger.wallClearance`(70) 보다 커야 합니다.** 그 안쪽에서
+     * 나오면 예고를 시작하지 않고 경기장 가운데로 걸어 나온 뒤에야 준비에
+     * 들어갑니다 (`advanced.ts` 의 `nearWall`). 바로 준비하게 하려는 것이 목적입니다
+     */
+    chargerSpawnMargin: 120,
   },
 } as const;
 
