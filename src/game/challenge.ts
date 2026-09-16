@@ -2,11 +2,11 @@ import {
   CANVAS,
   CHALLENGE_RULES,
   CHALLENGE_STAGES,
+  SPAWN,
   type ChallengeStageDef,
   type ChallengeStageId,
+  type StatKey,
 } from '../data/balance';
-import { lerp, progress } from '../core/math';
-import { randomEdge } from './spawner';
 import type { World } from './world';
 
 /**
@@ -119,11 +119,15 @@ function shieldMarch(w: World): void {
     }
   }
 
-  // **판이 갈수록 마릿수가 늡니다** (2026-09-16 사용자 지시). 예전에는 고정이라
-  // 30초만 버티면 그 뒤로 화면이 끝까지 똑같았습니다. 클리어 시간에 끝 값에 닿습니다
-  const t = progress(w.time, 0, challengeStage('shieldMarch').clearTime);
-  const shieldWant = Math.round(lerp(R.shieldAliveStart, R.shieldAliveEnd, t));
-  const chargerWant = Math.round(lerp(R.chargerAliveStart, R.chargerAliveEnd, t));
+  // **5초마다 한 마리씩 늡니다** (2026-09-16 사용자 지시).
+  //
+  // 방패와 돌진을 1:3 으로 나눠 채웁니다. 1 + 3 으로 시작해 180초에 10 + 30 이
+  // 되고, 36번 늘어 정확히 상한에 닿습니다. 예전에는 고정이라 30초만 버티면
+  // 그 뒤로 화면이 끝까지 똑같았습니다
+  const ticks = Math.floor(w.time / R.spawnStep);
+  const shieldTicks = Math.floor(ticks / 4);
+  const shieldWant = Math.min(R.shieldAliveMax, R.shieldAliveStart + shieldTicks);
+  const chargerWant = Math.min(R.chargerAliveMax, R.chargerAliveStart + (ticks - shieldTicks));
 
   // 모자란 쪽을 채웁니다. **번갈아 나오게 하려고 따로 순번을 들고 있지 않습니다.**
   // 부족분이 큰 쪽을 먼저 내면 둘이 같은 속도로 줄어들 때 저절로 번갈아 나옵니다.
@@ -136,8 +140,32 @@ function shieldMarch(w: World): void {
   else spawnCharger(w);
 }
 
+/**
+ * 가장자리 한 자리.
+ *
+ * **`spawner.ts` 의 `randomEdge` 를 쓰지 않고 여기서 따로 만듭니다.** 그쪽을
+ * 들여오면 `advanced.ts → challenge.ts → spawner.ts → registry.ts → advanced.ts`
+ * 로 순환이 생깁니다. 돌진적 행동이 이 파일에 규칙을 물어보기 때문입니다.
+ * 이 파일이 `balance.ts` 만 보게 두면 그 고리가 끊깁니다.
+ *
+ * 난수를 두 번 뽑는 순서까지 `randomEdge` 와 같게 맞췄습니다
+ */
+function edgePosition(w: World): { x: number; y: number } {
+  const inset = SPAWN.edgeInset;
+  switch (w.rng.int(0, 4)) {
+    case 0:
+      return { x: w.rng.range(inset, CANVAS.w - inset), y: inset };
+    case 1:
+      return { x: CANVAS.w - inset, y: w.rng.range(inset, CANVAS.h - inset) };
+    case 2:
+      return { x: w.rng.range(inset, CANVAS.w - inset), y: CANVAS.h - inset };
+    default:
+      return { x: inset, y: w.rng.range(inset, CANVAS.h - inset) };
+  }
+}
+
 function spawnShield(w: World): void {
-  const pos = randomEdge(w);
+  const pos = edgePosition(w);
   const e = w.spawnEnemy('shield', pos.x, pos.y, {});
   // 원문의 "이속 -70%". 스폰 직후 개체에 곱합니다
   e.speed *= CHALLENGE_RULES.shieldMarch.shieldSpeedMul;
@@ -146,9 +174,9 @@ function spawnShield(w: World): void {
 /**
  * 정예 돌진적을 냅니다 (2026-09-16 사용자 지시 반영).
  *
- * **가장자리가 아니라 경기장 안쪽에 냅니다.** 돌진적은 벽에서 `wallClearance`(70)
- * 만큼 떨어지기 전에는 예고를 시작하지 않고 가운데로 걸어 나옵니다
- * (`advanced.ts` 의 `nearWall`). 가장자리에서 내면 "바로 돌진준비"가 안 됩니다.
+ * **다른 적과 똑같이 가장자리에서 냅니다.** 한때 경기장 안쪽에 냈는데, 벽 근처
+ * 예외를 피하려던 것이었지만 사용자가 가장자리 스폰을 원해서 되돌렸습니다.
+ * 대신 그 예외 자체를 이 스테이지에서 끕니다 (`chargerIgnoresWall`).
  *
  * **쿨타임을 0 으로 둡니다.** 배회 단계(phase 0)는 `timer2` 가 다 돌아야 예고로
  * 넘어가는데, 0 이면 첫 프레임에 곧바로 준비에 들어갑니다.
@@ -160,11 +188,8 @@ function spawnShield(w: World): void {
  */
 function spawnCharger(w: World): void {
   const R = CHALLENGE_RULES.shieldMarch;
-  const m = R.chargerSpawnMargin;
-  const x = w.rng.range(m, CANVAS.w - m);
-  const y = w.rng.range(m, CANVAS.h - m);
-
-  const e = w.spawnEnemy('charger', x, y, { elite: true });
+  const pos = edgePosition(w);
+  const e = w.spawnEnemy('charger', pos.x, pos.y, { elite: true });
   e.state.timer2 = 0;
   e.maxHp = w.player.stats.attack * R.chargerHitsToKill;
   e.hp = e.maxHp;
@@ -178,4 +203,32 @@ function spawnCharger(w: World): void {
  */
 export function shieldUnbreakable(w: World): boolean {
   return w.challenge === 'shieldMarch';
+}
+
+/**
+ * 돌진적이 벽 근처에서도 곧바로 예고를 시작하는가 (2026-09-16 사용자 지시).
+ *
+ * 평소에는 벽에서 `wallClearance` 만큼 떨어질 때까지 가운데로 걸어 나온 뒤에야
+ * 준비에 들어갑니다. 가장자리에서 나오는 이 스테이지에서는 그러면 "바로 준비"가
+ * 성립하지 않아서 끕니다
+ */
+export function chargerIgnoresWall(w: World): boolean {
+  return w.challenge === 'shieldMarch';
+}
+
+/** 돌진 속도 배율. 도전 스테이지가 아니면 1 입니다 */
+export function chargerDashSpeedMul(w: World): number {
+  return w.challenge === 'shieldMarch' ? CHALLENGE_RULES.shieldMarch.chargerDashSpeedMul : 1;
+}
+
+/**
+ * 레벨업에서 오를 스탯을 스테이지가 못박는가 (2026-09-16 사용자 지시).
+ *
+ * null 이면 평소대로 서로 다른 스탯 둘을 추첨합니다. 값이 있으면 그 스탯 하나만
+ * 그만큼 오릅니다. 방패 행진은 40마리 사이를 빠져나가는 판이라 성장이 곧
+ * 기동성이어야 해서 이동속도로 고정합니다
+ */
+export function challengeStatOverride(w: World): { key: StatKey; step: number } | null {
+  if (w.challenge !== 'shieldMarch') return null;
+  return { key: 'moveSpeed', step: CHALLENGE_RULES.shieldMarch.levelMoveSpeedStep };
 }

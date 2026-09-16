@@ -2795,10 +2795,17 @@ export const CHALLENGE_RULES = {
      *
      * 예전에는 고정이라 30초만 버티면 그 뒤로는 화면이 똑같았습니다
      */
-    shieldAliveStart: 3,
-    shieldAliveEnd: 9,
-    chargerAliveStart: 2,
-    chargerAliveEnd: 7,
+    shieldAliveStart: 1,
+    shieldAliveMax: 10,
+    chargerAliveStart: 3,
+    chargerAliveMax: 30,
+    /**
+     * 이 간격(초)마다 **한 마리씩** 늡니다 (2026-09-16 사용자 지시).
+     *
+     * 방패와 돌진을 1:3 으로 나눠 채우므로, 1 + 3 마리로 시작해 180초에 10 + 30
+     * 마리가 됩니다. 36번 늘어 정확히 상한에 닿습니다
+     */
+    spawnStep: 5,
     /** 방패적 이동속도 배율. 원문의 "이속 -70%" 입니다 */
     shieldSpeedMul: 0.3,
     /** 방패적이 스스로 사라지기까지 걸리는 시간(초) */
@@ -2812,13 +2819,21 @@ export const CHALLENGE_RULES = {
      */
     chargerHitsToKill: 2,
     /**
-     * 돌진적을 벽에서 이만큼 떨어뜨려 냅니다.
+     * 돌진 속도 배율 (2026-09-16 사용자 지시).
      *
-     * **`ENEMY_PARAMS.charger.wallClearance`(70) 보다 커야 합니다.** 그 안쪽에서
-     * 나오면 예고를 시작하지 않고 경기장 가운데로 걸어 나온 뒤에야 준비에
-     * 들어갑니다 (`advanced.ts` 의 `nearWall`). 바로 준비하게 하려는 것이 목적입니다
+     * 예고가 끝나면 평소보다 훨씬 빠르게 튀어나갑니다. 예고 시간은 안 건드리므로
+     * "보고 피할 여지"는 그대로입니다
      */
-    chargerSpawnMargin: 120,
+    chargerDashSpeedMul: 2,
+    /**
+     * 레벨업에서 오르는 스탯을 **이동속도 하나로 고정**하고 이만큼만 올립니다
+     * (2026-09-16 사용자 지시).
+     *
+     * 일반 상승폭은 8 인데(`STAT_DEFS`) 그보다 작게 잡습니다. 이 판은 화력을 키워
+     * 밀어내는 판이 아니라 40마리 사이를 빠져나가는 판이라, 성장이 곧 기동성입니다.
+     * 상한(510)은 그대로 걸립니다
+     */
+    levelMoveSpeedStep: 3,
   },
 } as const;
 

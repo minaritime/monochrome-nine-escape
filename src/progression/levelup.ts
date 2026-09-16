@@ -1,5 +1,6 @@
 import { BASE_WEIGHT, PASSIVE, STAT_DEFS, STAT_GAINS_PER_LEVEL, type StatKey } from '../data/balance';
 import { formatGain, isStatMaxed, isStatRollable } from '../game/stats';
+import { challengeStatOverride } from '../game/challenge';
 import type { World } from '../game/world';
 import type { SaveData } from '../meta/save';
 
@@ -20,6 +21,16 @@ export interface StatGainResult {
  * 남은 후보가 부족하면 있는 만큼만 돌려줍니다.
  */
 export function rollStatGains(w: World, count = STAT_GAINS_PER_LEVEL): StatGainResult[] {
+  // 도전 스테이지는 오를 스탯을 못박을 수 있습니다 (2026-09-16). 추첨을 아예
+  // 건너뛰므로 지정 칸도 성장 패시브도 안 탑니다. 그 판에서는 상점 강화가
+  // 통째로 꺼져 있으니 앞뒤가 맞습니다
+  const fixed = challengeStatOverride(w);
+  if (fixed) {
+    const def = STAT_DEFS.find((s) => s.key === fixed.key);
+    if (!def || isStatMaxed(w.player.stats, fixed.key)) return [];
+    return [{ key: fixed.key, amount: fixed.step, name: def.name, text: formatGain(fixed.key, fixed.step) }];
+  }
+
   const out: StatGainResult[] = [];
   const taken = new Set<StatKey>();
 

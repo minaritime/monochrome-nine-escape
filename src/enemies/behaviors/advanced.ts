@@ -1,6 +1,10 @@
 import { CANVAS, ENEMY_PARAMS } from '../../data/balance';
 import { angleTo, dist } from '../../core/math';
 import { eliteHas, eliteMul, eliteValue } from '../elite';
+// 도전 스테이지가 돌진적의 규칙을 갈아끼웁니다 (벽 근처 예외 · 돌진 속도).
+// **`challenge.ts` 는 `balance.ts` 만 들여옵니다.** 거기서 `spawner.ts` 를 들여오면
+// advanced → challenge → spawner → registry → advanced 로 순환이 생깁니다
+import { chargerDashSpeedMul, chargerIgnoresWall } from '../../game/challenge';
 import type { Enemy } from '../../game/types';
 import type { World } from '../../game/world';
 import type { EnemyBehavior } from '../types';
@@ -63,7 +67,9 @@ export const charger: EnemyBehavior = (e, w, dt) => {
       // 벽에 붙은 채로 예고를 시작하면 돌진 거리가 몇 픽셀도 안 나옵니다.
       // 예고 3초를 다 보여주고 벽에 박아 기절하면 플레이어 입장에서는 아무 일도 안 일어난
       // 셈이라, 준비가 됐어도 벽에서 떨어질 때까지는 시작하지 않고 안쪽으로 걸어 나옵니다
-      if (nearWall(e, P.wallClearance)) {
+      // 도전 스테이지가 이 예외를 끌 수 있습니다. 가장자리에서 나오자마자 준비에
+      // 들어가야 하는 판이 있어서입니다 (`chargerIgnoresWall`)
+      if (!chargerIgnoresWall(w) && nearWall(e, P.wallClearance)) {
         moveToward(e, CANVAS.w / 2, CANVAS.h / 2, 0.8);
         break;
       }
@@ -123,7 +129,7 @@ export const charger: EnemyBehavior = (e, w, dt) => {
     }
     case 2: {
       // 돌진. 배회 속도의 배수가 아니라 절대 속도입니다 (balance.ts 주석 참고)
-      const speed = P.dashSpeed * w.diff.speedMul;
+      const speed = P.dashSpeed * w.diff.speedMul * chargerDashSpeedMul(w);
       e.vx = Math.cos(e.state.angle) * speed;
       e.vy = Math.sin(e.state.angle) * speed;
       // 벽에 "붙어 있는가"가 아니라 "벽 쪽으로 가고 있는가"로 판정합니다.
