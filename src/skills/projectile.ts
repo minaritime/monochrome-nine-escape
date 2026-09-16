@@ -3,7 +3,7 @@ import { angleTo, dist } from '../core/math';
 import { clampToArena, isOutside } from '../game/collision';
 import type { Enemy, Projectile } from '../game/types';
 import type { World } from '../game/world';
-import { canTarget, enemyById, nearestEnemy } from './targeting';
+import { canTarget, enemyById, isPick, nearestEnemy, tauntId } from './targeting';
 
 const OUT_MARGIN = 60;
 const buf: Enemy[] = [];
@@ -227,10 +227,17 @@ function updateRicochet(w: World, p: Projectile, dt: number): void {
     p.vy = -Math.abs(p.vy);
   }
 
+  // **도탄도 도발을 따릅니다** (2026-09-16 사용자 지시). 방패적이 돌진적을 막아주는
+  // 그림이라, 튕겨 다니는 탄이 뒤쪽 돌진적으로 새면 그 그림이 깨집니다.
+  //
+  // **거리를 안 봅니다.** 도탄은 사거리 없이 경기장을 돌아다니므로 "사거리 안에
+  // 도발 대상이 있는가"를 물을 기준이 없습니다. 그래서 방패적이 살아 있기만 하면
+  // 걸리고, 그동안 도탄은 돌진적을 사실상 못 때립니다
+  const taunt = tauntId(w, p.x, p.y, Infinity);
   const near = w.grid.query(p.x, p.y, p.radius + 46, buf);
   for (const e of near) {
     // 방금 때린 적은 건너뜁니다. 안 그러면 붙어 있는 동안 몇 프레임에 걸쳐 다 소진됩니다
-    if (e.dead || !canTarget(e) || e.id === p.targetId) continue;
+    if (e.dead || !isPick(e, taunt) || e.id === p.targetId) continue;
     if (dist(p.x, p.y, e.x, e.y) > p.radius + e.radius) continue;
 
     w.damageEnemy(e, p.damage, { crit: p.crit, fromX: p.x, fromY: p.y, ignoreShield: p.ignoreShield });

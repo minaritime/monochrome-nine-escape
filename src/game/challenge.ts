@@ -167,7 +167,7 @@ function edgePosition(w: World): { x: number; y: number } {
 
 function spawnShield(w: World): void {
   const pos = edgePosition(w);
-  const e = w.spawnEnemy('shield', pos.x, pos.y, {});
+  const e = w.spawnEnemy('shield', pos.x, pos.y, { hpMul: CHALLENGE_RULES.shieldMarch.shieldHpMul });
   // 원문의 "이속 -70%". 스폰 직후 개체에 곱합니다
   e.speed *= CHALLENGE_RULES.shieldMarch.shieldSpeedMul;
 }

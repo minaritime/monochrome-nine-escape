@@ -24,7 +24,7 @@ export function canTarget(e: Enemy): boolean {
  *
  * **함수마다 한 번만 부릅니다.** 적마다 부르면 적 수의 제곱이 됩니다
  */
-function tauntId(w: World, x: number, y: number, range: number): EnemyId | null {
+export function tauntId(w: World, x: number, y: number, range: number): EnemyId | null {
   const id = challengeTauntId(w);
   if (!id) return null;
   const r2 = range * range;
@@ -42,7 +42,7 @@ function tauntId(w: World, x: number, y: number, range: number): EnemyId | null 
  * (`projectile.ts` 도탄), 거기에 도발을 넣으면 "안 겨누는 적"이 아니라
  * "안 맞는 적"이 됩니다. 도발은 조준에만 걸어야 합니다
  */
-function isPick(e: Enemy, taunt: EnemyId | null): boolean {
+export function isPick(e: Enemy, taunt: EnemyId | null): boolean {
   return canTarget(e) && (taunt === null || e.defId === taunt);
 }
 
