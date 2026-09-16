@@ -1,5 +1,5 @@
 import { angleTo, distSq, distToRay } from '../core/math';
-import { challengeTauntId } from '../game/challenge';
+import { challengeTauntId, challengeVisionRadius } from '../game/challenge';
 import type { EnemyId } from '../data/balance';
 import type { Enemy } from '../game/types';
 import type { World } from '../game/world';
@@ -42,8 +42,21 @@ export function tauntId(w: World, x: number, y: number, range: number): EnemyId 
  * (`projectile.ts` 도탄), 거기에 도발을 넣으면 "안 겨누는 적"이 아니라
  * "안 맞는 적"이 됩니다. 도발은 조준에만 걸어야 합니다
  */
-export function isPick(e: Enemy, taunt: EnemyId | null): boolean {
-  return canTarget(e) && (taunt === null || e.defId === taunt);
+export function isPick(w: World, e: Enemy, taunt: EnemyId | null): boolean {
+  if (!canTarget(e)) return false;
+  if (taunt !== null && e.defId !== taunt) return false;
+
+  // **안 보이는 적은 겨누지 않습니다** (도전 2번 암전, 2026-09-16 사용자 지시).
+  //
+  // 조준 함수 7개와 체인 연쇄, 도탄의 대상 선택이 전부 여기를 거치므로 한 곳이면
+  // 끝납니다. 체인이 어둠 속 적으로 튕겨 나가는 일도 이것으로 막힙니다.
+  //
+  // **일반 투사체의 충돌(`hitEnemies`)은 안 탑니다.** 그쪽은 조준이 아니라 이미
+  // 날아가던 탄이 부딪히는 판정이라 성격이 다릅니다
+  const vision = challengeVisionRadius(w);
+  if (vision > 0 && distSq(w.player.x, w.player.y, e.x, e.y) > vision * vision) return false;
+
+  return true;
 }
 
 export function nearestEnemy(w: World, x: number, y: number, maxRange = Infinity, ignoreTaunt = false): Enemy | null {
@@ -53,7 +66,7 @@ export function nearestEnemy(w: World, x: number, y: number, maxRange = Infinity
   let best: Enemy | null = null;
   let bestD = maxRange * maxRange;
   for (const e of w.enemies) {
-    if (!isPick(e, taunt)) continue;
+    if (!isPick(w, e, taunt)) continue;
     const d = distSq(x, y, e.x, e.y);
     if (d < bestD) {
       bestD = d;
@@ -69,7 +82,7 @@ export function farthestEnemy(w: World, x: number, y: number, maxRange = Infinit
   let bestD = -1;
   const limit = maxRange * maxRange;
   for (const e of w.enemies) {
-    if (!isPick(e, taunt)) continue;
+    if (!isPick(w, e, taunt)) continue;
     const d = distSq(x, y, e.x, e.y);
     if (d > bestD && d <= limit) {
       bestD = d;
@@ -85,7 +98,7 @@ export function densestDirection(w: World, x: number, y: number, range: number, 
   const inRange: Enemy[] = [];
   const r2 = range * range;
   for (const e of w.enemies) {
-    if (!isPick(e, taunt)) continue;
+    if (!isPick(w, e, taunt)) continue;
     if (distSq(x, y, e.x, e.y) <= r2) inRange.push(e);
   }
   if (inRange.length === 0) return null;
@@ -119,7 +132,7 @@ export function densestPoint(w: World, x: number, y: number, range: number, blas
   const inRange: Enemy[] = [];
   const r2 = range * range;
   for (const e of w.enemies) {
-    if (!isPick(e, taunt)) continue;
+    if (!isPick(w, e, taunt)) continue;
     if (distSq(x, y, e.x, e.y) <= r2) inRange.push(e);
   }
   if (inRange.length === 0) return null;
@@ -147,7 +160,7 @@ export function bestLineDirection(w: World, x: number, y: number, width: number)
   const taunt = tauntId(w, x, y, Infinity);
   const list: Enemy[] = [];
   for (const e of w.enemies) {
-    if (isPick(e, taunt)) list.push(e);
+    if (isPick(w, e, taunt)) list.push(e);
   }
   if (list.length === 0) return null;
 
@@ -174,7 +187,7 @@ export function lowestHpEnemies(w: World, count: number, x: number, y: number, r
   const list: Enemy[] = [];
   const r2 = range * range;
   for (const e of w.enemies) {
-    if (!isPick(e, taunt)) continue;
+    if (!isPick(w, e, taunt)) continue;
     if (distSq(x, y, e.x, e.y) <= r2) list.push(e);
   }
   list.sort((a, b) => a.hp - b.hp);
@@ -194,7 +207,7 @@ export function highestHpEnemy(w: World, maxRange = Infinity, x = 0, y = 0): Ene
   let bestHp = -1;
   const limit = maxRange * maxRange;
   for (const e of w.enemies) {
-    if (!isPick(e, taunt)) continue;
+    if (!isPick(w, e, taunt)) continue;
     if (maxRange !== Infinity && distSq(x, y, e.x, e.y) > limit) continue;
     if (e.hp > bestHp) {
       bestHp = e.hp;

@@ -237,7 +237,7 @@ function updateRicochet(w: World, p: Projectile, dt: number): void {
   const near = w.grid.query(p.x, p.y, p.radius + 46, buf);
   for (const e of near) {
     // 방금 때린 적은 건너뜁니다. 안 그러면 붙어 있는 동안 몇 프레임에 걸쳐 다 소진됩니다
-    if (e.dead || !isPick(e, taunt) || e.id === p.targetId) continue;
+    if (e.dead || !isPick(w, e, taunt) || e.id === p.targetId) continue;
     if (dist(p.x, p.y, e.x, e.y) > p.radius + e.radius) continue;
 
     w.damageEnemy(e, p.damage, { crit: p.crit, fromX: p.x, fromY: p.y, ignoreShield: p.ignoreShield });

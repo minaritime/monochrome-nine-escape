@@ -63,7 +63,8 @@ export function startChallenge(w: World): void {
 export function challengeWantsStartUtility(w: World): boolean {
   if (w.challengeStartPicked) return false;
   if (w.challenge === 'shieldMarch') return CHALLENGE_RULES.shieldMarch.startUtilityChoice;
-  if (w.challenge === 'blackout') return CHALLENGE_RULES.blackout.startUtilityChoice;
+  // 2번 암전은 시작 유틸을 안 줍니다 (`CHALLENGE_RULES.blackout.startUtilityChoice`).
+  // 스테이지마다 따로 정하는 값이라 여기서 한꺼번에 켜지 않습니다
   return false;
 }
 

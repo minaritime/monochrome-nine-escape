@@ -364,7 +364,7 @@ export const SKILL_DEFS: Record<SkillId, SkillDef> = {
         let next: Enemy | null = null;
         let bestD = Infinity;
         for (const e of w.enemies) {
-          if (!isPick(e, taunt) || hit.has(e.id)) continue;
+          if (!isPick(w, e, taunt) || hit.has(e.id)) continue;
           const d = dist(fromX, fromY, e.x, e.y);
           if (d < bestD) {
             bestD = d;
