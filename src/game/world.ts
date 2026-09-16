@@ -28,7 +28,13 @@ import {
   type EnemyId,
 } from '../data/balance';
 import { Effects } from '../render/effects';
-import { challengeBurnImmune, challengeHitKill, shieldUnbreakable, updateChallenge } from './challenge';
+import {
+  challengeBurnImmune,
+  challengeDashInvuln,
+  challengeHitKill,
+  shieldUnbreakable,
+  updateChallenge,
+} from './challenge';
 import { SpatialGrid, clampToArena } from './collision';
 import { createPlayer, ownedSlots, updatePlayer } from './player';
 import { Spawner } from './spawner';
@@ -1186,6 +1192,13 @@ export class World {
     // 도전 1번의 돌진적은 화상의 지속 피해를 안 받습니다 (2026-09-16 사용자 지시).
     // 두 대면 죽는 적이라 화상이 붙는 순간 손 안 대고 죽는 것과 같아집니다
     if (opts.kind === 'burn' && challengeBurnImmune(this, e)) return 0;
+
+    // 돌진하는 동안은 무적입니다 (2026-09-16 사용자 지시). 때릴 수 있는 창은
+    // 예고 시간뿐이고, 돌진이 끝나면 스스로 사라집니다
+    if (challengeDashInvuln(this, e)) {
+      this.effects.burst(e.x, e.y, 2, '#dbe6f7', 70, 2, 0.2);
+      return 0;
+    }
 
     // 정예 방패적은 방패가 남아 있는 동안 덜 아프고, 깨지고 나면 더 아픕니다.
     // 방패를 깨는 것이 곧 이득이 되도록 만드는 부분입니다

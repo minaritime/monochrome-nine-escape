@@ -154,7 +154,7 @@ function shieldMarch(w: World): void {
   // **5초마다 한 마리씩 늡니다** (2026-09-16 사용자 지시).
   //
   // 방패와 돌진을 1:3 으로 나눠 채웁니다. 1 + 3 으로 시작해 **80초에 양쪽이 동시에
-  // 상한(방패 5 · 돌진 15)에 닿고**, 남은 40초는 그 밀도를 유지한 채 버팁니다.
+  // 상한(방패 5 · 돌진 15)에 닿고**, 남은 10초는 그 밀도를 유지한 채 버팁니다.
   // 예전에는 마릿수가 고정이라 30초만 버티면 그 뒤로 화면이 끝까지 똑같았습니다
   const ticks = Math.floor(w.time / R.spawnStep);
   const shieldTicks = Math.floor(ticks / 4);
@@ -287,6 +287,22 @@ export function challengeHitKill(w: World, e: Enemy): number {
  */
 export function challengeBurnImmune(w: World, e: Enemy): boolean {
   return challengeHitKill(w, e) > 0;
+}
+
+/**
+ * 지금 **돌진 중이라 무적인가** (2026-09-16 사용자 지시).
+ *
+ * 돌진적의 phase 2 가 실제로 달리는 구간입니다. 그동안은 어떤 피해도 안 들어갑니다.
+ *
+ * **기존 `statusImmune` 으로는 안 됩니다.** 그 값은 기절 · 감속 · 넉백처럼 움직임을
+ * 바꾸는 것만 막고 피해는 그대로 통과시킵니다 (`game/types.ts` 주석).
+ *
+ * 이 규칙이 걸리면 돌진적을 때릴 수 있는 창은 **예고 시간뿐**입니다. 돌진에
+ * 들어가면 무적이고, 돌진이 끝나면 스스로 사라집니다
+ */
+export function challengeDashInvuln(w: World, e: Enemy): boolean {
+  if (w.challenge !== 'shieldMarch' || e.defId !== 'charger') return false;
+  return e.state.phase === 2;
 }
 
 /** 돌진 속도 배율. 도전 스테이지가 아니면 1 입니다 */
