@@ -9,6 +9,7 @@ import {
 import type { SkillBranchId } from '../data/balance';
 import { branchDef, hasBranches } from '../skills/branches';
 import { ATTACK_SKILL_IDS, UTILITY_SKILL_IDS, getSkillDef, makeSlot } from '../skills/registry';
+import { challengeUtilityLocked, challengeWantsStartUtility } from '../game/challenge';
 import type { SkillId } from '../skills/types';
 import type { World } from '../game/world';
 
@@ -38,6 +39,14 @@ export interface SkillChoice {
  */
 export function generateSkillChoices(w: World, count = Math.max(1, w.diff.skillChoices)): SkillChoice[] {
   const p = w.player;
+
+  // 도전 스테이지의 **시작 유틸 선택** (2026-09-16 사용자 지시). 판이 시작되는 첫
+  // 선택창은 **유틸 전부**를 냅니다. 난이도가 정하는 장수도 여기서는 안 봅니다.
+  // 고른 뒤에는 이 갈래가 꺼지고(`challengeStartPicked`) 평소 추첨으로 돌아갑니다
+  if (challengeWantsStartUtility(w)) {
+    return UTILITY_SKILL_IDS.map((id) => ({ id, upgrade: false, level: 1, replacesUtility: false }));
+  }
+
   const ownedAttacks = new Map<SkillId, number>();
   for (const slot of p.attacks) {
     if (slot) ownedAttacks.set(slot.id, slot.level);
@@ -56,13 +65,17 @@ export function generateSkillChoices(w: World, count = Math.max(1, w.diff.skillC
     if (level < SKILL_MAX_LEVEL) upgradePool.push({ id, upgrade: true, level: level + 1, replacesUtility: false });
   }
 
-  for (const id of UTILITY_SKILL_IDS) {
-    if (p.utility?.id === id) continue;
-    // 교체는 쓰던 유틸의 레벨을 그대로 이어받습니다 (`SkillChoice.replacesUtility` 주석 참고)
-    newPool.push({ id, upgrade: false, level: p.utility?.level ?? 1, replacesUtility: p.utility !== null });
-  }
-  if (p.utility && p.utility.level < SKILL_MAX_LEVEL) {
-    upgradePool.push({ id: p.utility.id, upgrade: true, level: p.utility.level + 1, replacesUtility: false });
+  // **유틸을 아예 안 내는 판이 있습니다** (도전 1번, 2026-09-16 사용자 지시).
+  // 시작에 한 번 고르고 끝까지 그것으로 버티는 구조라 교체도 레벨업도 없습니다
+  if (!challengeUtilityLocked(w)) {
+    for (const id of UTILITY_SKILL_IDS) {
+      if (p.utility?.id === id) continue;
+      // 교체는 쓰던 유틸의 레벨을 그대로 이어받습니다 (`SkillChoice.replacesUtility` 주석 참고)
+      newPool.push({ id, upgrade: false, level: p.utility?.level ?? 1, replacesUtility: p.utility !== null });
+    }
+    if (p.utility && p.utility.level < SKILL_MAX_LEVEL) {
+      upgradePool.push({ id: p.utility.id, upgrade: true, level: p.utility.level + 1, replacesUtility: false });
+    }
   }
 
   const out: SkillChoice[] = [];
@@ -138,6 +151,8 @@ export function applySkillChoice(w: World, choice: SkillChoice): void {
     p.utility = makeSlot(choice.id, level);
     w.noteSkill(p.utility);
     w.skillsTaken++;
+    // 도전 스테이지의 시작 선택을 여기서 닫습니다. 이 뒤로는 유틸이 후보에 안 들어갑니다
+    w.challengeStartPicked = true;
     announce(w, level > 1 ? `${def.name} Lv.${level}` : `${def.name} 획득`);
     return;
   }

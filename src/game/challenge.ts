@@ -39,6 +39,36 @@ export function challengeStage(id: ChallengeStageId): ChallengeStageDef {
 export function startChallenge(w: World): void {
   if (!w.challenge) return;
   w.spawner.enabled = false;
+
+  // 시작 유틸을 고르는 창을 띄웁니다 (2026-09-16 사용자 지시).
+  //
+  // **새 화면을 만들지 않습니다.** 선택 대기를 하나 올려두면 판이 시작되는 첫
+  // 프레임에 기존 레벨업 선택창이 그대로 뜹니다. 그 화면의 키 조작 · 리롤 ·
+  // 건너뛰기 처리를 그대로 물려받는 것이 새로 만드는 것보다 훨씬 작습니다.
+  // 후보를 치료 · 대시 둘로 바꾸는 일은 `generateSkillChoices` 가 합니다
+  if (challengeWantsStartUtility(w)) w.pendingSkillChoices++;
+}
+
+/**
+ * 지금 **시작 유틸 선택창**을 띄워야 하는가. 이미 골랐거나 규칙이 없으면 거짓입니다.
+ *
+ * 참이면 `generateSkillChoices` 가 평소 추첨을 건너뛰고 **유틸 전부**를 후보로 냅니다.
+ * 목록을 여기서 안 다루는 이유는 순환 참조 때문입니다. 이 파일이 `skills/registry`
+ * 를 들여오면 registry → targeting → challenge 로 고리가 닫힙니다
+ */
+export function challengeWantsStartUtility(w: World): boolean {
+  if (w.challenge !== 'shieldMarch' || w.challengeStartPicked) return false;
+  return CHALLENGE_RULES.shieldMarch.startUtilityChoice;
+}
+
+/**
+ * 레벨업 선택지에서 유틸을 빼는가 (2026-09-16 사용자 지시).
+ *
+ * 시작에 한 번 고르고 끝까지 그것으로 버티는 구조라, 시작 선택이 끝난 뒤에는
+ * 유틸이 후보에 아예 안 들어갑니다. 교체도 레벨업도 없습니다
+ */
+export function challengeUtilityLocked(w: World): boolean {
+  return w.challenge === 'shieldMarch';
 }
 
 /** 매 프레임. `World.update` 가 부릅니다 */
