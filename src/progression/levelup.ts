@@ -1,6 +1,6 @@
 import { BASE_WEIGHT, PASSIVE, STAT_DEFS, STAT_GAINS_PER_LEVEL, type StatKey } from '../data/balance';
 import { formatGain, isStatMaxed, isStatRollable } from '../game/stats';
-import { challengeStatOverride } from '../game/challenge';
+import { challengeStatBlocked, challengeStatOverride } from '../game/challenge';
 import type { World } from '../game/world';
 import type { SaveData } from '../meta/save';
 
@@ -85,6 +85,8 @@ export function rollStatGain(w: World, exclude?: ReadonlySet<StatKey>): StatGain
   for (const def of STAT_DEFS) {
     if (!isStatRollable(def.key)) continue;
     if (exclude?.has(def.key)) continue;
+    // 도전 스테이지가 특정 스탯을 통째로 뺄 수 있습니다 (2번 암전의 사거리)
+    if (challengeStatBlocked(w, def.key)) continue;
     if (isStatMaxed(w.player.stats, def.key)) continue;
     keys.push(def.key);
     weights.push(statWeight(w, def.key));

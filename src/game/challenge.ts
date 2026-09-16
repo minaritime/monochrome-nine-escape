@@ -266,6 +266,20 @@ export function challengeVisionRadius(w: World): number {
   return w.player.stats.range * CHALLENGE_RULES.blackout.visionMul;
 }
 
+/**
+ * 이 스탯이 **이 판의 레벨업 추첨에서 빠지는가** (2026-09-16 사용자 지시).
+ *
+ * 2번 암전은 사거리를 뺍니다. 시야가 사거리를 그대로 따라가므로, 사거리가 오르면
+ * 판이 진행될수록 어둠이 걷혀서 "안 보이는 판"이라는 전제가 스스로 무너집니다.
+ *
+ * **지정 칸 추첨(`rollDesignated`)은 안 봐도 됩니다.** 도전 판은 상점 패시브가
+ * 통째로 꺼진 저장본으로 열려서 그쪽은 애초에 아무것도 안 뽑습니다
+ */
+export function challengeStatBlocked(w: World, key: StatKey): boolean {
+  if (w.challenge !== 'blackout') return false;
+  return (CHALLENGE_RULES.blackout.blockedStats as readonly string[]).includes(key);
+}
+
 /** 점화된 자폭적의 이동속도 배율. 규칙이 없으면 null 이라 평소 값을 씁니다 */
 export function challengeIgniteSpeedMul(w: World): number | null {
   return w.challenge === 'blackout' ? CHALLENGE_RULES.blackout.igniteSpeedMul : null;
