@@ -7,7 +7,7 @@ import type { Enemy, SkillSlot, StatBlock } from '../game/types';
 import type { World } from '../game/world';
 import { NEUTRAL_MODS, branchMods } from './branches';
 import type { SkillDef, SkillId } from './types';
-import { bestLineDirection, canTarget, densestDirection, densestPoint, farthestEnemy, highestHpEnemy, lowestHpEnemies, nearestEnemy } from './targeting';
+import { bestLineDirection, canTarget, densestDirection, densestPoint, farthestEnemy, highestHpEnemy, isPick, lowestHpEnemies, nearestEnemy, tauntId } from './targeting';
 
 /** 레벨 1 을 기준으로 레벨당 증가분을 더합니다 */
 export function lv(base: number, perLevel: number, level: number): number {
@@ -174,7 +174,7 @@ export const SKILL_DEFS: Record<SkillId, SkillDef> = {
         if (d > range + e.radius) continue;
         const diff = Math.abs(((angleTo(p.x, p.y, e.x, e.y) - dir + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
         if (diff > spread) continue;
-        w.damageEnemy(e, perTick, { fromX: p.x, fromY: p.y, showNumber: false });
+        w.damageEnemy(e, perTick, { fromX: p.x, fromY: p.y, showNumber: false, kind: 'tick' });
         // 화상이 붙어 있는 동안 재생이 멈추고 이동속도가 곱연산으로 깎입니다.
         // 둘 다 `enemies/update.ts` 에서 `burnTime > 0` 하나만 보고 처리합니다
         e.burnDps = Math.max(e.burnDps, w.player.stats.attack * S.flame.burnDps);
@@ -355,10 +355,16 @@ export const SKILL_DEFS: Record<SkillId, SkillDef> = {
 
         // 방금 때린 적을 기준으로 가장 가까운 다음 적. 거리 제한은 없습니다.
         // 남은 대상이 없을 때만 끊깁니다 (balance.ts 의 chain 주석 참고)
+        //
+        // **연쇄도 도발을 따릅니다** (2026-09-16 사용자 지시). 시작점은 `nearestEnemy`
+        // 라 예전부터 도발을 탔는데, 여기서 직접 찾는 다음 대상만 빠져 있어서
+        // 첫 방만 방패적을 때리고 나머지가 뒤로 샜습니다. 체인은 사거리 제한이
+        // 없으므로 도발도 거리를 안 봅니다
+        const taunt = tauntId(w, fromX, fromY, Infinity);
         let next: Enemy | null = null;
         let bestD = Infinity;
         for (const e of w.enemies) {
-          if (!canTarget(e) || hit.has(e.id)) continue;
+          if (!isPick(e, taunt) || hit.has(e.id)) continue;
           const d = dist(fromX, fromY, e.x, e.y);
           if (d < bestD) {
             bestD = d;
@@ -625,7 +631,7 @@ export const SKILL_DEFS: Record<SkillId, SkillDef> = {
       for (const e of w.enemies) {
         if (!canTarget(e)) continue;
         if (dist(p.x, p.y, e.x, e.y) > radius + e.radius) continue;
-        w.damageEnemy(e, perTick, { fromX: p.x, fromY: p.y, showNumber: false, ignoreShield: true });
+        w.damageEnemy(e, perTick, { fromX: p.x, fromY: p.y, showNumber: false, ignoreShield: true, kind: 'tick' });
         w.slowEnemy(e, b.slow ?? S.aura.slow, S.aura.tick * 1.5);
       }
     },

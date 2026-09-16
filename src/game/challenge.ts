@@ -8,6 +8,7 @@ import {
   type EnemyId,
   type StatKey,
 } from '../data/balance';
+import type { Enemy } from './types';
 import type { World } from './world';
 
 /**
@@ -235,6 +236,27 @@ export function chargerIgnoresWall(w: World): boolean {
  */
 export function challengeTauntId(w: World): EnemyId | null {
   return w.challenge === 'shieldMarch' ? 'shield' : null;
+}
+
+/**
+ * 이 적이 **맞은 횟수로 죽는가.** 0 이면 평소대로 체력으로 죽습니다 (2026-09-16).
+ *
+ * 방패 행진의 돌진적은 피해량과 무관하게 정해진 횟수를 맞으면 죽습니다.
+ * 99 를 두 번 맞아도, 1 을 두 번 맞아도 같습니다
+ */
+export function challengeHitKill(w: World, e: Enemy): number {
+  if (w.challenge !== 'shieldMarch' || e.defId !== 'charger') return 0;
+  return CHALLENGE_RULES.shieldMarch.chargerHitsToKill;
+}
+
+/**
+ * 이 적이 화상의 지속 피해에 면역인가 (2026-09-16 사용자 지시).
+ *
+ * 두 대면 죽는 적이라, 화상이 붙는 순간 손 안 대고 죽는 것과 같아집니다.
+ * 횟수에 안 세는 것만으로는 부족하고 체력 피해까지 막아야 합니다
+ */
+export function challengeBurnImmune(w: World, e: Enemy): boolean {
+  return challengeHitKill(w, e) > 0;
 }
 
 /** 돌진 속도 배율. 도전 스테이지가 아니면 1 입니다 */

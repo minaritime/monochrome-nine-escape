@@ -47,7 +47,7 @@ export function updateEnemies(w: World, dt: number): void {
       e.burnTick -= edt;
       if (e.burnTick <= 0) {
         e.burnTick = STATUS.burnTickInterval;
-        w.damageEnemy(e, e.burnDps * STATUS.burnTickInterval, { showNumber: false });
+        w.damageEnemy(e, e.burnDps * STATUS.burnTickInterval, { showNumber: false, kind: 'burn' });
         if (w.rng.chance(0.5)) w.effects.burst(e.x, e.y, 1, '#ff9a3c', 30, 2, 0.3);
       }
       if (e.burnTime <= 0) e.burnDps = 0;

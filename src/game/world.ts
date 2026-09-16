@@ -28,7 +28,7 @@ import {
   type EnemyId,
 } from '../data/balance';
 import { Effects } from '../render/effects';
-import { shieldUnbreakable, updateChallenge } from './challenge';
+import { challengeBurnImmune, challengeHitKill, shieldUnbreakable, updateChallenge } from './challenge';
 import { SpatialGrid, clampToArena } from './collision';
 import { createPlayer, ownedSlots, updatePlayer } from './player';
 import { Spawner } from './spawner';
@@ -94,6 +94,17 @@ export interface DamageOptions {
    * (80% 감소면 25초가 됩니다)
    */
   selfDrain?: boolean;
+  /**
+   * 피해의 성격 (2026-09-16). 안 주면 **한 번의 타격**입니다 (평타 · 투사체 · 체인).
+   *
+   * - `tick` 오라 · 화염방사기 · 장판처럼 붙어 있는 동안 초당 여러 번 들어오는 피해
+   * - `burn` 화상의 지속 피해
+   *
+   * 체력에 들어가는 양은 셋이 같습니다. 다른 것은 **맞은 횟수로 세는가**이고,
+   * 그 횟수를 보는 것은 지금 도전 1번의 돌진적뿐입니다. 연속 타격을 세면 한 번
+   * 스치는 것만으로 한계에 닿아서 "두 대"라는 규칙이 성립하지 않습니다
+   */
+  kind?: 'tick' | 'burn';
 }
 
 /**
@@ -640,7 +651,7 @@ export class World {
         if (dist(h.x, h.y, e.x, e.y) > h.radius + e.radius) continue;
         // fromX/fromY 를 안 넘깁니다 = 방패 판정을 안 탑니다.
         // 발밑에 깔린 불을 정면 방패로 가릴 수는 없습니다 (화상과 같은 규칙)
-        this.damageEnemy(e, h.tickDamage, { showNumber: false });
+        this.damageEnemy(e, h.tickDamage, { showNumber: false, kind: 'tick' });
         if (h.slow < 1) this.slowEnemy(e, h.slow, h.tickInterval * 1.5);
         if (h.burnTime > 0) {
           // 화상은 합해지지 않고 가장 센 것 하나만 남습니다 (projectile.ts 와 같은 규칙)
@@ -881,6 +892,7 @@ export class World {
       knockVy: 0,
       spawnTime: this.time,
       dashes: 0,
+      hits: 0,
       statusImmune: false,
       ownerId: opts.ownerId ?? 0,
       // 소환적은 스폰하는 순간 부를 하수인 종류를 뽑아서 판이 끝날 때까지 그것만 부릅니다
@@ -950,6 +962,7 @@ export class World {
       knockVy: 0,
       spawnTime: this.time,
       dashes: 0,
+      hits: 0,
       statusImmune: false,
       ownerId: 0,
       summonKind: null,
@@ -1162,6 +1175,10 @@ export class World {
       return 0;
     }
 
+    // 도전 1번의 돌진적은 화상의 지속 피해를 안 받습니다 (2026-09-16 사용자 지시).
+    // 두 대면 죽는 적이라 화상이 붙는 순간 손 안 대고 죽는 것과 같아집니다
+    if (opts.kind === 'burn' && challengeBurnImmune(this, e)) return 0;
+
     // 정예 방패적은 방패가 남아 있는 동안 덜 아프고, 깨지고 나면 더 아픕니다.
     // 방패를 깨는 것이 곧 이득이 되도록 만드는 부분입니다
     amount *= eliteValue(e, e.shieldHp > 0 ? 'shieldedDamageTaken' : 'brokenDamageTaken', 1);
@@ -1198,6 +1215,20 @@ export class World {
     e.hp -= amount;
     e.hitFlash = ENEMY_BASE.hitFlash;
     e.def.onDamaged?.(e, this, amount);
+
+    // **맞은 횟수로 죽는 적** (도전 1번의 돌진적, 2026-09-16 사용자 지시).
+    //
+    // 피해량과 무관하게 정해진 횟수를 맞으면 죽습니다. 99 를 두 번 맞아도, 1 을
+    // 두 번 맞아도 같습니다. 연속 타격(`tick`)과 화상(`burn`)은 위에서 걸러지므로
+    // 체력만 깎고 횟수에는 안 들어갑니다.
+    //
+    // **여기서 `killEnemy` 를 직접 부르지 않습니다.** 체력을 0 으로 만들어 아래
+    // 처치 갈래를 그대로 타야 미라의 `onLethal` 같은 규칙이 안 빠집니다
+    if (opts.kind === undefined) {
+      e.hits++;
+      const limit = challengeHitKill(this, e);
+      if (limit > 0 && e.hits >= limit) e.hp = 0;
+    }
 
     if (opts.showNumber !== false) {
       const txt = amount >= 10 ? String(Math.round(amount)) : amount.toFixed(1);
