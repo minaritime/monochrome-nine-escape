@@ -47,6 +47,10 @@ export function startChallenge(w: World): void {
   // 건너뛰기 처리를 그대로 물려받는 것이 새로 만드는 것보다 훨씬 작습니다.
   // 후보를 치료 · 대시 둘로 바꾸는 일은 `generateSkillChoices` 가 합니다
   if (challengeWantsStartUtility(w)) w.pendingSkillChoices++;
+
+  // 2번 암전: 사거리 -50% (원문). 시야가 사거리를 따라가므로 이 한 줄이 곧
+  // "얼마나 보이는가"까지 정합니다
+  if (w.challenge === 'blackout') w.player.stats.range *= CHALLENGE_RULES.blackout.rangeMul;
 }
 
 /**
@@ -57,8 +61,10 @@ export function startChallenge(w: World): void {
  * 를 들여오면 registry → targeting → challenge 로 고리가 닫힙니다
  */
 export function challengeWantsStartUtility(w: World): boolean {
-  if (w.challenge !== 'shieldMarch' || w.challengeStartPicked) return false;
-  return CHALLENGE_RULES.shieldMarch.startUtilityChoice;
+  if (w.challengeStartPicked) return false;
+  if (w.challenge === 'shieldMarch') return CHALLENGE_RULES.shieldMarch.startUtilityChoice;
+  if (w.challenge === 'blackout') return CHALLENGE_RULES.blackout.startUtilityChoice;
+  return false;
 }
 
 /**
@@ -79,6 +85,9 @@ export function updateChallenge(w: World): void {
   switch (id) {
     case 'shieldMarch':
       shieldMarch(w);
+      break;
+    case 'blackout':
+      blackout(w);
       break;
     default:
       // 아직 규칙을 안 만든 스테이지. 목록 화면이 입장을 막고 있어서 여기 올 일이 없습니다
@@ -194,6 +203,71 @@ function edgePosition(w: World): { x: number; y: number } {
     default:
       return { x: inset, y: w.rng.range(inset, CANVAS.h - inset) };
   }
+}
+
+/**
+ * 2번 암전.
+ *
+ * 겁쟁이적과 자폭적만 나옵니다. 둘 다 한 번 역할을 하면 사라지고 곧바로 다시
+ * 나옵니다. 겁쟁이적은 돌진을 마치면, 자폭적은 터지면 끝입니다 (자폭은 원래
+ * 스스로 죽으므로 따로 처리할 것이 없습니다).
+ *
+ * 화면을 어둡게 만드는 일은 그리기 쪽(`render/scene.ts`)이 `challengeVisionRadius`
+ * 를 보고 합니다. 판의 규칙과 보이는 것을 한 곳에 섞지 않습니다
+ */
+function blackout(w: World): void {
+  const R = CHALLENGE_RULES.blackout;
+
+  let cowards = 0;
+  let bombers = 0;
+
+  for (const e of w.enemies) {
+    if (e.dead) continue;
+
+    if (e.defId === 'coward') {
+      // 돌진을 마쳤으면 사라집니다. 겁쟁이적은 돌진 뒤 곧바로 배회로 돌아가므로
+      // "한 번 달렸는가"(`dashes`)와 "지금 달리는 중인가"(phase 2)를 같이 봅니다
+      if (e.dashes >= 1 && e.state.phase !== 2) {
+        e.dead = true;
+        w.effects.burst(e.x, e.y, 12, e.def.color, 150, 3, 0.5);
+        continue;
+      }
+      cowards++;
+      continue;
+    }
+
+    if (e.defId === 'bomber') bombers++;
+  }
+
+  const ticks = Math.floor(w.time / R.spawnStep);
+  const half = Math.floor(ticks / 2);
+  const cowardWant = Math.min(R.cowardAliveMax, R.cowardAliveStart + half);
+  const bomberWant = Math.min(R.bomberAliveMax, R.bomberAliveStart + (ticks - half));
+
+  const cowardShort = cowardWant - cowards;
+  const bomberShort = bomberWant - bombers;
+  if (cowardShort <= 0 && bomberShort <= 0) return;
+
+  const pos = edgePosition(w);
+  if (cowardShort >= bomberShort) w.spawnEnemy('coward', pos.x, pos.y, {});
+  else w.spawnEnemy('bomber', pos.x, pos.y, {});
+}
+
+/**
+ * 시야 반경. 0 이면 어둠 규칙이 없는 판입니다 (2026-09-16).
+ *
+ * **그리기 쪽만 씁니다.** 이 값 밖의 적 · 적탄 · 장판 · 코인 · **예고**가 안 그려집니다.
+ * 예고까지 묻는 것은 사용자가 (나)안을 고른 결과이고, 이는 결정 14 를 뒤집습니다.
+ * 판정은 그대로라 안 보여도 맞습니다
+ */
+export function challengeVisionRadius(w: World): number {
+  if (w.challenge !== 'blackout') return 0;
+  return w.player.stats.range * CHALLENGE_RULES.blackout.visionMul;
+}
+
+/** 점화된 자폭적의 이동속도 배율. 규칙이 없으면 null 이라 평소 값을 씁니다 */
+export function challengeIgniteSpeedMul(w: World): number | null {
+  return w.challenge === 'blackout' ? CHALLENGE_RULES.blackout.igniteSpeedMul : null;
 }
 
 function spawnShield(w: World): void {

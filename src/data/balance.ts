@@ -2777,7 +2777,7 @@ export const CHALLENGE = {
  * `ready` 가 참이어도 여기 없으면 "준비 중"으로 섭니다. **둘은 다른 값입니다.**
  * `ready` 는 "1차 범위인가"이고 이것은 "지금 돌아가는가"입니다
  */
-export const CHALLENGE_IMPLEMENTED: readonly ChallengeStageId[] = ['shieldMarch'];
+export const CHALLENGE_IMPLEMENTED: readonly ChallengeStageId[] = ['shieldMarch', 'blackout'];
 
 /**
  * 스테이지별 규칙 수치.
@@ -2865,6 +2865,40 @@ export const CHALLENGE_RULES = {
      * 상한(510)은 그대로 걸립니다
      */
     levelMoveSpeedStep: 10,
+  },
+
+  /**
+   * 2번 암전.
+   *
+   * ⚠ **전부 초안입니다** (2026-09-16). 사용자가 "어느 정도 보이는지 보고 정하겠다"고
+   * 했으므로, 특히 시야와 어둠 관련 값은 플레이 전까지 자리표입니다
+   */
+  blackout: {
+    /** 플레이어 사거리 배율. 원문의 "사거리 -50%" 입니다 */
+    rangeMul: 0.5,
+    /**
+     * 시야 반경 = 플레이어 사거리 x 이 값.
+     *
+     * 1 이면 **쏠 수 있는 만큼만 보입니다.** 사거리 스탯이 레벨업으로 오르면 시야도
+     * 같이 넓어집니다 (`docs/기획/콘텐츠.md` 결정 14 의 "시야는 사거리에 연동")
+     */
+    visionMul: 1,
+    /** 시야 밖 경기장 바닥색. 어둠의 진하기는 이 색으로 정합니다 */
+    darkColor: '#05070b',
+    /** 동시에 유지할 마릿수 (초안) */
+    cowardAliveStart: 2,
+    cowardAliveMax: 8,
+    bomberAliveStart: 2,
+    bomberAliveMax: 8,
+    /** 이 간격(초)마다 한 마리씩 늡니다 */
+    spawnStep: 5,
+    /**
+     * 자폭적이 점화된 뒤의 이동속도 배율. 원문의 "점화 이후 이속 증가 안 됨"입니다.
+     * 평소에는 `ENEMY_PARAMS.bomber.igniteSpeedMul` 로 빨라집니다
+     */
+    igniteSpeedMul: 1,
+    /** 시작에 유틸을 하나 고르게 할 것인가 */
+    startUtilityChoice: true,
   },
 } as const;
 

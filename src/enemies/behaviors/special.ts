@@ -5,6 +5,9 @@ import { killerOf } from '../../game/killer';
 import { eliteHas, eliteMul, eliteValue } from '../elite';
 import type { World } from '../../game/world';
 import type { EnemyBehavior } from '../types';
+// 도전 스테이지가 자폭적의 점화 이속을 갈아끼웁니다.
+// **`challenge.ts` 는 `balance.ts` 만 들여옵니다.** 그래야 여기서 들여와도 고리가 안 닫힙니다
+import { challengeIgniteSpeedMul } from '../../game/challenge';
 import { avoidWalls, moveAway, moveToward, stopMoving, wander } from './movement';
 
 // ---------------------------------------------------------------------------
@@ -205,6 +208,9 @@ export const coward: EnemyBehavior = (e, w, dt) => {
       if (e.state.timer2 <= 0) {
         e.state.phase = 2;
         e.state.timer2 = P.dashTime;
+        // 돌진적과 같은 칸에 셉니다. 도전 2번이 "한 번 달렸으면 사라진다"를
+        // 판단할 때 이 값을 봅니다 (`game/challenge.ts` 의 blackout)
+        e.dashes++;
         w.effects.spray(e.x, e.y, e.state.angle + Math.PI, 0.5, 12, e.def.accent, 240);
       }
       return;
@@ -252,7 +258,8 @@ export const bomber: EnemyBehavior = (e, w, dt) => {
   // 점화됨: 도화선이 타는 동안에도 계속 따라옵니다 (속도 보정은 없습니다)
   if (e.state.flag) {
     e.state.timer -= dt;
-    moveToward(e, w.player.x, w.player.y, P.igniteSpeedMul);
+    // 도전 스테이지가 이 배율을 갈아끼울 수 있습니다 (2번 암전은 점화해도 안 빨라집니다)
+    moveToward(e, w.player.x, w.player.y, challengeIgniteSpeedMul(w) ?? P.igniteSpeedMul);
     if (w.rng.chance(0.5)) w.effects.burst(e.x, e.y, 1, '#ff9a3c', 40, 2, 0.25);
     if (e.state.timer <= 0) {
       e.state.phase = PHASE_SELF_DESTRUCT;

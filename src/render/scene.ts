@@ -1,5 +1,6 @@
-import { ARENA_X, CANVAS, DEATH_BURST, ELITE, ENEMY_BULLET, ENEMY_PARAMS, HARD_LASER, PLAYER } from '../data/balance';
-import { TAU } from '../core/math';
+import { ARENA_X, CANVAS, CHALLENGE_RULES, DEATH_BURST, ELITE, ENEMY_BULLET, ENEMY_PARAMS, HARD_LASER, PLAYER } from '../data/balance';
+import { challengeVisionRadius } from '../game/challenge';
+import { TAU, dist } from '../core/math';
 import { bomberBlastRadius, cowardEnraged, rangedAimTime, sealerAimTime, sealerAttackRange } from '../enemies/behaviors/special';
 import { priestRadius } from '../enemies/behaviors/advanced';
 import { eliteMul } from '../enemies/elite';
@@ -38,6 +39,7 @@ export function drawWorld(r: Renderer, w: World): void {
   r.begin(ARENA_X + w.effects.shakeX, w.effects.shakeY);
 
   drawArena(r);
+  drawDarkness(r, w);
   if (w.sandbox) drawSandboxRuler(r);
   drawHazards(r, w);
   drawTelegraphs(r, w);
@@ -82,6 +84,34 @@ function drawSandboxRuler(r: Renderer): void {
   r.text('디버그 맵 · 기록이 남지 않습니다', CANVAS.w / 2, CANVAS.h - 22, { size: 12, color: '#4a5570', align: 'center' });
 }
 
+/**
+ * 도전 2번 "암전"의 어둠 (2026-09-16).
+ *
+ * **잘라내기(clip)가 없어서 이렇게 그립니다.** 경기장을 어두운 색으로 통째로 덮고,
+ * 플레이어 자리에 원래 바닥색 원을 그려 구멍을 냅니다. 그 위에 그려지는 것들은
+ * `visible` 로 걸러지므로 결과적으로 시야 안의 것만 보입니다.
+ *
+ * **경기장 바닥 덧칠 금지 규칙의 예외입니다.** 그 규칙은 하드모드가 색을 바꾸려던
+ * 것을 막은 것이고, 여기서는 안 보이게 만드는 것 자체가 이 스테이지입니다
+ */
+function drawDarkness(r: Renderer, w: World): void {
+  const vision = challengeVisionRadius(w);
+  if (vision <= 0) return;
+  r.rect(0, 0, CANVAS.w, CANVAS.h, CHALLENGE_RULES.blackout.darkColor);
+  r.circle(w.player.x, w.player.y, vision, BG);
+}
+
+/**
+ * 이 자리가 시야 안인가. 어둠 규칙이 없는 판에서는 항상 참입니다.
+ *
+ * **판정이 아니라 보이는 것만 가립니다.** 안 보여도 맞고, 안 보여도 폭발합니다
+ */
+function visible(w: World, x: number, y: number): boolean {
+  const vision = challengeVisionRadius(w);
+  if (vision <= 0) return true;
+  return dist(x, y, w.player.x, w.player.y) <= vision;
+}
+
 function drawArena(r: Renderer): void {
   // 경기장 바닥. **패널색 위를 덮어서 여기만 항상 같은 색으로 만듭니다.**
   // 이 줄이 없으면 하드모드에서 경기장 안까지 붉어집니다
@@ -94,6 +124,7 @@ function drawArena(r: Renderer): void {
 
 function drawHazards(r: Renderer, w: World): void {
   for (const h of w.hazards) {
+    if (!visible(w, h.x, h.y)) continue;
     const t = h.life / h.maxLife;
     const fade = Math.min(1, t * 3);
     r.circle(h.x, h.y, h.radius, h.color, 0.18 * fade);
@@ -142,6 +173,9 @@ function drawLasers(r: Renderer, w: World): void {
 
 function drawTelegraphs(r: Renderer, w: World): void {
   for (const t of w.telegraphs) {
+    // **예고도 어둠에 묻힙니다** (2026-09-16 사용자 확정, (나)안).
+    // `docs/기획/콘텐츠.md` 결정 14 의 "예고는 보여준다"를 뒤집은 자리입니다
+    if (!visible(w, t.x, t.y)) continue;
     const k = t.life / t.maxLife;
     switch (t.kind) {
       case 'spawn': {
@@ -212,6 +246,7 @@ function drawTelegraphs(r: Renderer, w: World): void {
 
 function drawCoins(r: Renderer, w: World): void {
   for (const c of w.coins) {
+    if (!visible(w, c.x, c.y)) continue;
     r.circle(c.x, c.y, 7, '#ffcc4d');
     r.circle(c.x - 2, c.y - 2, 2.4, '#fff2c4');
   }
@@ -221,6 +256,7 @@ function drawProjectiles(r: Renderer, w: World, friendlyLayer: boolean): void {
   for (const p of w.projectiles) {
     if (p.dead) continue;
     if (p.friendly !== friendlyLayer) continue;
+    if (!visible(w, p.x, p.y)) continue;
     drawProjectile(r, p);
   }
 }
@@ -275,6 +311,7 @@ function drawProjectile(r: Renderer, p: Projectile): void {
 function drawEnemies(r: Renderer, w: World): void {
   for (const e of w.enemies) {
     if (e.dead) continue;
+    if (!visible(w, e.x, e.y)) continue;
     drawEnemy(r, e, w);
   }
 }
