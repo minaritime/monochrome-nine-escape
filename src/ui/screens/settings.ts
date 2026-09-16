@@ -26,6 +26,8 @@ export interface SettingsActions {
   unlockAllDifficulties: () => void;
   /** 개발자 모드 전용. 기록이 안 남는 시험장에 들어갑니다 */
   enterDebugMap: () => void;
+  /** 개발자 모드 전용. 도전모드 스테이지 목록을 엽니다 (2026-09-16) */
+  enterChallenge: () => void;
   /** 단계형 설정을 한 칸 넘깁니다 (끝에 닿으면 처음으로) */
   cycleShake: () => void;
   cycleParticles: () => void;
@@ -161,6 +163,10 @@ export function showSettings(save: SaveData, notice: string, actions: SettingsAc
       if (save.devMode) {
         // 디버그 맵. 켜고 끄는 값이 아니라 들어가는 문이라 값 자리에 `입장` 을 적습니다
         rows.push(toggle('디버그 맵 (개발자)', '입장', actions.enterDebugMap));
+        // 도전모드. **아직 개발자 전용입니다** (2026-09-16 사용자 지시). 정식 개방은
+        // 난이도 1 클리어 조건인데, 스테이지 규칙을 하나도 안 만든 상태라 먼저 잠가 둡니다.
+        // 열 때는 여기서 빼고 메인 메뉴에 카드를 답니다
+        rows.push(toggle('도전모드 (개발자)', '입장', actions.enterChallenge));
         rows.push(toggle('도감 전체 보기 (개발자)', save.devBestiary ? '켬' : '끔', actions.toggleDevBestiary));
         // 난이도 전체 해금. `?unlock` 과 같은 일을 하지만 주소를 고치지 않아도 됩니다.
         //

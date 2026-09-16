@@ -24,6 +24,7 @@ import {
   SPAWN,
   TIME_SCALING,
   type BossId,
+  type ChallengeStageId,
   type EnemyId,
 } from '../data/balance';
 import { Effects } from '../render/effects';
@@ -107,6 +108,13 @@ export interface WorldOptions {
   sandbox?: boolean;
   /** 하드 여부. 안 주면 저장의 `hardMode` 를 따릅니다 */
   hard?: boolean;
+  /**
+   * 도전모드 스테이지 id (2026-09-16). 주면 이 판은 도전 판입니다.
+   *
+   * 도전 판은 **클리어 코인만** 저장에 남습니다. 기록 · 도감 · 해금 사슬 · 업적
+   * 누적값은 전부 막힙니다 (`main.ts` 의 `finishRun`, `docs/기획/콘텐츠.md` 결정 1 · 5)
+   */
+  challenge?: ChallengeStageId;
 }
 
 /** 엔티티 컨테이너 + 업데이트 순서 */
@@ -237,6 +245,13 @@ export class World {
    */
   readonly sandbox: boolean;
 
+  /**
+   * 도전모드 스테이지 id. 일반 판이면 null 입니다. **판 시작에 굳히고 바꾸지 않습니다.**
+   *
+   * `sandbox` 와는 다릅니다. 디버그 맵은 코인까지 안 남기고, 도전 판은 코인만 남깁니다
+   */
+  readonly challenge: ChallengeStageId | null;
+
   /** 디버그 맵: 시계를 세웁니다. 스폰과 적 행동은 그대로 돕니다 */
   freezeClock = false;
 
@@ -297,6 +312,7 @@ export class World {
     opts: WorldOptions = {},
   ) {
     this.sandbox = opts.sandbox ?? false;
+    this.challenge = opts.challenge ?? null;
     this.hard = opts.hard ?? save.hardMode;
     this.difficulty = clampDifficulty(difficulty, this.hard);
     this.diff = difficultyMods(this.difficulty, this.hard);

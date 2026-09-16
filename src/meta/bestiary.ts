@@ -38,8 +38,29 @@ export function tierOf(save: SaveData, id: string): BestiaryTier {
   return 'seen';
 }
 
-/** 판이 끝나면 도감과 기록, 코인을 저장 데이터에 반영합니다 */
+/**
+ * 판이 끝나면 도감과 기록, 코인을 저장 데이터에 반영합니다.
+ *
+ * **코인과 기록이 갈라져 있습니다** (2026-09-16). 도전모드가 "코인만 남기고 기록은
+ * 전부 막는" 판이라, 통째로 막으면 클리어 코인까지 같이 막히고 통째로 열면 도전
+ * 클리어가 난이도 해금 사슬로 새어 들어갑니다 (`docs/기획/콘텐츠.md` 결정 1).
+ * 부르는 쪽은 `main.ts` 의 `finishRun` 하나뿐입니다
+ */
 export function commitRun(save: SaveData, w: World): void {
+  commitCoins(save, w);
+  commitRecords(save, w);
+}
+
+/** 이 판에서 번 코인만 저장에 옮깁니다. 도전 판이 지나가는 유일한 문입니다 */
+export function commitCoins(save: SaveData, w: World): void {
+  save.coins += w.earnedCoins();
+}
+
+/**
+ * 도감 · 전체 기록 · 난이도별 기록 · 클리어 · 해금 사슬 · 스킬 도감.
+ * **도전 판은 여기를 안 지납니다**
+ */
+export function commitRecords(save: SaveData, w: World): void {
   for (const id of w.encountered) {
     const e = entryOf(save, id);
     save.bestiary[id] = { seen: true, kills: e.kills };
@@ -48,8 +69,6 @@ export function commitRun(save: SaveData, w: World): void {
     const e = entryOf(save, id);
     save.bestiary[id] = { seen: true, kills: e.kills + (kills ?? 0) };
   }
-
-  save.coins += w.earnedCoins();
 
   const r = save.records;
   r.totalRuns++;

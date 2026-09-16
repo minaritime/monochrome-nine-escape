@@ -2721,3 +2721,134 @@ export const DEBUG_MAP = {
   /** 상태 줄을 새로 쓰는 간격. 매 프레임 쓰면 글자가 떨려서 못 읽습니다 */
   statusInterval: 0.2,
 } as const;
+
+/**
+ * 도전모드 (2026-09-16). **결정 본문은 `docs/기획/콘텐츠.md` 의 "2차 결정"입니다.**
+ *
+ * 특수 규칙 아래에서 버티는 미니게임 맵입니다. 상점 영구 강화가 안 걸리고 난이도
+ * 배율도 안 붙습니다. 판 중에는 코인이 안 떨어지고 **첫 클리어에만** 코인을 줍니다
+ * (반복 0, `docs/기획/경제.md` 서른두 번째 조정).
+ */
+export type ChallengeStageId =
+  | 'shieldMarch'
+  | 'blackout'
+  | 'tiny'
+  | 'laserOnly'
+  | 'summoner'
+  | 'shrink'
+  | 'bomber'
+  | 'titan'
+  | 'chaos'
+  | 'mystery';
+
+export interface ChallengeStageDef {
+  id: ChallengeStageId;
+  /** 목록에 뜨는 이름 */
+  name: string;
+  /** 버텨야 하는 시간(초) */
+  clearTime: number;
+  /** 한 줄 규칙 요약 */
+  summary: string;
+  /**
+   * 1차 구현 대상인가.
+   *
+   * 거짓인 둘(3번 · 6번)은 **경기장 크기를 바꿉니다.** `CANVAS` 를 직접 읽는 곳이
+   * 16개 파일 86곳이라 경기장 가변화 공사가 끝나야 열립니다. 두 스테이지가 같은
+   * 공사를 공유하므로 한 번 하면 둘 다 열립니다
+   */
+  ready: boolean;
+}
+
+export const CHALLENGE = {
+  /**
+   * 규칙 버전. **스테이지 규칙을 손볼 때마다 올립니다.**
+   *
+   * 저장의 클리어 기록이 이 번호를 같이 답니다 (`SaveData.challenge`). 클리어 여부만
+   * 남기면 규칙을 바꿀 때마다 옛 기록과 새 기록이 같은 칸에 섞이고 되돌릴 수 없습니다.
+   * 난이도 기록이 클리어 시간 통일 때 실제로 그렇게 섞였습니다
+   */
+  rulesVersion: 1,
+} as const;
+
+/**
+ * **규칙까지 구현이 끝나 실제로 들어갈 수 있는 스테이지.**
+ *
+ * 목록 화면은 이 배열만 보고 입장을 엽니다. 스테이지를 하나 만들 때마다 여기에 더합니다.
+ * `ready` 가 참이어도 여기 없으면 "준비 중"으로 섭니다. **둘은 다른 값입니다.**
+ * `ready` 는 "1차 범위인가"이고 이것은 "지금 돌아가는가"입니다
+ */
+export const CHALLENGE_IMPLEMENTED: readonly ChallengeStageId[] = [];
+
+/** 스테이지 표 (1차 설계 원문은 `docs/기획/콘텐츠.md`) */
+export const CHALLENGE_STAGES: readonly ChallengeStageDef[] = [
+  {
+    id: 'shieldMarch',
+    name: '방패 행진',
+    clearTime: 180,
+    summary: '방패적과 정예 돌진적. 방패는 안 깨지고 둘 다 한 번 역할을 하면 사라집니다',
+    ready: true,
+  },
+  {
+    id: 'blackout',
+    name: '암전',
+    clearTime: 120,
+    summary: '사거리 밖은 보이지 않습니다. 겁쟁이적과 자폭적',
+    ready: true,
+  },
+  {
+    id: 'tiny',
+    name: '겁.나.어.렵.습.니.다.',
+    clearTime: 120,
+    summary: '좁은 정사각 경기장. 체력 1 고정에 부활 없음',
+    ready: false,
+  },
+  {
+    id: 'laserOnly',
+    name: '어디서 많이 본 게임인데',
+    clearTime: 60,
+    summary: '적이 없습니다. 경기장을 가로지르는 레이저만 피합니다',
+    ready: true,
+  },
+  {
+    id: 'summoner',
+    name: '소환은 예로부터 개같은 능력이지',
+    clearTime: 180,
+    summary: '정예 소환사. 하수인은 전부 무적이고 본체를 잡아야 사라집니다',
+    ready: true,
+  },
+  {
+    id: 'shrink',
+    name: '배X그XXX',
+    clearTime: 240,
+    summary: '30초마다 구역이 좁아집니다. 적도 같이 깎입니다',
+    ready: false,
+  },
+  {
+    id: 'bomber',
+    name: '폭탄병. 그날의 추억',
+    clearTime: 180,
+    summary: '정예 자폭적. 받는 피해는 크게 줄고 치명타 피해만 크게 들어갑니다',
+    ready: true,
+  },
+  {
+    id: 'titan',
+    name: '진격의 거인',
+    clearTime: 180,
+    summary: '거대해지고 아주 느려진 적. 접촉 피해가 큽니다',
+    ready: true,
+  },
+  {
+    id: 'chaos',
+    name: '개판',
+    clearTime: 1800,
+    summary: '게임 속도 2배에서 시작해 3배까지 오릅니다',
+    ready: true,
+  },
+  {
+    id: 'mystery',
+    name: '???',
+    clearTime: 900,
+    summary: '전부 기본적의 모습을 하고 나옵니다. 정예는 능력 2개',
+    ready: true,
+  },
+];

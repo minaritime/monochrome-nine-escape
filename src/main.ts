@@ -5,7 +5,7 @@ import { GameLoop } from './core/loop';
 import { Input } from './core/input';
 import { Debug } from './game/debug';
 import { World } from './game/world';
-import { commitRun } from './meta/bestiary';
+import { commitCoins, commitRun } from './meta/bestiary';
 import { loadSave, resetSave, saveGame } from './meta/save';
 import { clearedAllFrom } from './meta/difficulty';
 import { Canvas2DRenderer } from './render/renderer';
@@ -23,6 +23,7 @@ import { showAchievements } from './ui/screens/achievements';
 import { showSettings } from './ui/screens/settings';
 import { showBranchChoice, showGameOver, showPause, showSkillChoice } from './ui/screens/ingame';
 import { showDebugGate } from './ui/screens/debugGate';
+import { showChallengeList } from './ui/screens/challenge';
 import type { SkillId } from './skills/types';
 import { checkAchievements, commitAchieveStats, resetAchievements, unlockDirect } from './meta/achievements';
 import { clearToasts, pushToasts, updateToasts } from './ui/toast';
@@ -45,6 +46,8 @@ type Screen =
   | 'achievements'
   | 'settings'
   | 'patchnotes'
+  /** 도전모드 스테이지 목록 (2026-09-16, 아직 개발자 모드 전용) */
+  | 'challenge'
   /** 디버그 잠금. 무엇을 여는 화면인지 적지 않습니다 (`debugGate.ts`) */
   | 'debugauth'
   | 'gameover';
@@ -347,6 +350,18 @@ function goBestiary(): void {
   open('bestiary', () => showBestiary(save, goMain));
 }
 
+/**
+ * 도전모드 스테이지 목록 (2026-09-16).
+ *
+ * **아직 개발자 모드에서만 열립니다.** 정식 개방 조건은 난이도 1 클리어인데
+ * (`docs/기획/콘텐츠.md`), 스테이지 규칙을 하나도 안 만들었으므로 먼저 잠가 둡니다.
+ * `startSandbox` 와 같은 이유로 여기서도 한 번 더 막습니다
+ */
+function goChallenge(): void {
+  if (!save.devMode) return;
+  open('challenge', () => showChallengeList(save, goSettings));
+}
+
 function goRecords(): void {
   open('records', () => showRecords(save, goMain));
 }
@@ -434,6 +449,7 @@ function goSettings(notice = ''): void {
         goSettings(`난이도를 ${DIFFICULTY.max} 까지 전부 엽니다 (일반 · 하드)`);
       },
       enterDebugMap: startSandbox,
+      enterChallenge: goChallenge,
       resetAll: () => {
         save = resetSave();
         // 저장이 비면 하드모드도 꺼집니다. 색만 붉게 남으면 화면이 거짓말을 합니다
@@ -568,6 +584,19 @@ function finishRun(w: World): void {
   // 디버그 맵은 아무것도 남기지 않습니다. 판이 끝나는 길(사망 · 일시정지에서 나가기)이
   // 전부 여기를 지나므로 이 한 줄이 문지기입니다
   if (w.sandbox) return;
+
+  // 도전 판은 **코인만** 남깁니다 (`docs/기획/콘텐츠.md` 결정 1 · 5).
+  //
+  // 기록 · 도감 · 해금 사슬을 막는 이유는 도전 클리어가 난이도 해금으로 새어 들어가기
+  // 때문입니다. 업적도 누적값을 전부 막습니다. 도전 전용 업적("유즈맵 사랑꾼")만
+  // 통과시키기로 했는데 아직 그 업적이 없어서, 생기면 이 자리에 답니다
+  if (w.challenge) {
+    commitCoins(save, w);
+    saveGame(save);
+    save = loadSave();
+    return;
+  }
+
   commitRun(save, w);
   commitAchieveStats(save, w);
   saveGame(save);
@@ -623,8 +652,10 @@ function endRun(): void {
   const w = world;
   finishRun(w);
   open('gameover', () =>
-    // 디버그 맵에서 죽었으면 "다시 도전"도 디버그 맵으로 돌아갑니다
-    showGameOver(w, save.coins, w.sandbox ? startSandbox : startRun, goMain),
+    // 디버그 맵에서 죽었으면 "다시 도전"도 디버그 맵으로 돌아갑니다.
+    // 도전 판은 스테이지 목록으로 보냅니다. 같은 스테이지를 바로 다시 여는 것은
+    // 스테이지 진입이 생긴 뒤에 답니다
+    showGameOver(w, save.coins, w.sandbox ? startSandbox : w.challenge ? goChallenge : startRun, goMain),
   );
 }
 

@@ -3,7 +3,8 @@ import { branchesFor } from '../skills/branches';
 import type { SkillId } from '../skills/types';
 
 const STORAGE_KEY = 'dodge-game-save';
-const VERSION = 1;
+// 2 에서 도전모드 칸(`challenge`)이 생겼습니다 (2026-09-16). 옛 저장은 `migrate` 가 빈 값으로 채웁니다
+const VERSION = 2;
 
 export interface BestiaryEntry {
   seen: boolean;
@@ -183,6 +184,23 @@ export interface SaveData {
    * 찍었든 안 남습니다. 기록은 줄지 않고 레벨은 최고값, 갈래는 합집합으로 쌓입니다
    */
   skillDex: Record<string, SkillDexEntry>;
+  /** 도전모드 기록 (2026-09-16) */
+  challenge: ChallengeSave;
+}
+
+/**
+ * 도전모드 기록 (2026-09-16).
+ *
+ * **클리어한 규칙 버전을 같이 남깁니다** (`docs/기획/콘텐츠.md` 결정 18). 클리어 여부만
+ * 남기면 스테이지 규칙을 손볼 때마다 옛 기록과 새 기록이 같은 칸에 섞이고, 그때 가서는
+ * 어느 규칙으로 깬 것인지 되돌릴 방법이 없습니다. 난이도 기록이 클리어 시간을 30분에서
+ * 15분으로 바꿀 때 실제로 그렇게 섞였습니다.
+ *
+ * **저장 칸을 만드는 그 순간에만 공짜인 결정이라 여기서 넣습니다.**
+ */
+export interface ChallengeSave {
+  /** 스테이지 id → 깼을 때의 `CHALLENGE.rulesVersion`. 칸이 없으면 아직 못 깬 것입니다 */
+  cleared: Record<string, number>;
 }
 
 export function emptySave(): SaveData {
@@ -220,6 +238,7 @@ export function emptySave(): SaveData {
     devBestiary: false,
     maxHardDifficulty: 0,
     skillDex: {},
+    challenge: { cleared: {} },
   };
 }
 
@@ -404,6 +423,8 @@ function migrate(data: Partial<SaveData>): SaveData {
     devBestiary: data.devBestiary === true,
     maxHardDifficulty: clampInt(numberOr(data.maxHardDifficulty, 0), 0, DIFFICULTY.max),
     skillDex: skillDexMap(data.skillDex),
+    // 옛 저장에는 없는 칸입니다. 값이 깨져 있어도 숫자만 걸러 읽습니다
+    challenge: { cleared: numberMap(data.challenge?.cleared) },
   };
 }
 
