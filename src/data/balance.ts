@@ -2908,7 +2908,7 @@ export const CHALLENGE_RULES = {
      * 화면의 밀도가 판 내내 일정했는데, 지금은 **낸 만큼 쌓입니다.** 어둠 속 적이
      * 무적이라(결정 22) 잡을 수 없는 적이 계속 늘어나는 것이 이 판의 압박입니다
      */
-    spawnPerSecond: 2,
+    spawnPerSecond: 3,
     /** 자폭적 비율. 나머지가 겁쟁이적입니다 (3 : 7) */
     bomberRatio: 0.3,
     /**
