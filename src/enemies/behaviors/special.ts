@@ -322,7 +322,9 @@ export function bomberOnDeath(e: Enemy, w: World): void {
   const radius = bomberBlastRadius(e, w);
   // 정예는 절반 시간에 터집니다. 넓어진 범위와 겹쳐서 치울 여유가 확 줄어듭니다
   const delay = P.corpseDelay * eliteMul(e, 'corpseDelayMul');
-  w.addTelegraph({ kind: 'incoming', x: e.x, y: e.y, radius, life: delay, color: '#ff9a3c' });
+  // **어둠에서도 겹치는 만큼 보입니다** (2026-09-17 사용자 지시). 시체 폭발은 잡은
+  // 뒤에 오는 것이라, 자리를 못 보면 잡은 보상이 아니라 억울한 죽음이 됩니다
+  w.addTelegraph({ kind: 'incoming', x: e.x, y: e.y, radius, life: delay, color: '#ff9a3c', clipToVision: true });
   w.addPendingBlast({
     x: e.x,
     y: e.y,

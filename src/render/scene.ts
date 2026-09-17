@@ -126,7 +126,7 @@ function visible(w: World, x: number, y: number): boolean {
  *
  * **그리기 쪽에만 있는 규칙입니다.** 폭발 판정은 어둠과 무관하게 그대로입니다
  */
-function drawBlastRing(
+function drawDangerRing(
   r: Renderer,
   w: World,
   x: number,
@@ -134,31 +134,48 @@ function drawBlastRing(
   radius: number,
   color: string,
   alpha: number,
-  clip: boolean,
+  width = 3,
 ): void {
   const vision = challengeVisionRadius(w);
-  if (!clip || vision <= 0) {
-    r.ring(x, y, radius, color, 3, alpha);
+  if (vision <= 0) {
+    r.ring(x, y, radius, color, width, alpha);
     return;
   }
 
   const d = dist(x, y, w.player.x, w.player.y);
   // 두 중심이 겹치면 각도를 못 정합니다. 그때는 크기 비교만으로 갈립니다
   if (d < 1e-3) {
-    if (radius <= vision) r.ring(x, y, radius, color, 3, alpha);
+    if (radius <= vision) r.ring(x, y, radius, color, width, alpha);
     return;
   }
 
   const k = (radius * radius + d * d - vision * vision) / (2 * radius * d);
   if (k >= 1) return;
   if (k <= -1) {
-    r.ring(x, y, radius, color, 3, alpha);
+    r.ring(x, y, radius, color, width, alpha);
     return;
   }
 
   const phi = Math.atan2(w.player.y - y, w.player.x - x);
   const half = Math.acos(k);
-  r.arc(x, y, radius, phi - half, phi + half, color, 3, alpha);
+  r.arc(x, y, radius, phi - half, phi + half, color, width, alpha);
+}
+
+/**
+ * **어둠 속에 있는 적 중 위험 표시만 따로 그립니다** (2026-09-17 사용자 지시).
+ *
+ * 몸은 안 보여도 **터질 범위는 보여야 합니다.** 자폭적의 심지에 불이 붙은 뒤로는
+ * 그 원 안이 곧 죽는 자리인데, 중심이 어둠에 있다고 통째로 지우면 경고 없이
+ * 죽습니다. 반대로 통째로 보여주면 자폭적의 위치가 그대로 드러나므로, 원은
+ * **내 시야에 걸치는 만큼만** 나옵니다.
+ *
+ * 몸 · 심지 · 남은 시간 숫자는 그리지 않습니다. 보이는 것은 "여기까지 위험하다"는
+ * 호 하나뿐입니다
+ */
+function drawHiddenDanger(r: Renderer, w: World, e: Enemy): void {
+  if (e.defId !== 'bomber' || !e.state.flag) return;
+  const pulse = 0.5 + 0.5 * Math.sin(w.time * 22);
+  drawDangerRing(r, w, e.x, e.y, bomberBlastRadius(e, w), '#ff9a3c', 0.35 + pulse * 0.35, 2);
 }
 
 function drawArena(r: Renderer): void {
@@ -279,15 +296,19 @@ function drawTelegraphs(r: Renderer, w: World): void {
         break;
       }
       case 'blast':
-        drawBlastRing(r, w, t.x, t.y, t.radius * (1.05 - k * 0.35), t.color, k * 0.9, t.clipToVision);
+        drawDangerRing(r, w, t.x, t.y, t.radius * (1.05 - k * 0.35), t.color, k * 0.9);
         break;
       case 'incoming': {
         // 곧 터질 자리. 안쪽이 차오르고 테두리가 진해집니다.
         // 다 차는 순간 터지므로 언제 자리를 떠야 하는지가 눈에 보입니다
         const fill = 1 - k;
-        r.circle(t.x, t.y, t.radius, t.color, 0.06 + 0.12 * fill);
-        r.circle(t.x, t.y, t.radius * fill, t.color, 0.16);
-        r.ring(t.x, t.y, t.radius, t.color, 2, 0.35 + 0.5 * fill);
+        // **채움은 중심이 보일 때만입니다** (2026-09-17). 원 전체를 칠하는 것이라
+        // 어둠에서는 잘라낼 수가 없습니다. 테두리만 겹치는 만큼 남깁니다
+        if (visible(w, t.x, t.y)) {
+          r.circle(t.x, t.y, t.radius, t.color, 0.06 + 0.12 * fill);
+          r.circle(t.x, t.y, t.radius * fill, t.color, 0.16);
+        }
+        drawDangerRing(r, w, t.x, t.y, t.radius, t.color, 0.35 + 0.5 * fill, 2);
         break;
       }
     }
@@ -361,7 +382,11 @@ function drawProjectile(r: Renderer, p: Projectile): void {
 function drawEnemies(r: Renderer, w: World): void {
   for (const e of w.enemies) {
     if (e.dead) continue;
-    if (!visible(w, e.x, e.y)) continue;
+    if (!visible(w, e.x, e.y)) {
+      // 몸은 어둠에 묻혀도 **터질 범위는 겹치는 만큼 보입니다** (2026-09-17)
+      drawHiddenDanger(r, w, e);
+      continue;
+    }
     drawEnemy(r, e, w);
   }
 }
@@ -568,7 +593,7 @@ function drawEnemyExtras(r: Renderer, e: Enemy, w: World, alpha: number): void {
 
       const pulse = 0.5 + 0.5 * Math.sin(w.time * 22);
       // 실제로 죽는 범위를 그대로 보여줍니다. 반경을 모르면 피할 수가 없습니다
-      r.ring(e.x, e.y, bomberBlastRadius(e, w), '#ff9a3c', 1.5, 0.15 + pulse * 0.2);
+      drawDangerRing(r, w, e.x, e.y, bomberBlastRadius(e, w), '#ff9a3c', 0.15 + pulse * 0.2, 1.5);
       r.circle(e.x + 3, fuseTop, 3 + pulse * 2.5, '#ffdd66', 0.9);
       r.circle(e.x, e.y, e.radius + 6 * pulse, '#ff9a3c', 0.3);
       r.ring(e.x, e.y, e.radius + 8, '#ffdd66', 2, 0.6 + pulse * 0.4);

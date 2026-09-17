@@ -34,12 +34,16 @@ export function challengeStage(id: ChallengeStageId): ChallengeStageDef {
 /**
  * 판이 시작될 때 한 번.
  *
- * **평소 스폰 표를 통째로 끕니다.** 스테이지가 무엇을 낼지 직접 정하기 때문입니다.
- * `Spawner.enabled` 를 끄면 잡몹 · 웨이브 · 보스가 전부 멈춥니다 (`spawner.ts:50·129`)
+ * **스테이지가 적을 직접 내는 판은 평소 스폰 표를 끕니다** (`ownSpawn`).
+ * `Spawner.enabled` 를 끄면 잡몹 · 웨이브 · 보스가 전부 멈춥니다 (`spawner.ts:50·129`).
+ *
+ * 2026-09-17 까지는 도전 판이면 무조건 껐습니다. "모든 적"이 나오는 판(6 · 8 · 9 · 10)
+ * 에서는 평소 스폰이 그대로 돌아야 해서 스테이지 표를 보게 바꿨습니다. 지금 열려
+ * 있는 1번과 2번은 둘 다 `ownSpawn` 이라 동작은 예전과 같습니다
  */
 export function startChallenge(w: World): void {
   if (!w.challenge) return;
-  w.spawner.enabled = false;
+  if (challengeStage(w.challenge).ownSpawn) w.spawner.enabled = false;
 
   // 시작 유틸을 고르는 창을 띄웁니다 (2026-09-16 사용자 지시).
   //
@@ -252,7 +256,7 @@ function blackout(w: World): void {
   // 모자란 쪽을 먼저 채웁니다. 같으면 자폭적이 우선입니다
   const pos = edgePosition(w);
   if (bomberShort >= cowardShort) w.spawnEnemy('bomber', pos.x, pos.y, {});
-  else w.spawnEnemy('coward', pos.x, pos.y, { elite: R.cowardElite });
+  else w.spawnEnemy('coward', pos.x, pos.y, { hpMul: R.cowardHpMul });
 }
 
 /**

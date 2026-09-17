@@ -32,7 +32,6 @@ import {
   challengeBurnImmune,
   challengeHiddenFromPlayer,
   challengeHitKill,
-  challengeStage,
   shieldUnbreakable,
   updateChallenge,
 } from './challenge';
@@ -353,9 +352,6 @@ export class World {
     this.effects.particleScale = SETTINGS.particles.levels[save.particleLevel].mul;
     this.player = createPlayer(save);
     this.spawner = new Spawner();
-    // **도전 판은 스테이지가 적을 직접 냅니다** (2026-09-17). 일반 스폰을 여기서 끕니다.
-    // 안 끄면 규칙에 없는 잡몹이 섞여 나옵니다 (`ChallengeStageDef.ownSpawn` 주석)
-    if (this.challenge && challengeStage(this.challenge).ownSpawn) this.spawner.enabled = false;
     this.skillsTaken = ownedSlots(this.player).length;
     // 시작 스킬도 이 판에서 쓴 스킬입니다
     for (const s of ownedSlots(this.player)) this.noteSkill(s);
