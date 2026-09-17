@@ -111,14 +111,6 @@ export interface DamageOptions {
    * 스치는 것만으로 한계에 닿아서 "두 대"라는 규칙이 성립하지 않습니다
    */
   kind?: 'tick' | 'burn';
-  /**
-   * **적이 낸 피해입니다** (자폭적의 시체 폭발 · 하드 4 의 폭격, 2026-09-17).
-   *
-   * 도전 2번 암전에서 어둠에 묻힌 적은 내 공격을 안 받는데, 그 검사를 건너뜁니다.
-   * 적끼리 터지는 것까지 내 시야에 묶으면 어둠 너머에서는 폭발이 아무것도 안 하는
-   * 것이 되어, 자폭적이 서로를 정리하는 이 판의 연쇄가 사라집니다
-   */
-  fromEnemy?: boolean;
 }
 
 /**
@@ -435,6 +427,17 @@ export class World {
    * 이 값이 참이 되면 그 뒤의 선택지에는 유틸이 아예 안 나옵니다
    */
   challengeStartPicked = false;
+
+  /**
+   * 도전 스테이지가 쓰는 자유 카운터 (2026-09-17).
+   *
+   * 지금은 2번 암전의 **폭격 회차**입니다 (`w.time` 을 간격으로 나눈 몫). 흘러간
+   * 시간에서 회차를 다시 계산하는 방식이라 프레임 간격에 기대지 않습니다.
+   * 무적 바보적이 같은 방식을 씁니다 (`immortalFoolsSpawned`).
+   *
+   * 스테이지마다 뜻이 다르므로 **판을 시작할 때 0 이라는 것 말고는 약속이 없습니다**
+   */
+  challengeTick = 0;
 
   // -------------------------------------------------------------------------
   // 갱신
@@ -1203,13 +1206,18 @@ export class World {
     // 두 대면 죽는 적이라 화상이 붙는 순간 손 안 대고 죽는 것과 같아집니다
     if (opts.kind === 'burn' && challengeBurnImmune(this, e)) return 0;
 
-    // **도전 2번 암전: 안 보이는 적은 못 때립니다** (2026-09-17 사용자 지시).
+    // **도전 2번 암전: 어둠 속 적은 무적입니다** (2026-09-17 사용자 지시).
     //
     // 타겟팅만 막았더니(`skills/targeting.ts`) 자리로 때리는 공격이 전부 새어
     // 나갔습니다. 레이저 · 오라 · 회전검 · 장판 · 폭발은 겨누는 과정이 없어서
     // 어둠 너머를 그대로 정리하고 있었습니다. **거르는 자리는 여기 하나입니다.**
-    // 스킬마다 검사를 두면 새 스킬이 생길 때 반드시 하나를 빠뜨립니다
-    if (!opts.fromEnemy && challengeHiddenFromPlayer(this, e)) return 0;
+    // 스킬마다 검사를 두면 새 스킬이 생길 때 반드시 하나를 빠뜨립니다.
+    //
+    // 처음에는 적이 낸 피해만 예외로 통과시켰는데, 사용자가 **예외를
+    // 없애고 통째로 무적으로** 하자고 했습니다 (2026-09-17). 예외를 하나 두면
+    // "그럼 이건?"이 끝없이 따라옵니다. 지금은 자폭적의 시체 폭발도 어둠 속
+    // 적에게는 안 들어갑니다
+    if (challengeHiddenFromPlayer(this, e)) return 0;
 
     // 정예 방패적은 방패가 남아 있는 동안 덜 아프고, 깨지고 나면 더 아픕니다.
     // 방패를 깨는 것이 곧 이득이 되도록 만드는 부분입니다
@@ -1551,6 +1559,8 @@ export class World {
   stunEnemy(e: Enemy, seconds: number): void {
     // 돌진 중에는 안 걸립니다 (`Enemy.statusImmune` 주석 참고)
     if (e.statusImmune) return;
+    // 어둠 속 적은 무적이라 상태이상도 안 걸립니다 (도전 2번, 2026-09-17)
+    if (challengeHiddenFromPlayer(this, e)) return;
     // 되살아난 미라는 반대로 **더 오래** 받습니다 (`ENEMY_PARAMS.mummy.revivedStatusMul`).
     // 받는 피해를 80% 줄여 둔 적이라, 묶어 두는 것이 유일한 대응 수단입니다
     const s = e.boss ? seconds * (1 - STATUS.bossStatusResist) : seconds * revivedStatusMul(e);
@@ -1563,6 +1573,7 @@ export class World {
    */
   slowEnemy(e: Enemy, factor: number, time: number): void {
     if (e.statusImmune) return;
+    if (challengeHiddenFromPlayer(this, e)) return;
     const f = e.boss ? 1 - (1 - factor) * (1 - STATUS.bossStatusResist) : factor;
     e.slow = Math.min(e.slow, f);
     e.slowTime = Math.max(e.slowTime, time * revivedStatusMul(e));
@@ -1715,7 +1726,7 @@ export class World {
       // 하드 4: 폭격기의 폭격은 적에게도 들어가지만 내가 잡은 것이 아닙니다.
       // 보상도 "도구로 쓴다" 집계도 붙지 않습니다
       this.noKillReward = true;
-      this.blastEnemies(x, y, radius, damage, true, true, true);
+      this.blastEnemies(x, y, radius, damage, true, true);
       this.noKillReward = false;
       this.blastPlayer(x, y, radius, damage, source);
       return;
@@ -1726,8 +1737,7 @@ export class World {
     // 마릿수가 저절로 불어나는데, 그러면 "잡몹 한가운데서 터뜨렸다"가 아니라
     // "분열적 옆에서 터뜨렸다"가 되어 조건의 뜻이 달라집니다
     this.blastKills = 0;
-    // 자폭적의 시체 폭발은 적이 낸 것입니다. 암전의 시야 검사를 안 탑니다
-    this.blastEnemies(x, y, radius, damage, true, false, true);
+    this.blastEnemies(x, y, radius, damage);
     const got = this.blastKills;
     this.blastKills = -1;
     if (got > this.track.corpseBlastBest) this.track.corpseBlastBest = got;
@@ -1768,7 +1778,6 @@ export class World {
     damage: number,
     ignoreShield = true,
     skipBoss = false,
-    fromEnemy = false,
   ): void {
     const near = this.grid.query(x, y, radius + 40, this.queryBuf);
 
@@ -1780,7 +1789,7 @@ export class World {
         // 방패를 존중하는 폭발은 **터진 자리에서 온 것**으로 봅니다. 미사일은 적의
         // 몸에 닿는 순간 그 자리에서 터지므로, 직격이 정면이었으면 폭발도 정면입니다.
         // 즉 폭발이 직격과 같은 판정을 따릅니다
-        this.damageEnemy(e, damage, { fromX: x, fromY: y, ignoreShield, fromEnemy });
+        this.damageEnemy(e, damage, { fromX: x, fromY: y, ignoreShield });
       }
     }
   }

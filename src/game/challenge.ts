@@ -9,7 +9,7 @@ import {
   type StatKey,
 } from '../data/balance';
 import { dist } from '../core/math';
-import type { Enemy } from './types';
+import type { Enemy, KillerInfo } from './types';
 import type { World } from './world';
 
 /**
@@ -24,6 +24,12 @@ import type { World } from './world';
  * - 판 중 코인 없음: `World.dropCoin` 첫 줄
  * - 기록 차단: `main.ts` 의 `finishRun`
  */
+
+/**
+ * 암전 폭격의 사인. **적이 아니라 판의 장치라 `id` 가 null 입니다.**
+ * 게임오버 화면이 그림 없이 이름만 띄웁니다 (하드 5 레이저와 같은 취급)
+ */
+const BOMB_KILLER: KillerInfo = { id: null, elite: false, device: '암전 폭격' };
 
 export function challengeStage(id: ChallengeStageId): ChallengeStageDef {
   const def = CHALLENGE_STAGES.find((s) => s.id === id);
@@ -224,6 +230,8 @@ function edgePosition(w: World): { x: number; y: number } {
 function blackout(w: World): void {
   const R = CHALLENGE_RULES.blackout;
 
+  blackoutBombing(w);
+
   let cowards = 0;
   let bombers = 0;
 
@@ -257,6 +265,49 @@ function blackout(w: World): void {
   const pos = edgePosition(w);
   if (bomberShort >= cowardShort) w.spawnEnemy('bomber', pos.x, pos.y, {});
   else w.spawnEnemy('coward', pos.x, pos.y, { hpMul: R.cowardHpMul });
+}
+
+/**
+ * **5초마다 내가 서 있던 자리에 폭격이 떨어집니다** (2026-09-17 사용자 지시).
+ *
+ * 어둠 속에서는 가만히 서 있는 것이 최선이 됩니다. 움직이면 안 보이는 적에게 걸어
+ * 들어가는 셈이라, 자리를 지키고 들어오는 것만 처리하는 쪽이 늘 안전했습니다.
+ * 그 수를 깨는 장치입니다.
+ *
+ * **예고를 찍는 순간의 자리**에 떨어집니다. 따라오지 않으므로 한 걸음 옮기면
+ * 피합니다. 쫓아오게 만들면 피할 수가 없어서 "가만히 있지 마라"가 아니라
+ * "계속 뛰어라"가 되고, 그건 어둠에서 적에게 걸어 들어가라는 말과 같습니다.
+ *
+ * 적은 안 맞습니다 (`hitsAll` 없음). 맞으면 폭격 자리로 적을 끌고 가는 것이
+ * 이득이 되어, 방해 장치가 도구로 뒤집힙니다
+ */
+function blackoutBombing(w: World): void {
+  const R = CHALLENGE_RULES.blackout;
+  // **지나간 시간에서 회차를 셉니다.** 남은 시간을 빼는 방식은 프레임 간격에
+  // 기대는데, 디버그 맵에서 시간을 건너뛰면 그 사이의 회차가 통째로 사라집니다
+  const due = Math.floor(w.time / R.bombInterval);
+  if (due <= w.challengeTick) return;
+  w.challengeTick = due;
+
+  const { x, y } = w.player;
+  w.addTelegraph({
+    kind: 'incoming',
+    x,
+    y,
+    radius: R.bombRadius,
+    life: R.bombTelegraph,
+    color: '#ffcc55',
+    clipToVision: true,
+  });
+  w.addPendingBlast({
+    x,
+    y,
+    radius: R.bombRadius,
+    damage: R.bombDamage,
+    delay: R.bombTelegraph,
+    color: '#ffcc55',
+    source: BOMB_KILLER,
+  });
 }
 
 /**
