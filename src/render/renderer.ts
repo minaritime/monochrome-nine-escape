@@ -29,6 +29,17 @@ export interface Renderer {
   rectOutline(x: number, y: number, w: number, h: number, color: string, width?: number, alpha?: number): void;
   arc(x: number, y: number, r: number, from: number, to: number, color: string, width: number, alpha?: number): void;
   cone(x: number, y: number, r: number, angle: number, spread: number, color: string, alpha?: number): void;
+  /**
+   * 이 뒤로 그리는 것을 **원 안으로 잘라냅니다.** 반드시 `clipEnd` 와 짝을 맞추십시오.
+   *
+   * 도전 2번 암전에서 예고의 채운 원이 어둠 위를 덮는 것을 막으려고 넣었습니다.
+   * 테두리는 두 원의 교차각으로 호만 그릴 수 있지만(`scene.ts` 의 `drawDangerRing`)
+   * 채움은 면이라 그 방법이 안 통합니다.
+   *
+   * PixiJS 로 갈아끼울 때는 마스크로 옮기면 됩니다
+   */
+  clipCircle(x: number, y: number, r: number): void;
+  clipEnd(): void;
   text(str: string, x: number, y: number, opts?: TextOptions): void;
   fullscreenTint(color: string, alpha: number): void;
 }
@@ -106,6 +117,18 @@ export class Canvas2DRenderer implements Renderer {
     c.fillStyle = color;
     c.fillRect(0, 0, VIEW.w, VIEW.h);
     c.restore();
+  }
+
+  clipCircle(x: number, y: number, r: number): void {
+    const c = this.ctx;
+    c.save();
+    c.beginPath();
+    c.arc(x, y, Math.max(0, r), 0, Math.PI * 2);
+    c.clip();
+  }
+
+  clipEnd(): void {
+    this.ctx.restore();
   }
 
   circle(x: number, y: number, r: number, color: string, alpha = 1): void {

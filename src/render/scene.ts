@@ -162,6 +162,24 @@ function drawDangerRing(
 }
 
 /**
+ * **시야 안에만 그립니다** (2026-09-17 사용자 지시).
+ *
+ * 채운 원은 면이라 교차각으로 호만 그리는 수가 안 통합니다. 예고의 안쪽 채움이
+ * 어둠 위를 덮어서 그 자리만 밝아지던 것을 막습니다. 어둠 규칙이 없는 판에서는
+ * 잘라내기 없이 그대로 그립니다
+ */
+function drawInVision(r: Renderer, w: World, draw: () => void): void {
+  const vision = challengeVisionRadius(w);
+  if (vision <= 0) {
+    draw();
+    return;
+  }
+  r.clipCircle(w.player.x, w.player.y, vision);
+  draw();
+  r.clipEnd();
+}
+
+/**
  * **어둠 속에 있는 적 중 위험 표시만 따로 그립니다** (2026-09-17 사용자 지시).
  *
  * 몸은 안 보여도 **터질 범위는 보여야 합니다.** 자폭적의 심지에 불이 붙은 뒤로는
@@ -302,12 +320,12 @@ function drawTelegraphs(r: Renderer, w: World): void {
         // 곧 터질 자리. 안쪽이 차오르고 테두리가 진해집니다.
         // 다 차는 순간 터지므로 언제 자리를 떠야 하는지가 눈에 보입니다
         const fill = 1 - k;
-        // **채움은 중심이 보일 때만입니다** (2026-09-17). 원 전체를 칠하는 것이라
-        // 어둠에서는 잘라낼 수가 없습니다. 테두리만 겹치는 만큼 남깁니다
-        if (visible(w, t.x, t.y)) {
+        // **채움도 시야 안에서만 보입니다** (2026-09-17 사용자 지시). 잘라내기로
+        // 자릅니다. 중심이 어둠 속이어도 내 쪽에 걸친 조각은 그대로 보입니다
+        drawInVision(r, w, () => {
           r.circle(t.x, t.y, t.radius, t.color, 0.06 + 0.12 * fill);
           r.circle(t.x, t.y, t.radius * fill, t.color, 0.16);
-        }
+        });
         drawDangerRing(r, w, t.x, t.y, t.radius, t.color, 0.35 + 0.5 * fill, 2);
         break;
       }

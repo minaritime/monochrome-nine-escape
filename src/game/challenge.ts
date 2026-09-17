@@ -337,6 +337,15 @@ export function challengeIgniteSpeedMul(w: World): number | null {
   return w.challenge === 'blackout' ? CHALLENGE_RULES.blackout.igniteSpeedMul : null;
 }
 
+/**
+ * 인내가 끝난 겁쟁이적의 돌진 속도 배수. 규칙이 없는 판은 1 입니다 (2026-09-17).
+ *
+ * **인내가 끝난 개체에만 걸립니다.** 거리를 보고 달려드는 평소 돌진은 그대로입니다
+ */
+export function challengeCowardEnragedDashMul(w: World): number {
+  return w.challenge === 'blackout' ? CHALLENGE_RULES.blackout.cowardEnragedDashMul : 1;
+}
+
 /** 겁쟁이적의 인내 시간(초). 규칙이 없으면 null 이라 평소 값을 씁니다 (2026-09-17) */
 export function challengeCowardPatience(w: World): number | null {
   return w.challenge === 'blackout' ? CHALLENGE_RULES.blackout.cowardPatience : null;

@@ -7,7 +7,11 @@ import type { World } from '../../game/world';
 import type { EnemyBehavior } from '../types';
 // 도전 스테이지가 자폭적의 점화 이속을 갈아끼웁니다.
 // **`challenge.ts` 는 `balance.ts` 만 들여옵니다.** 그래야 여기서 들여와도 고리가 안 닫힙니다
-import { challengeCowardPatience, challengeIgniteSpeedMul } from '../../game/challenge';
+import {
+  challengeCowardEnragedDashMul,
+  challengeCowardPatience,
+  challengeIgniteSpeedMul,
+} from '../../game/challenge';
 import { avoidWalls, moveAway, moveToward, stopMoving, wander } from './movement';
 
 // ---------------------------------------------------------------------------
@@ -223,9 +227,11 @@ export const coward: EnemyBehavior = (e, w, dt) => {
       return;
     }
     case 2: {
-      // 돌진. 배회 속도의 배수가 아니라 절대 속도입니다 (정예는 여기에 1.5배)
+      // 돌진. 배회 속도의 배수가 아니라 절대 속도입니다 (정예는 여기에 1.5배).
+      // 인내가 끝난 개체는 스테이지 규칙에 따라 더 빠를 수 있습니다 (도전 2번은 2배)
       e.state.timer2 -= dt;
-      const dashSpeed = P.dashSpeed * eliteMul(e, 'dashSpeedMul');
+      const rage = cowardEnraged(e, w) ? challengeCowardEnragedDashMul(w) : 1;
+      const dashSpeed = P.dashSpeed * eliteMul(e, 'dashSpeedMul') * rage;
       e.vx = Math.cos(e.state.angle) * dashSpeed;
       e.vy = Math.sin(e.state.angle) * dashSpeed;
       e.facing = e.state.angle;

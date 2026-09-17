@@ -148,6 +148,8 @@ function recordingRenderer(out: { s: string; x: number; y: number }[]): Renderer
     line: noop,
     rect: noop,
     rectOutline: noop,
+    clipCircle: noop,
+    clipEnd: noop,
     arc: noop,
     cone: noop,
     fullscreenTint: noop,
