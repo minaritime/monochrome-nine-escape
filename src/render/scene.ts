@@ -112,6 +112,55 @@ function visible(w: World, x: number, y: number): boolean {
   return dist(x, y, w.player.x, w.player.y) <= vision;
 }
 
+/**
+ * 폭발 원. **암전에서는 시야와 겹치는 호만 그립니다** (2026-09-17 사용자 지시).
+ *
+ * 중심이 어둠 속에 있어도 불길이 내 사거리 안까지 걸치면 그 부분은 보여야 합니다.
+ * "폭발이 저 너머 어딘가에서 났다"가 아니라 **"내 쪽으로 이만큼 왔다"** 를 읽게
+ * 하는 것이 목적입니다.
+ *
+ * 잘라내기(clip) 대신 두 원의 교차각을 직접 풉니다. 시야 중심 P · 반경 V, 폭발
+ * 중심 C · 반경 R, 두 중심 거리 d 일 때 폭발 원 위의 점이 시야 안에 들어갈 조건은
+ * `cos(θ - φ) >= (R² + d² - V²) / (2Rd)` 입니다 (φ 는 C 에서 P 를 보는 각).
+ * 우변이 -1 이하면 전부 보이고 1 이상이면 하나도 안 보입니다.
+ *
+ * **그리기 쪽에만 있는 규칙입니다.** 폭발 판정은 어둠과 무관하게 그대로입니다
+ */
+function drawBlastRing(
+  r: Renderer,
+  w: World,
+  x: number,
+  y: number,
+  radius: number,
+  color: string,
+  alpha: number,
+  clip: boolean,
+): void {
+  const vision = challengeVisionRadius(w);
+  if (!clip || vision <= 0) {
+    r.ring(x, y, radius, color, 3, alpha);
+    return;
+  }
+
+  const d = dist(x, y, w.player.x, w.player.y);
+  // 두 중심이 겹치면 각도를 못 정합니다. 그때는 크기 비교만으로 갈립니다
+  if (d < 1e-3) {
+    if (radius <= vision) r.ring(x, y, radius, color, 3, alpha);
+    return;
+  }
+
+  const k = (radius * radius + d * d - vision * vision) / (2 * radius * d);
+  if (k >= 1) return;
+  if (k <= -1) {
+    r.ring(x, y, radius, color, 3, alpha);
+    return;
+  }
+
+  const phi = Math.atan2(w.player.y - y, w.player.x - x);
+  const half = Math.acos(k);
+  r.arc(x, y, radius, phi - half, phi + half, color, 3, alpha);
+}
+
 function drawArena(r: Renderer): void {
   // 경기장 바닥. **패널색 위를 덮어서 여기만 항상 같은 색으로 만듭니다.**
   // 이 줄이 없으면 하드모드에서 경기장 안까지 붉어집니다
@@ -175,8 +224,8 @@ function drawTelegraphs(r: Renderer, w: World): void {
   for (const t of w.telegraphs) {
     // **예고도 어둠에 묻힙니다** (2026-09-16 사용자 확정, (나)안).
     // `docs/기획/콘텐츠.md` 결정 14 의 "예고는 보여준다"를 뒤집은 자리입니다.
-    // 터지는 순간의 폭발만 `throughDark` 로 어둠을 뚫습니다
-    if (!t.throughDark && !visible(w, t.x, t.y)) continue;
+    // 터지는 순간의 폭발만 `clipToVision` 으로 **겹치는 만큼** 보입니다
+    if (!t.clipToVision && !visible(w, t.x, t.y)) continue;
     const k = t.life / t.maxLife;
     switch (t.kind) {
       case 'spawn': {
@@ -230,7 +279,7 @@ function drawTelegraphs(r: Renderer, w: World): void {
         break;
       }
       case 'blast':
-        r.ring(t.x, t.y, t.radius * (1.05 - k * 0.35), t.color, 3, k * 0.9);
+        drawBlastRing(r, w, t.x, t.y, t.radius * (1.05 - k * 0.35), t.color, k * 0.9, t.clipToVision);
         break;
       case 'incoming': {
         // 곧 터질 자리. 안쪽이 차오르고 테두리가 진해집니다.
@@ -694,9 +743,9 @@ function drawShards(r: Renderer, w: World): void {
 function drawParticles(r: Renderer, w: World): void {
   for (const pt of w.effects.particles) {
     // 어둠 속 이펙트는 안 보입니다 (2026-09-16 사용자 지시). 겁쟁이적이 달려들
-      // 때의 불꽃 같은 것이 시야 밖에서 보이면 그 자체가 위치 알림이 됩니다.
-    // **터지는 순간만 예외로 뚫고 나옵니다** (`throughDark`)
-    if (!pt.throughDark && !visible(w, pt.x, pt.y)) continue;
+    // 때의 불꽃 같은 것이 시야 밖에서 보이면 그 자체가 위치 알림이 됩니다.
+    // **폭발의 파편도 예외가 아닙니다** (2026-09-17). 시야 안으로 튄 것만 보입니다
+    if (!visible(w, pt.x, pt.y)) continue;
     const a = pt.life / pt.maxLife;
     r.circle(pt.x, pt.y, pt.radius * a, pt.color, a * 0.9);
   }

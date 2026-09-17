@@ -7,7 +7,7 @@ import type { World } from '../../game/world';
 import type { EnemyBehavior } from '../types';
 // 도전 스테이지가 자폭적의 점화 이속을 갈아끼웁니다.
 // **`challenge.ts` 는 `balance.ts` 만 들여옵니다.** 그래야 여기서 들여와도 고리가 안 닫힙니다
-import { challengeIgniteSpeedMul } from '../../game/challenge';
+import { challengeCowardPatience, challengeIgniteSpeedMul } from '../../game/challenge';
 import { avoidWalls, moveAway, moveToward, stopMoving, wander } from './movement';
 
 // ---------------------------------------------------------------------------
@@ -167,8 +167,15 @@ export const ranged: EnemyBehavior = (e, w, dt) => {
 // 30초를 살아남으면 인내가 끝나서, 거리와 상관없이 계속 달려듭니다.
 // ---------------------------------------------------------------------------
 
-/** 이 판의 실제 인내 시간. 난이도 15 에서 절반이 됩니다 */
+/**
+ * 이 판의 실제 인내 시간. 난이도 15 에서 절반이 됩니다.
+ *
+ * **도전 2번 암전은 스테이지 값으로 통째로 갈아끼웁니다** (2026-09-17 사용자 지시).
+ * 난이도 배율이 안 걸리는 판이라 곱하지 않고 대체합니다
+ */
 export function cowardPatienceTime(w: World): number {
+  const stage = challengeCowardPatience(w);
+  if (stage !== null) return stage;
   return ENEMY_PARAMS.coward.patienceTime * w.diff.cowardPatienceMul;
 }
 

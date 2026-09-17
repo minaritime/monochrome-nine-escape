@@ -8,6 +8,7 @@ import {
   type EnemyId,
   type StatKey,
 } from '../data/balance';
+import { dist } from '../core/math';
 import type { Enemy } from './types';
 import type { World } from './world';
 
@@ -240,18 +241,18 @@ function blackout(w: World): void {
     if (e.defId === 'bomber') bombers++;
   }
 
-  const ticks = Math.floor(w.time / R.spawnStep);
-  const half = Math.floor(ticks / 2);
-  const cowardWant = Math.min(R.cowardAliveMax, R.cowardAliveStart + half);
-  const bomberWant = Math.min(R.bomberAliveMax, R.bomberAliveStart + (ticks - half));
+  // 종류별로 따로 셉니다 (2026-09-17). 자폭적이 훨씬 빨리 늘어납니다
+  const cowardWant = Math.min(R.cowardAliveMax, R.cowardAliveStart + Math.floor(w.time / R.cowardStep));
+  const bomberWant = Math.min(R.bomberAliveMax, R.bomberAliveStart + Math.floor(w.time / R.bomberStep));
 
   const cowardShort = cowardWant - cowards;
   const bomberShort = bomberWant - bombers;
   if (cowardShort <= 0 && bomberShort <= 0) return;
 
+  // 모자란 쪽을 먼저 채웁니다. 같으면 자폭적이 우선입니다
   const pos = edgePosition(w);
-  if (cowardShort >= bomberShort) w.spawnEnemy('coward', pos.x, pos.y, {});
-  else w.spawnEnemy('bomber', pos.x, pos.y, {});
+  if (bomberShort >= cowardShort) w.spawnEnemy('bomber', pos.x, pos.y, {});
+  else w.spawnEnemy('coward', pos.x, pos.y, { elite: R.cowardElite });
 }
 
 /**
@@ -283,6 +284,28 @@ export function challengeStatBlocked(w: World, key: StatKey): boolean {
 /** 점화된 자폭적의 이동속도 배율. 규칙이 없으면 null 이라 평소 값을 씁니다 */
 export function challengeIgniteSpeedMul(w: World): number | null {
   return w.challenge === 'blackout' ? CHALLENGE_RULES.blackout.igniteSpeedMul : null;
+}
+
+/** 겁쟁이적의 인내 시간(초). 규칙이 없으면 null 이라 평소 값을 씁니다 (2026-09-17) */
+export function challengeCowardPatience(w: World): number | null {
+  return w.challenge === 'blackout' ? CHALLENGE_RULES.blackout.cowardPatience : null;
+}
+
+/**
+ * **이 적이 지금 어둠에 묻혀 있는가** (2026-09-17 사용자 지시).
+ *
+ * 참이면 플레이어의 공격이 아예 안 들어갑니다 (`World.damageEnemy`). 타겟팅만
+ * 막아서는 부족했습니다. 레이저 · 오라 · 장판 · 폭발처럼 **자리로 때리는 공격**은
+ * 겨누는 과정이 없어서 시야 밖 적을 그대로 맞혔고, 그래서 어둠 너머가 저절로
+ * 정리되고 있었습니다.
+ *
+ * **적이 낸 피해는 이 검사를 안 탑니다** (`DamageOptions.fromEnemy`). 자폭적의
+ * 시체 폭발이 옆의 적을 정리하는 것은 내 공격이 아니라 판이 하는 일입니다
+ */
+export function challengeHiddenFromPlayer(w: World, e: Enemy): boolean {
+  const vision = challengeVisionRadius(w);
+  if (vision <= 0) return false;
+  return dist(e.x, e.y, w.player.x, w.player.y) > vision;
 }
 
 function spawnShield(w: World): void {

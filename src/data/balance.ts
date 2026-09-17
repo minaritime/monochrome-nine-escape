@@ -2757,6 +2757,18 @@ export interface ChallengeStageDef {
    * 공사를 공유하므로 한 번 하면 둘 다 열립니다
    */
   ready: boolean;
+  /**
+   * **이 스테이지가 적을 직접 낸다** (2026-09-17). 참이면 일반 스폰을 통째로 끕니다.
+   *
+   * 1차 설계의 스테이지 표에서 "○○적 등장"이라고 종류를 못박은 판이 여기 해당합니다.
+   * 안 끄면 규칙에 없는 잡몹이 섞여 나옵니다. **1번과 2번이 실제로 그랬습니다.**
+   * 2번을 120초 돌려보니 기본적 · 탱커 · 빠른적 · 바보적 · 원거리적이 같이 나오고
+   * 있었고, 그동안의 마릿수 조정이 전부 그 섞인 화면 위에서 이뤄졌습니다.
+   *
+   * 거짓인 것은 "모든 적"이 나오는 판(6 · 8 · 9 · 10)입니다. 그쪽은 일반 스폰이
+   * 그대로 돌아야 합니다
+   */
+  ownSpawn: boolean;
 }
 
 export const CHALLENGE = {
@@ -2767,7 +2779,7 @@ export const CHALLENGE = {
    * 남기면 규칙을 바꿀 때마다 옛 기록과 새 기록이 같은 칸에 섞이고 되돌릴 수 없습니다.
    * 난이도 기록이 클리어 시간 통일 때 실제로 그렇게 섞였습니다
    */
-  rulesVersion: 1,
+  rulesVersion: 2,
 } as const;
 
 /**
@@ -2892,10 +2904,31 @@ export const CHALLENGE_RULES = {
     /** 동시에 유지할 마릿수 (초안) */
     cowardAliveStart: 2,
     cowardAliveMax: 8,
-    bomberAliveStart: 2,
-    bomberAliveMax: 8,
-    /** 이 간격(초)마다 한 마리씩 늡니다 */
-    spawnStep: 5,
+    /**
+     * **자폭적이 이 판의 주역입니다** (2026-09-17 사용자 지시).
+     *
+     * 겁쟁이적은 한 번 달리고 죽는 일회용이라 화면에 오래 남지 않습니다. 어둠을
+     * 채우는 것은 자폭적 쪽이라, 마릿수와 늘어나는 속도를 겁쟁이보다 크게 둡니다
+     */
+    bomberAliveStart: 6,
+    bomberAliveMax: 24,
+    /**
+     * 이 간격(초)마다 한 마리씩 늡니다. **종류별로 다릅니다** (2026-09-17).
+     *
+     * 예전에는 하나의 `spawnStep` 을 둘이 번갈아 나눠 썼습니다. 그러면 한쪽만
+     * 대폭 늘릴 수가 없어서 갈랐습니다
+     */
+    cowardStep: 8,
+    bomberStep: 3,
+    /**
+     * 겁쟁이적의 인내 시간(초). 평소에는 `ENEMY_PARAMS.coward.patienceTime` (30초)입니다.
+     *
+     * 5초면 사실상 **모든 겁쟁이적이 달려듭니다** (2026-09-17 사용자 지시).
+     * 이 판의 겁쟁이는 "도망치는 적"이 아니라 "어둠에서 한 번 달려드는 적"입니다
+     */
+    cowardPatience: 5,
+    /** 겁쟁이적을 정예로 냅니다 (2026-09-17 사용자 지시). 인식 사거리 x1.5 · 돌진 속도 x1.5 */
+    cowardElite: true,
     /**
      * 자폭적이 점화된 뒤의 이동속도 배율. 원문의 "점화 이후 이속 증가 안 됨"입니다.
      * 평소에는 `ENEMY_PARAMS.bomber.igniteSpeedMul` 로 빨라집니다
@@ -2930,6 +2963,7 @@ export const CHALLENGE_STAGES: readonly ChallengeStageDef[] = [
     clearTime: 90,
     summary: '방패적과 정예 돌진적. 방패는 안 깨지고 둘 다 한 번 역할을 하면 사라집니다',
     ready: true,
+    ownSpawn: true,
   },
   {
     id: 'blackout',
@@ -2937,6 +2971,7 @@ export const CHALLENGE_STAGES: readonly ChallengeStageDef[] = [
     clearTime: 120,
     summary: '사거리 밖은 보이지 않습니다. 겁쟁이적과 자폭적',
     ready: true,
+    ownSpawn: true,
   },
   {
     id: 'tiny',
@@ -2944,6 +2979,7 @@ export const CHALLENGE_STAGES: readonly ChallengeStageDef[] = [
     clearTime: 120,
     summary: '좁은 정사각 경기장. 체력 1 고정에 부활 없음',
     ready: false,
+    ownSpawn: true,
   },
   {
     id: 'laserOnly',
@@ -2951,6 +2987,7 @@ export const CHALLENGE_STAGES: readonly ChallengeStageDef[] = [
     clearTime: 60,
     summary: '적이 없습니다. 경기장을 가로지르는 레이저만 피합니다',
     ready: true,
+    ownSpawn: true,
   },
   {
     id: 'summoner',
@@ -2958,6 +2995,7 @@ export const CHALLENGE_STAGES: readonly ChallengeStageDef[] = [
     clearTime: 180,
     summary: '정예 소환사. 하수인은 전부 무적이고 본체를 잡아야 사라집니다',
     ready: true,
+    ownSpawn: true,
   },
   {
     id: 'shrink',
@@ -2965,6 +3003,7 @@ export const CHALLENGE_STAGES: readonly ChallengeStageDef[] = [
     clearTime: 240,
     summary: '30초마다 구역이 좁아집니다. 적도 같이 깎입니다',
     ready: false,
+    ownSpawn: false,
   },
   {
     id: 'bomber',
@@ -2972,6 +3011,7 @@ export const CHALLENGE_STAGES: readonly ChallengeStageDef[] = [
     clearTime: 180,
     summary: '정예 자폭적. 받는 피해는 크게 줄고 치명타 피해만 크게 들어갑니다',
     ready: true,
+    ownSpawn: true,
   },
   {
     id: 'titan',
@@ -2979,6 +3019,7 @@ export const CHALLENGE_STAGES: readonly ChallengeStageDef[] = [
     clearTime: 180,
     summary: '거대해지고 아주 느려진 적. 접촉 피해가 큽니다',
     ready: true,
+    ownSpawn: false,
   },
   {
     id: 'chaos',
@@ -2986,6 +3027,7 @@ export const CHALLENGE_STAGES: readonly ChallengeStageDef[] = [
     clearTime: 1800,
     summary: '게임 속도 2배에서 시작해 3배까지 오릅니다',
     ready: true,
+    ownSpawn: false,
   },
   {
     id: 'mystery',
@@ -2993,5 +3035,6 @@ export const CHALLENGE_STAGES: readonly ChallengeStageDef[] = [
     clearTime: 900,
     summary: '전부 기본적의 모습을 하고 나옵니다. 정예는 능력 2개',
     ready: true,
+    ownSpawn: false,
   },
 ];

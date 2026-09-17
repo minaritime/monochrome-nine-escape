@@ -28,7 +28,14 @@ import {
   type EnemyId,
 } from '../data/balance';
 import { Effects } from '../render/effects';
-import { challengeBurnImmune, challengeHitKill, shieldUnbreakable, updateChallenge } from './challenge';
+import {
+  challengeBurnImmune,
+  challengeHiddenFromPlayer,
+  challengeHitKill,
+  challengeStage,
+  shieldUnbreakable,
+  updateChallenge,
+} from './challenge';
 import { SpatialGrid, clampToArena } from './collision';
 import { createPlayer, ownedSlots, updatePlayer } from './player';
 import { Spawner } from './spawner';
@@ -105,6 +112,14 @@ export interface DamageOptions {
    * 스치는 것만으로 한계에 닿아서 "두 대"라는 규칙이 성립하지 않습니다
    */
   kind?: 'tick' | 'burn';
+  /**
+   * **적이 낸 피해입니다** (자폭적의 시체 폭발 · 하드 4 의 폭격, 2026-09-17).
+   *
+   * 도전 2번 암전에서 어둠에 묻힌 적은 내 공격을 안 받는데, 그 검사를 건너뜁니다.
+   * 적끼리 터지는 것까지 내 시야에 묶으면 어둠 너머에서는 폭발이 아무것도 안 하는
+   * 것이 되어, 자폭적이 서로를 정리하는 이 판의 연쇄가 사라집니다
+   */
+  fromEnemy?: boolean;
 }
 
 /**
@@ -338,6 +353,9 @@ export class World {
     this.effects.particleScale = SETTINGS.particles.levels[save.particleLevel].mul;
     this.player = createPlayer(save);
     this.spawner = new Spawner();
+    // **도전 판은 스테이지가 적을 직접 냅니다** (2026-09-17). 일반 스폰을 여기서 끕니다.
+    // 안 끄면 규칙에 없는 잡몹이 섞여 나옵니다 (`ChallengeStageDef.ownSpawn` 주석)
+    if (this.challenge && challengeStage(this.challenge).ownSpawn) this.spawner.enabled = false;
     this.skillsTaken = ownedSlots(this.player).length;
     // 시작 스킬도 이 판에서 쓴 스킬입니다
     for (const s of ownedSlots(this.player)) this.noteSkill(s);
@@ -1123,8 +1141,8 @@ export class World {
       maxLife: 1,
       color: '#ff5d5d',
       owner: 0,
-      // 예고는 기본적으로 어둠에 묻힙니다. 뚫고 나오는 것은 `blastVisual` 뿐입니다
-      throughDark: false,
+      // 예고는 기본적으로 어둠에 묻힙니다. 잘라서라도 보이는 것은 `blastVisual` 뿐입니다
+      clipToVision: false,
       dead: false,
     };
     const tel: Telegraph = { ...defaults, ...t, maxLife: t.maxLife ?? t.life };
@@ -1188,6 +1206,14 @@ export class World {
     // 도전 1번의 돌진적은 화상의 지속 피해를 안 받습니다 (2026-09-16 사용자 지시).
     // 두 대면 죽는 적이라 화상이 붙는 순간 손 안 대고 죽는 것과 같아집니다
     if (opts.kind === 'burn' && challengeBurnImmune(this, e)) return 0;
+
+    // **도전 2번 암전: 안 보이는 적은 못 때립니다** (2026-09-17 사용자 지시).
+    //
+    // 타겟팅만 막았더니(`skills/targeting.ts`) 자리로 때리는 공격이 전부 새어
+    // 나갔습니다. 레이저 · 오라 · 회전검 · 장판 · 폭발은 겨누는 과정이 없어서
+    // 어둠 너머를 그대로 정리하고 있었습니다. **거르는 자리는 여기 하나입니다.**
+    // 스킬마다 검사를 두면 새 스킬이 생길 때 반드시 하나를 빠뜨립니다
+    if (!opts.fromEnemy && challengeHiddenFromPlayer(this, e)) return 0;
 
     // 정예 방패적은 방패가 남아 있는 동안 덜 아프고, 깨지고 나면 더 아픕니다.
     // 방패를 깨는 것이 곧 이득이 되도록 만드는 부분입니다
@@ -1693,7 +1719,7 @@ export class World {
       // 하드 4: 폭격기의 폭격은 적에게도 들어가지만 내가 잡은 것이 아닙니다.
       // 보상도 "도구로 쓴다" 집계도 붙지 않습니다
       this.noKillReward = true;
-      this.blastEnemies(x, y, radius, damage, true, true);
+      this.blastEnemies(x, y, radius, damage, true, true, true);
       this.noKillReward = false;
       this.blastPlayer(x, y, radius, damage, source);
       return;
@@ -1704,7 +1730,8 @@ export class World {
     // 마릿수가 저절로 불어나는데, 그러면 "잡몹 한가운데서 터뜨렸다"가 아니라
     // "분열적 옆에서 터뜨렸다"가 되어 조건의 뜻이 달라집니다
     this.blastKills = 0;
-    this.blastEnemies(x, y, radius, damage);
+    // 자폭적의 시체 폭발은 적이 낸 것입니다. 암전의 시야 검사를 안 탑니다
+    this.blastEnemies(x, y, radius, damage, true, false, true);
     const got = this.blastKills;
     this.blastKills = -1;
     if (got > this.track.corpseBlastBest) this.track.corpseBlastBest = got;
@@ -1719,14 +1746,18 @@ export class World {
   /**
    * 터지는 순간의 연출.
    *
-   * **어둠을 뚫습니다** (2026-09-16 사용자 지시). 도전 2번 암전에서 자폭이 어디서
-   * 터졌는지는 사거리와 무관하게 보여야 합니다. 예고는 그대로 묻히므로,
-   * "경고는 없고 터진 것만 보인다"가 됩니다
+   * **암전에서는 시야와 겹치는 만큼만 보입니다** (2026-09-17 사용자 지시).
+   * 폭발 원은 잘려서 그려지고(`clipToVision`), 파편은 다른 이펙트와 똑같이 시야
+   * 안의 것만 보입니다. 그래서 중심이 어둠 속이어도 **불길이 내 쪽으로 걸치면
+   * 그 호가 보입니다.**
+   *
+   * 2026-09-16 에는 폭발 전체가 어둠을 뚫었습니다. 그때는 "경고는 없고 터진 것만
+   * 보인다"였는데, 화면 반대편의 폭발까지 다 보여서 어둠이 옅어졌습니다
    */
   private blastVisual(x: number, y: number, radius: number, color: string): void {
-    this.effects.burst(x, y, 22, color, 260, 4, 0.5, true);
+    this.effects.burst(x, y, 22, color, 260, 4, 0.5);
     this.effects.addShake(5);
-    this.addTelegraph({ kind: 'blast', x, y, radius, life: 0.22, color, throughDark: true });
+    this.addTelegraph({ kind: 'blast', x, y, radius, life: 0.22, color, clipToVision: true });
   }
 
   /**
@@ -1741,6 +1772,7 @@ export class World {
     damage: number,
     ignoreShield = true,
     skipBoss = false,
+    fromEnemy = false,
   ): void {
     const near = this.grid.query(x, y, radius + 40, this.queryBuf);
 
@@ -1752,7 +1784,7 @@ export class World {
         // 방패를 존중하는 폭발은 **터진 자리에서 온 것**으로 봅니다. 미사일은 적의
         // 몸에 닿는 순간 그 자리에서 터지므로, 직격이 정면이었으면 폭발도 정면입니다.
         // 즉 폭발이 직격과 같은 판정을 따릅니다
-        this.damageEnemy(e, damage, { fromX: x, fromY: y, ignoreShield });
+        this.damageEnemy(e, damage, { fromX: x, fromY: y, ignoreShield, fromEnemy });
       }
     }
   }
