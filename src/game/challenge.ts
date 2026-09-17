@@ -233,11 +233,29 @@ function blackout(w: World): void {
   blackoutBombing(w);
 
   // **겁쟁이적은 돌진해도 안 죽습니다** (2026-09-17 사용자 지시). 1차 설계 원문의
-  // "겁쟁이적이 돌진 후 사망"을 뺀 자리입니다. 이제 이 판에서 사라지는 길은
-  // 자폭적이 터지는 것과 **내가 잡는 것**뿐입니다
+  // "겁쟁이적이 돌진 후 사망"을 뺀 자리입니다. 대신 인내가 끝나면 수명이 붙습니다
+  const patience = R.cowardPatience;
+  const rageAll = w.time >= R.cowardEnrageAllTime;
+
   let alive = 0;
   for (const e of w.enemies) {
-    if (!e.dead) alive++;
+    if (e.dead) continue;
+    alive++;
+    if (e.defId !== 'coward') continue;
+
+    // 막바지에는 남아 있는 것에 한꺼번에 불을 붙입니다. 새로 나오는 것도 여기 걸려
+    // 나오자마자 달려듭니다 (`cowardEnrageAllTime`)
+    if (rageAll && e.state.timer3 < patience) e.state.timer3 = patience;
+
+    // **인내가 끝난 뒤 5초.** 그 시점부터 세는 것이 아니라 살아온 시간에서 빼서
+    // 봅니다. 강제로 불을 붙인 개체도 그 순간이 기준이 되므로 계산이 같습니다
+    if (e.state.timer3 >= patience + R.cowardEnragedLife) {
+      // **처치와 같은 판정입니다** (2026-09-17 사용자 지시). 경험치 · 처치 수 ·
+      // 도감이 전부 붙습니다. `e.dead = true` 로 조용히 지우던 방식과 다른 점이라,
+      // 이 판에서는 못 잡은 겁쟁이도 결국 내 성과가 됩니다
+      w.killEnemy(e);
+      alive--;
+    }
   }
 
   // **초당 정해진 마릿수를 냅니다** (2026-09-17 사용자 지시). 유지할 마릿수를 정해
