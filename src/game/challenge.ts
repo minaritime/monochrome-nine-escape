@@ -232,20 +232,12 @@ function blackout(w: World): void {
 
   blackoutBombing(w);
 
-  // 겁쟁이적은 **한 번 달리면 사라집니다** (원문). 자폭적은 원래 터지면서 죽으므로
-  // 따로 치울 것이 없습니다
+  // **겁쟁이적은 돌진해도 안 죽습니다** (2026-09-17 사용자 지시). 1차 설계 원문의
+  // "겁쟁이적이 돌진 후 사망"을 뺀 자리입니다. 이제 이 판에서 사라지는 길은
+  // 자폭적이 터지는 것과 **내가 잡는 것**뿐입니다
   let alive = 0;
   for (const e of w.enemies) {
-    if (e.dead) continue;
-    alive++;
-    if (e.defId !== 'coward') continue;
-    // 겁쟁이적은 돌진 뒤 곧바로 배회로 돌아가므로 "한 번 달렸는가"(`dashes`)와
-    // "지금 달리는 중인가"(phase 2)를 같이 봅니다
-    if (e.dashes >= 1 && e.state.phase !== 2) {
-      e.dead = true;
-      alive--;
-      w.effects.burst(e.x, e.y, 12, e.def.color, 150, 3, 0.5);
-    }
+    if (!e.dead) alive++;
   }
 
   // **초당 정해진 마릿수를 냅니다** (2026-09-17 사용자 지시). 유지할 마릿수를 정해
