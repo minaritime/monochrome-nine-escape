@@ -232,39 +232,35 @@ function blackout(w: World): void {
 
   blackoutBombing(w);
 
-  let cowards = 0;
-  let bombers = 0;
-
+  // 겁쟁이적은 **한 번 달리면 사라집니다** (원문). 자폭적은 원래 터지면서 죽으므로
+  // 따로 치울 것이 없습니다
+  let alive = 0;
   for (const e of w.enemies) {
     if (e.dead) continue;
-
-    if (e.defId === 'coward') {
-      // 돌진을 마쳤으면 사라집니다. 겁쟁이적은 돌진 뒤 곧바로 배회로 돌아가므로
-      // "한 번 달렸는가"(`dashes`)와 "지금 달리는 중인가"(phase 2)를 같이 봅니다
-      if (e.dashes >= 1 && e.state.phase !== 2) {
-        e.dead = true;
-        w.effects.burst(e.x, e.y, 12, e.def.color, 150, 3, 0.5);
-        continue;
-      }
-      cowards++;
-      continue;
+    alive++;
+    if (e.defId !== 'coward') continue;
+    // 겁쟁이적은 돌진 뒤 곧바로 배회로 돌아가므로 "한 번 달렸는가"(`dashes`)와
+    // "지금 달리는 중인가"(phase 2)를 같이 봅니다
+    if (e.dashes >= 1 && e.state.phase !== 2) {
+      e.dead = true;
+      alive--;
+      w.effects.burst(e.x, e.y, 12, e.def.color, 150, 3, 0.5);
     }
-
-    if (e.defId === 'bomber') bombers++;
   }
 
-  // 종류별로 따로 셉니다 (2026-09-17). 자폭적이 훨씬 빨리 늘어납니다
-  const cowardWant = Math.min(R.cowardAliveMax, R.cowardAliveStart + Math.floor(w.time / R.cowardStep));
-  const bomberWant = Math.min(R.bomberAliveMax, R.bomberAliveStart + Math.floor(w.time / R.bomberStep));
-
-  const cowardShort = cowardWant - cowards;
-  const bomberShort = bomberWant - bombers;
-  if (cowardShort <= 0 && bomberShort <= 0) return;
-
-  // 모자란 쪽을 먼저 채웁니다. 같으면 자폭적이 우선입니다
-  const pos = edgePosition(w);
-  if (bomberShort >= cowardShort) w.spawnEnemy('bomber', pos.x, pos.y, {});
-  else w.spawnEnemy('coward', pos.x, pos.y, { hpMul: R.cowardHpMul });
+  // **초당 정해진 마릿수를 냅니다** (2026-09-17 사용자 지시). 유지할 마릿수를 정해
+  // 놓고 죽은 만큼 채우던 방식에서 바뀌었습니다
+  const due = Math.floor(w.time * R.spawnPerSecond);
+  while (w.challengeState.spawned < due) {
+    w.challengeState.spawned++;
+    if (alive >= R.maxAlive) continue;
+    alive++;
+    const pos = edgePosition(w);
+    // 3 : 7 로 섞습니다. 번갈아 내지 않는 이유는 어느 쪽이 올지 세면서 기다리는
+    // 판이 되지 않게 하기 위해서입니다
+    if (w.rng.chance(R.bomberRatio)) w.spawnEnemy('bomber', pos.x, pos.y, {});
+    else w.spawnEnemy('coward', pos.x, pos.y, { hpMul: R.cowardHpMul });
+  }
 }
 
 /**
@@ -286,8 +282,8 @@ function blackoutBombing(w: World): void {
   // **지나간 시간에서 회차를 셉니다.** 남은 시간을 빼는 방식은 프레임 간격에
   // 기대는데, 디버그 맵에서 시간을 건너뛰면 그 사이의 회차가 통째로 사라집니다
   const due = Math.floor(w.time / R.bombInterval);
-  if (due <= w.challengeTick) return;
-  w.challengeTick = due;
+  if (due <= w.challengeState.bombs) return;
+  w.challengeState.bombs = due;
 
   const { x, y } = w.player;
   w.addTelegraph({
