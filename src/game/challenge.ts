@@ -259,34 +259,68 @@ function blackout(w: World): void {
   const cowardWant = Math.floor(lerp(R.cowardAliveStart, R.cowardAliveMax, t));
   const bomberWant = Math.floor(lerp(R.bomberAliveStart, R.bomberAliveMax, t));
 
+  // 겁쟁이는 가장자리, 자폭적은 경기장 안 아무 데서나 후보를 뽑습니다
   for (; cowards < cowardWant; cowards++) {
-    const pos = edgePosition(w);
+    const pos = blackoutSpawnPosition(w, 'coward', edgePosition);
     w.spawnEnemy('coward', pos.x, pos.y, { hpMul: R.cowardHpMul });
   }
   for (; bombers < bomberWant; bombers++) {
-    const pos = darkPosition(w);
+    const pos = blackoutSpawnPosition(w, 'bomber', anyPosition);
     w.spawnEnemy('bomber', pos.x, pos.y, {});
   }
 }
 
-/** 자리를 뽑아 보는 횟수. 시야가 경기장의 9% 남짓이라 거의 첫 번째에 됩니다 */
-const DARK_POSITION_TRIES = 20;
+/** 스폰 자리 후보를 뽑아 보는 횟수 */
+const SPAWN_POSITION_TRIES = 20;
 
 /**
- * **어둠 속 아무 자리** (2026-09-19 사용자 지시). 자폭적이 나오는 자리입니다.
+ * **암전의 스폰 자리** (2026-09-19 사용자 지시).
  *
- * 시야 테두리에서 `bomberSpawnMargin` 만큼 더 떨어진 곳만 씁니다. 끝까지 못 찾으면
- * 가장자리로 물러납니다. 그럴 일은 시야가 경기장을 거의 다 덮을 때뿐입니다
+ * 두 조건을 봅니다.
+ * 1. **시야(= 사거리) 밖.** 테두리에서 `spawnMargin` 만큼 더 떨어진 곳만 씁니다. 반드시입니다
+ * 2. **같은 종류와 `spawnSpacing` 이상 떨어진 곳.** 되도록입니다. 끝까지 못 찾으면
+ *    1 을 지킨 후보 중 같은 종류와 가장 멀리 떨어진 자리를 씁니다
+ *
+ * 1 을 지킨 후보가 하나도 없으면 한 번 더 뽑은 자리를 그대로 씁니다. 그럴 일은 시야가 경기장을
+ * 거의 다 덮을 때뿐인데, 이 판은 사거리가 안 오르므로 사실상 없습니다
  */
-function darkPosition(w: World): { x: number; y: number } {
-  const inset = SPAWN.edgeInset;
-  const minDist = challengeVisionRadius(w) + CHALLENGE_RULES.blackout.bomberSpawnMargin;
-  for (let i = 0; i < DARK_POSITION_TRIES; i++) {
-    const x = w.rng.range(inset, CANVAS.w - inset);
-    const y = w.rng.range(inset, CANVAS.h - inset);
-    if (dist(x, y, w.player.x, w.player.y) >= minDist) return { x, y };
+function blackoutSpawnPosition(
+  w: World,
+  id: EnemyId,
+  pick: (w: World) => { x: number; y: number },
+): { x: number; y: number } {
+  const R = CHALLENGE_RULES.blackout;
+  const minFromPlayer = challengeVisionRadius(w) + R.spawnMargin;
+
+  let best: { x: number; y: number } | null = null;
+  let bestGap = -1;
+  for (let i = 0; i < SPAWN_POSITION_TRIES; i++) {
+    const pos = pick(w);
+    if (dist(pos.x, pos.y, w.player.x, w.player.y) < minFromPlayer) continue;
+    const gap = nearestSameKind(w, id, pos);
+    if (gap >= R.spawnSpacing) return pos;
+    if (gap > bestGap) {
+      best = pos;
+      bestGap = gap;
+    }
   }
-  return edgePosition(w);
+  return best ?? pick(w);
+}
+
+/** 이 자리에서 가장 가까운 같은 종류까지의 거리. 하나도 없으면 무한대입니다 */
+function nearestSameKind(w: World, id: EnemyId, pos: { x: number; y: number }): number {
+  let nearest = Infinity;
+  for (const e of w.enemies) {
+    if (e.dead || e.defId !== id) continue;
+    nearest = Math.min(nearest, dist(e.x, e.y, pos.x, pos.y));
+  }
+  return nearest;
+}
+
+/** 경기장 안 아무 자리. 벽에서는 가장자리 스폰과 같은 만큼 띄웁니다 */
+function anyPosition(w: World): { x: number; y: number } {
+  const inset = SPAWN.edgeInset;
+  return { x: w.rng.range(inset, CANVAS.w - inset), y: w.rng.range(inset, CANVAS.h - inset) };
 }
 
 /**
