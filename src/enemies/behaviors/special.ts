@@ -5,12 +5,16 @@ import { killerOf } from '../../game/killer';
 import { eliteHas, eliteMul, eliteValue } from '../elite';
 import type { World } from '../../game/world';
 import type { EnemyBehavior } from '../types';
-// 도전 스테이지가 자폭적의 점화 이속을 갈아끼웁니다.
+// 도전 스테이지가 겁쟁이 · 자폭적의 움직임을 갈아끼웁니다.
 // **`challenge.ts` 는 `balance.ts` 만 들여옵니다.** 그래야 여기서 들여와도 고리가 안 닫힙니다
 import {
+  challengeBomberHeld,
   challengeCowardEnragedDashMul,
   challengeCowardPatience,
+  challengeCowardStalk,
+  challengeHiddenFromPlayer,
   challengeIgniteSpeedMul,
+  type CowardStalk,
 } from '../../game/challenge';
 import { avoidWalls, moveAway, moveToward, stopMoving, wander } from './movement';
 
@@ -199,14 +203,17 @@ export const coward: EnemyBehavior = (e, w, dt) => {
 
   switch (e.state.phase) {
     case 0: {
+      // 도전 2번 암전은 다가오는 방식이 통째로 다릅니다
+      const stalk = challengeCowardStalk(w);
+      if (stalk) {
+        cowardStalk(e, w, dt, d, stalk);
+        return;
+      }
       // 아주 느리게 배회합니다
       wander(e, w, dt, P.wanderChange, 1);
       avoidWalls(e, CANVAS.w, CANVAS.h);
       if (cowardEnraged(e, w) || d < P.triggerRange * eliteMul(e, 'triggerRangeMul') * w.diff.rangeMul) {
-        e.state.phase = 1;
-        e.state.timer2 = P.windup;
-        e.state.angle = angleTo(e.x, e.y, w.player.x, w.player.y);
-        w.effects.burst(e.x, e.y, 8, e.def.accent, 110, 2, 0.25);
+        cowardWindup(e, w);
       }
       return;
     }
@@ -251,6 +258,32 @@ export const coward: EnemyBehavior = (e, w, dt) => {
   }
 };
 
+/** 돌진 준비에 들어갑니다. 평소 겁쟁이와 암전 겁쟁이가 같이 씁니다 */
+function cowardWindup(e: Enemy, w: World): void {
+  e.state.phase = 1;
+  e.state.timer2 = ENEMY_PARAMS.coward.windup;
+  e.state.angle = angleTo(e.x, e.y, w.player.x, w.player.y);
+  w.effects.burst(e.x, e.y, 8, e.def.accent, 110, 2, 0.25);
+}
+
+/**
+ * **도전 2번 암전의 겁쟁이** (2026-09-19 사용자 명세).
+ *
+ * 각성 전에는 느리게 떠돌기만 하고 달려들지 않습니다. 잡으러 다닐 사냥감입니다.
+ * 각성하면 나를 향해 걸어오다가, **어둠 속에 있는 채로** 충분히 가까워지면 돌진합니다.
+ * 시야 안에 들어온 각성 겁쟁이는 돌진하지 않고 계속 걸어오므로 그때는 잡을 수 있습니다.
+ * 돌진을 마치면 판이 지웁니다 (`game/challenge.ts` 의 blackout)
+ */
+function cowardStalk(e: Enemy, w: World, dt: number, d: number, stalk: CowardStalk): void {
+  if (!cowardEnraged(e, w)) {
+    wander(e, w, dt, ENEMY_PARAMS.coward.wanderChange, 1);
+    avoidWalls(e, CANVAS.w, CANVAS.h);
+    return;
+  }
+  moveToward(e, w.player.x, w.player.y, stalk.speedMul);
+  if (d <= stalk.dashRange && challengeHiddenFromPlayer(w, e)) cowardWindup(e, w);
+}
+
 // ---------------------------------------------------------------------------
 // 자폭적: 스폰 후 잠시 제자리에 섰다가 추적합니다.
 // 맞으면 점화되어 빨라지고 4초 뒤 터집니다. 바로 앞까지 붙어도 점화되며 이때는 0.8초입니다.
@@ -271,8 +304,10 @@ export const bomber: EnemyBehavior = (e, w, dt) => {
   // 점화됨: 도화선이 타는 동안에도 계속 따라옵니다 (속도 보정은 없습니다)
   if (e.state.flag) {
     e.state.timer -= dt;
-    // 도전 스테이지가 이 배율을 갈아끼울 수 있습니다 (2번 암전은 점화해도 안 빨라집니다)
-    moveToward(e, w.player.x, w.player.y, challengeIgniteSpeedMul(w) ?? P.igniteSpeedMul);
+    // 도전 스테이지가 이 배율을 갈아끼울 수 있습니다 (2번 암전은 점화해도 안 빨라집니다).
+    // 암전의 어둠 속에서는 도화선만 타고 제자리에 섭니다
+    if (challengeBomberHeld(w, e)) stopMoving(e);
+    else moveToward(e, w.player.x, w.player.y, challengeIgniteSpeedMul(w) ?? P.igniteSpeedMul);
     if (w.rng.chance(0.5)) w.effects.burst(e.x, e.y, 1, '#ff9a3c', 40, 2, 0.25);
     if (e.state.timer <= 0) {
       e.state.phase = PHASE_SELF_DESTRUCT;
@@ -287,6 +322,12 @@ export const bomber: EnemyBehavior = (e, w, dt) => {
     e.state.timer2 -= dt;
     e.vx = 0;
     e.vy = 0;
+    return;
+  }
+
+  // 도전 2번 암전: 어둠 속에서는 지뢰처럼 서 있고, 시야에 들어오면 쫓아옵니다
+  if (challengeBomberHeld(w, e)) {
+    stopMoving(e);
     return;
   }
 

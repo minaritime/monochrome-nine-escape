@@ -8,8 +8,8 @@ import {
   type EnemyId,
   type StatKey,
 } from '../data/balance';
-import { dist } from '../core/math';
-import type { Enemy, KillerInfo } from './types';
+import { dist, lerp } from '../core/math';
+import type { Enemy } from './types';
 import type { World } from './world';
 
 /**
@@ -24,12 +24,6 @@ import type { World } from './world';
  * - 판 중 코인 없음: `World.dropCoin` 첫 줄
  * - 기록 차단: `main.ts` 의 `finishRun`
  */
-
-/**
- * 암전 폭격의 사인. **적이 아니라 판의 장치라 `id` 가 null 입니다.**
- * 게임오버 화면이 그림 없이 이름만 띄웁니다 (하드 5 레이저와 같은 취급)
- */
-const BOMB_KILLER: KillerInfo = { id: null, elite: false, device: '암전 폭격' };
 
 export function challengeStage(id: ChallengeStageId): ChallengeStageDef {
   const def = CHALLENGE_STAGES.find((s) => s.id === id);
@@ -218,102 +212,81 @@ function edgePosition(w: World): { x: number; y: number } {
 }
 
 /**
- * 2번 암전.
+ * 2번 암전 (2026-09-19 사용자 명세로 다시 짰습니다).
  *
- * 겁쟁이적과 자폭적만 나옵니다. 둘 다 한 번 역할을 하면 사라지고 곧바로 다시
- * 나옵니다. 겁쟁이적은 돌진을 마치면, 자폭적은 터지면 끝입니다 (자폭은 원래
- * 스스로 죽으므로 따로 처리할 것이 없습니다).
+ * 겁쟁이적과 자폭적만 나옵니다. **종류마다 상한이 있고, 죽으면 곧바로 다시
+ * 채웁니다.** 상한은 판이 갈수록 늘어납니다.
+ *
+ * - 겁쟁이적: 가장자리에서 나와 떠돌다가 인내가 끝나면 각성해 나를 향해 걸어오고,
+ *   **어둠 속에서** 돌진합니다 (`enemies/behaviors/special.ts` 의 `cowardStalk`).
+ *   **돌진을 마치면 죽습니다.** 처치와 같은 판정이라 경험치가 들어옵니다
+ * - 자폭적: 어둠 속 아무 데나 나오고 **어둠 속에서는 안 움직입니다.** 시야에 들어오면
+ *   평소처럼 쫓아옵니다 (`challengeBomberHeld`)
  *
  * 화면을 어둡게 만드는 일은 그리기 쪽(`render/scene.ts`)이 `challengeVisionRadius`
  * 를 보고 합니다. 판의 규칙과 보이는 것을 한 곳에 섞지 않습니다
  */
 function blackout(w: World): void {
   const R = CHALLENGE_RULES.blackout;
-
-  blackoutBombing(w);
-
-  // **겁쟁이적은 돌진해도 안 죽습니다** (2026-09-17 사용자 지시). 1차 설계 원문의
-  // "겁쟁이적이 돌진 후 사망"을 뺀 자리입니다. 대신 인내가 끝나면 수명이 붙습니다
-  const patience = R.cowardPatience;
   const rageAll = w.time >= R.cowardEnrageAllTime;
 
-  let alive = 0;
+  let cowards = 0;
+  let bombers = 0;
   for (const e of w.enemies) {
     if (e.dead) continue;
-    alive++;
+    if (e.defId === 'bomber') {
+      bombers++;
+      continue;
+    }
     if (e.defId !== 'coward') continue;
 
-    // 막바지에는 남아 있는 것에 한꺼번에 불을 붙입니다. 새로 나오는 것도 여기 걸려
-    // 나오자마자 달려듭니다 (`cowardEnrageAllTime`)
-    if (rageAll && e.state.timer3 < patience) e.state.timer3 = patience;
+    // 막바지에는 남아 있는 것을 한꺼번에 각성시킵니다. 새로 나오는 것도 여기 걸려
+    // 나오자마자 각성합니다 (`cowardEnrageAllTime`)
+    if (rageAll && e.state.timer3 < R.cowardPatience) e.state.timer3 = R.cowardPatience;
 
-    // **인내가 끝난 뒤 5초.** 그 시점부터 세는 것이 아니라 살아온 시간에서 빼서
-    // 봅니다. 강제로 불을 붙인 개체도 그 순간이 기준이 되므로 계산이 같습니다
-    if (e.state.timer3 >= patience + R.cowardEnragedLife) {
-      // **처치와 같은 판정입니다** (2026-09-17 사용자 지시). 경험치 · 처치 수 ·
-      // 도감이 전부 붙습니다. `e.dead = true` 로 조용히 지우던 방식과 다른 점이라,
-      // 이 판에서는 못 잡은 겁쟁이도 결국 내 성과가 됩니다
+    // **돌진을 마쳤으면 죽습니다** (1차 설계 원문, 2026-09-19 복원). `dashes` 는 돌진에
+    // 들어가는 순간 오르고 phase 2 가 돌진 중이라, 방패 행진의 돌진적과 같은 판단입니다.
+    // **처치와 같은 판정입니다** (2026-09-19 사용자 선택). 경험치 · 처치 수 · 도감이
+    // 전부 붙습니다
+    if (e.dashes >= 1 && e.state.phase !== 2) {
       w.killEnemy(e);
-      alive--;
+      continue;
     }
+    cowards++;
   }
 
-  // **초당 정해진 마릿수를 냅니다** (2026-09-17 사용자 지시). 유지할 마릿수를 정해
-  // 놓고 죽은 만큼 채우던 방식에서 바뀌었습니다
-  const due = Math.floor(w.time * R.spawnPerSecond);
-  while (w.challengeState.spawned < due) {
-    w.challengeState.spawned++;
-    if (alive >= R.maxAlive) continue;
-    alive++;
+  const t = Math.min(1, w.time / challengeStage('blackout').clearTime);
+  const cowardWant = Math.floor(lerp(R.cowardAliveStart, R.cowardAliveMax, t));
+  const bomberWant = Math.floor(lerp(R.bomberAliveStart, R.bomberAliveMax, t));
+
+  for (; cowards < cowardWant; cowards++) {
     const pos = edgePosition(w);
-    // 3 : 7 로 섞습니다. 번갈아 내지 않는 이유는 어느 쪽이 올지 세면서 기다리는
-    // 판이 되지 않게 하기 위해서입니다
-    if (w.rng.chance(R.bomberRatio)) w.spawnEnemy('bomber', pos.x, pos.y, {});
-    else w.spawnEnemy('coward', pos.x, pos.y, { hpMul: R.cowardHpMul });
+    w.spawnEnemy('coward', pos.x, pos.y, { hpMul: R.cowardHpMul });
+  }
+  for (; bombers < bomberWant; bombers++) {
+    const pos = darkPosition(w);
+    w.spawnEnemy('bomber', pos.x, pos.y, {});
   }
 }
 
-/**
- * **5초마다 내가 서 있던 자리에 폭격이 떨어집니다** (2026-09-17 사용자 지시).
- *
- * 어둠 속에서는 가만히 서 있는 것이 최선이 됩니다. 움직이면 안 보이는 적에게 걸어
- * 들어가는 셈이라, 자리를 지키고 들어오는 것만 처리하는 쪽이 늘 안전했습니다.
- * 그 수를 깨는 장치입니다.
- *
- * **예고를 찍는 순간의 자리**에 떨어집니다. 따라오지 않으므로 한 걸음 옮기면
- * 피합니다. 쫓아오게 만들면 피할 수가 없어서 "가만히 있지 마라"가 아니라
- * "계속 뛰어라"가 되고, 그건 어둠에서 적에게 걸어 들어가라는 말과 같습니다.
- *
- * 적은 안 맞습니다 (`hitsAll` 없음). 맞으면 폭격 자리로 적을 끌고 가는 것이
- * 이득이 되어, 방해 장치가 도구로 뒤집힙니다
- */
-function blackoutBombing(w: World): void {
-  const R = CHALLENGE_RULES.blackout;
-  // **지나간 시간에서 회차를 셉니다.** 남은 시간을 빼는 방식은 프레임 간격에
-  // 기대는데, 디버그 맵에서 시간을 건너뛰면 그 사이의 회차가 통째로 사라집니다
-  const due = Math.floor(w.time / R.bombInterval);
-  if (due <= w.challengeState.bombs) return;
-  w.challengeState.bombs = due;
+/** 자리를 뽑아 보는 횟수. 시야가 경기장의 9% 남짓이라 거의 첫 번째에 됩니다 */
+const DARK_POSITION_TRIES = 20;
 
-  const { x, y } = w.player;
-  w.addTelegraph({
-    kind: 'incoming',
-    x,
-    y,
-    radius: R.bombRadius,
-    life: R.bombTelegraph,
-    color: '#ffcc55',
-    clipToVision: true,
-  });
-  w.addPendingBlast({
-    x,
-    y,
-    radius: R.bombRadius,
-    damage: R.bombDamage,
-    delay: R.bombTelegraph,
-    color: '#ffcc55',
-    source: BOMB_KILLER,
-  });
+/**
+ * **어둠 속 아무 자리** (2026-09-19 사용자 지시). 자폭적이 나오는 자리입니다.
+ *
+ * 시야 테두리에서 `bomberSpawnMargin` 만큼 더 떨어진 곳만 씁니다. 끝까지 못 찾으면
+ * 가장자리로 물러납니다. 그럴 일은 시야가 경기장을 거의 다 덮을 때뿐입니다
+ */
+function darkPosition(w: World): { x: number; y: number } {
+  const inset = SPAWN.edgeInset;
+  const minDist = challengeVisionRadius(w) + CHALLENGE_RULES.blackout.bomberSpawnMargin;
+  for (let i = 0; i < DARK_POSITION_TRIES; i++) {
+    const x = w.rng.range(inset, CANVAS.w - inset);
+    const y = w.rng.range(inset, CANVAS.h - inset);
+    if (dist(x, y, w.player.x, w.player.y) >= minDist) return { x, y };
+  }
+  return edgePosition(w);
 }
 
 /**
@@ -359,6 +332,38 @@ export function challengeCowardEnragedDashMul(w: World): number {
 /** 겁쟁이적의 인내 시간(초). 규칙이 없으면 null 이라 평소 값을 씁니다 (2026-09-17) */
 export function challengeCowardPatience(w: World): number | null {
   return w.challenge === 'blackout' ? CHALLENGE_RULES.blackout.cowardPatience : null;
+}
+
+/** 각성한 겁쟁이가 어둠에서 다가오는 방식. 규칙이 없는 판은 null 이라 평소대로 움직입니다 */
+export interface CowardStalk {
+  /** 걸어오는 속도. 겁쟁이 자신의 이동속도에 곱합니다 */
+  speedMul: number;
+  /** 이 거리 안에 들어오면 돌진합니다. **어둠 속에 있을 때만입니다** */
+  dashRange: number;
+}
+
+/**
+ * 겁쟁이적이 **각성 전에는 떠돌기만 하고, 각성하면 어둠에서 다가와 돌진하는가**
+ * (2026-09-19 사용자 명세).
+ *
+ * 평소 겁쟁이는 인식 거리(165) 안에 들어오면 달려드는데, 암전은 시야도 165 라
+ * 보이는 순간이 곧 돌진이었습니다. 미리 가서 잡을 틈이 0px 였습니다
+ */
+export function challengeCowardStalk(w: World): CowardStalk | null {
+  if (w.challenge !== 'blackout') return null;
+  const R = CHALLENGE_RULES.blackout;
+  return { speedMul: R.cowardStalkSpeedMul, dashRange: challengeVisionRadius(w) + R.cowardDashMargin };
+}
+
+/**
+ * **이 자폭적이 지금 제자리에 묶여 있는가** (2026-09-19 사용자 명세).
+ *
+ * 암전에서 자폭적은 어둠 속에서 안 움직입니다. 시야에 들어오면 평소처럼 쫓아오고,
+ * 내가 빠져나가 다시 어둠에 묻히면 그 자리에 섭니다. 점화된 뒤에도 같습니다.
+ * 도화선은 묶여 있어도 탑니다
+ */
+export function challengeBomberHeld(w: World, e: Enemy): boolean {
+  return w.challenge === 'blackout' && challengeHiddenFromPlayer(w, e);
 }
 
 /**
