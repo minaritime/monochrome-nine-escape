@@ -264,7 +264,9 @@ function blackout(w: World): void {
   }
   for (; bombers < bomberWant; bombers++) {
     const pos = blackoutSpawnPosition(w, 'bomber', anyPosition);
-    w.spawnEnemy('bomber', pos.x, pos.y, {});
+    const bomber = w.spawnEnemy('bomber', pos.x, pos.y, {});
+    // 잡아도 스스로 터져도 경험치가 없습니다. 보상은 겁쟁이에만 붙습니다
+    bomber.xp *= R.bomberXpMul;
   }
 }
 
