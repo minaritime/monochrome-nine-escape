@@ -1,6 +1,6 @@
 import { BASE_WEIGHT, PASSIVE, STAT_DEFS, STAT_GAINS_PER_LEVEL, type StatKey } from '../data/balance';
 import { formatGain, isStatMaxed, isStatRollable } from '../game/stats';
-import { challengeStatBlocked, challengeStatOverride } from '../game/challenge';
+import { challengeBonusGain, challengeStatBlocked, challengeStatOverride } from '../game/challenge';
 import type { World } from '../game/world';
 import type { SaveData } from '../meta/save';
 
@@ -40,6 +40,13 @@ export function rollStatGains(w: World, count = STAT_GAINS_PER_LEVEL): StatGainR
     if (!gain) break;
     taken.add(gain.key);
     out.push(gain);
+  }
+
+  // 도전 스테이지가 추첨과 별도로 확정 상승을 하나 얹을 수 있습니다 (2번 암전의 이동속도)
+  const bonus = challengeBonusGain(w);
+  if (bonus && !isStatMaxed(w.player.stats, bonus.key)) {
+    const def = STAT_DEFS.find((s) => s.key === bonus.key);
+    if (def) out.push({ key: bonus.key, amount: bonus.step, name: def.name, text: formatGain(bonus.key, bonus.step) });
   }
   return out;
 }

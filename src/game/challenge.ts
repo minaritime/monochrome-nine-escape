@@ -228,7 +228,6 @@ function edgePosition(w: World): { x: number; y: number } {
  */
 function blackout(w: World): void {
   const R = CHALLENGE_RULES.blackout;
-  const rageAll = w.time >= R.cowardEnrageAllTime;
 
   let cowards = 0;
   let bombers = 0;
@@ -240,16 +239,15 @@ function blackout(w: World): void {
     }
     if (e.defId !== 'coward') continue;
 
-    // 막바지에는 남아 있는 것을 한꺼번에 각성시킵니다. 새로 나오는 것도 여기 걸려
-    // 나오자마자 각성합니다 (`cowardEnrageAllTime`)
-    if (rageAll && e.state.timer3 < R.cowardPatience) e.state.timer3 = R.cowardPatience;
-
-    // **돌진을 마쳤으면 죽습니다** (1차 설계 원문, 2026-09-19 복원). `dashes` 는 돌진에
+    // **돌진을 마쳤으면 사라집니다** (1차 설계 원문, 2026-09-19 복원). `dashes` 는 돌진에
     // 들어가는 순간 오르고 phase 2 가 돌진 중이라, 방패 행진의 돌진적과 같은 판단입니다.
-    // **처치와 같은 판정입니다** (2026-09-19 사용자 선택). 경험치 · 처치 수 · 도감이
-    // 전부 붙습니다
+    //
+    // **경험치 없이 조용히 지웁니다** (2026-09-19 사용자 지시). 한때 처치 판정으로
+    // 경험치를 줬는데, 그러면 못 잡은 겁쟁이에게 맞아 주는 것도 성장이 되어
+    // 잡으러 다닐 이유가 약해졌습니다. 잡았을 때만 보상입니다
     if (e.dashes >= 1 && e.state.phase !== 2) {
-      w.killEnemy(e);
+      e.dead = true;
+      w.effects.burst(e.x, e.y, 14, e.def.color, 180, 3, 0.5);
       continue;
     }
     cowards++;
@@ -525,4 +523,16 @@ export function chargerDashSpeedMul(w: World): number {
 export function challengeStatOverride(w: World): { key: StatKey; step: number } | null {
   if (w.challenge !== 'shieldMarch') return null;
   return { key: 'moveSpeed', step: CHALLENGE_RULES.shieldMarch.levelMoveSpeedStep };
+}
+
+/**
+ * **추첨과 별도로 레벨업마다 확정으로 오르는 스탯** (2026-09-19 사용자 지시).
+ *
+ * `challengeStatOverride` 와 다릅니다. 그쪽은 추첨을 통째로 갈아끼우고, 이쪽은
+ * 평소 추첨(서로 다른 스탯 2개)을 그대로 둔 채 하나를 더 얹습니다. 2번 암전은
+ * 이동속도를 추첨에서 빼고(`blockedStats`) 여기서 따로 올립니다
+ */
+export function challengeBonusGain(w: World): { key: StatKey; step: number } | null {
+  if (w.challenge !== 'blackout') return null;
+  return { key: 'moveSpeed', step: CHALLENGE_RULES.blackout.levelMoveSpeedStep };
 }
