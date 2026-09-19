@@ -30,7 +30,7 @@ import {
 import { Effects } from '../render/effects';
 import {
   challengeBurnImmune,
-  challengeHiddenFromPlayer,
+  challengeInvulnerable,
   challengeHitKill,
   shieldUnbreakable,
   updateChallenge,
@@ -1205,8 +1205,8 @@ export class World {
     // 처음에는 적이 낸 피해만 예외로 통과시켰는데, 사용자가 **예외를
     // 없애고 통째로 무적으로** 하자고 했습니다 (2026-09-17). 예외를 하나 두면
     // "그럼 이건?"이 끝없이 따라옵니다. 지금은 자폭적의 시체 폭발도 어둠 속
-    // 적에게는 안 들어갑니다
-    if (challengeHiddenFromPlayer(this, e)) return 0;
+    // 적에게는 안 들어갑니다. 돌진 중인 겁쟁이도 같은 칸에서 막습니다 (2026-09-19)
+    if (challengeInvulnerable(this, e)) return 0;
 
     // 정예 방패적은 방패가 남아 있는 동안 덜 아프고, 깨지고 나면 더 아픕니다.
     // 방패를 깨는 것이 곧 이득이 되도록 만드는 부분입니다
@@ -1548,8 +1548,8 @@ export class World {
   stunEnemy(e: Enemy, seconds: number): void {
     // 돌진 중에는 안 걸립니다 (`Enemy.statusImmune` 주석 참고)
     if (e.statusImmune) return;
-    // 어둠 속 적은 무적이라 상태이상도 안 걸립니다 (도전 2번, 2026-09-17)
-    if (challengeHiddenFromPlayer(this, e)) return;
+    // 어둠 속 적 · 돌진 중인 겁쟁이는 무적이라 상태이상도 안 걸립니다 (도전 2번)
+    if (challengeInvulnerable(this, e)) return;
     // 되살아난 미라는 반대로 **더 오래** 받습니다 (`ENEMY_PARAMS.mummy.revivedStatusMul`).
     // 받는 피해를 80% 줄여 둔 적이라, 묶어 두는 것이 유일한 대응 수단입니다
     const s = e.boss ? seconds * (1 - STATUS.bossStatusResist) : seconds * revivedStatusMul(e);
@@ -1562,7 +1562,7 @@ export class World {
    */
   slowEnemy(e: Enemy, factor: number, time: number): void {
     if (e.statusImmune) return;
-    if (challengeHiddenFromPlayer(this, e)) return;
+    if (challengeInvulnerable(this, e)) return;
     const f = e.boss ? 1 - (1 - factor) * (1 - STATUS.bossStatusResist) : factor;
     e.slow = Math.min(e.slow, f);
     e.slowTime = Math.max(e.slowTime, time * revivedStatusMul(e));

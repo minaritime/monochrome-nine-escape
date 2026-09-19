@@ -417,6 +417,25 @@ export function challengeHiddenFromPlayer(w: World, e: Enemy): boolean {
   return dist(e.x, e.y, w.player.x, w.player.y) > vision;
 }
 
+/** 겁쟁이 행동의 돌진 단계 (`enemies/behaviors/special.ts` 의 coward, phase 2) */
+const COWARD_DASH_PHASE = 2;
+
+/**
+ * **플레이어의 공격 · 상태이상 · 조준이 이 적에게 전부 안 통하는가.**
+ *
+ * `World.damageEnemy` · `stunEnemy` · `slowEnemy` 와 조준(`skills/targeting.ts` 의
+ * `isPick`)이 전부 이 함수 하나를 봅니다. 무적 조건이 늘면 여기에만 더합니다.
+ *
+ * 2번 암전에서는 둘입니다.
+ * 1. 어둠 속 적 (결정 22)
+ * 2. **돌진 중인 겁쟁이** (2026-09-19 사용자 지시). 시야에 들어와도 달리는 동안은
+ *    못 잡습니다. 잡을 기회는 돌진 전뿐이고, 돌진이 시작되면 맞는 것이 정해집니다
+ */
+export function challengeInvulnerable(w: World, e: Enemy): boolean {
+  if (challengeHiddenFromPlayer(w, e)) return true;
+  return w.challenge === 'blackout' && e.defId === 'coward' && e.state.phase === COWARD_DASH_PHASE;
+}
+
 function spawnShield(w: World): void {
   const pos = edgePosition(w);
   const e = w.spawnEnemy('shield', pos.x, pos.y, { hpMul: CHALLENGE_RULES.shieldMarch.shieldHpMul });

@@ -1,5 +1,5 @@
 import { angleTo, distSq, distToRay } from '../core/math';
-import { challengeTauntId, challengeVisionRadius } from '../game/challenge';
+import { challengeInvulnerable, challengeTauntId } from '../game/challenge';
 import type { EnemyId } from '../data/balance';
 import type { Enemy } from '../game/types';
 import type { World } from '../game/world';
@@ -53,8 +53,10 @@ export function isPick(w: World, e: Enemy, taunt: EnemyId | null): boolean {
   //
   // **일반 투사체의 충돌(`hitEnemies`)은 안 탑니다.** 그쪽은 조준이 아니라 이미
   // 날아가던 탄이 부딪히는 판정이라 성격이 다릅니다
-  const vision = challengeVisionRadius(w);
-  if (vision > 0 && distSq(w.player.x, w.player.y, e.x, e.y) > vision * vision) return false;
+  //
+  // 무적인 적(돌진 중인 암전 겁쟁이 등)도 같은 칸에서 거릅니다. 판정은
+  // `challengeInvulnerable` 한 곳이 하고, 어둠 속 적은 그 안에 들어 있습니다
+  if (challengeInvulnerable(w, e)) return false;
 
   return true;
 }
