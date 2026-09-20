@@ -253,8 +253,10 @@ function edgePosition(w: World): { x: number; y: number } {
 /**
  * 2번 암전 (2026-09-19 사용자 명세로 다시 짰습니다).
  *
- * 겁쟁이적과 자폭적만 나옵니다. **종류마다 상한이 있고, 죽으면 곧바로 다시
- * 채웁니다.** 상한은 판이 갈수록 늘어납니다.
+ * 겁쟁이적과 자폭적만 나옵니다.
+ *
+ * **겁쟁이는 죽어도 다시 안 채웁니다** (2026-09-20 사용자 지시). 5초마다 2마리씩
+ * 시간표대로만 나오고 상한이 없습니다. 자폭적만 상한을 채웁니다.
  *
  * - 겁쟁이적: 가장자리에서 나와 떠돌다가 인내가 끝나면 각성해 나를 향해 걸어오고,
  *   **어둠 속에서** 돌진합니다 (`enemies/behaviors/special.ts` 의 `cowardStalk`).
@@ -268,7 +270,6 @@ function edgePosition(w: World): { x: number; y: number } {
 function blackout(w: World): void {
   const R = CHALLENGE_RULES.blackout;
 
-  let cowards = 0;
   let bombers = 0;
   for (const e of w.enemies) {
     if (e.dead) continue;
@@ -287,20 +288,23 @@ function blackout(w: World): void {
     if (e.dashes >= 1 && e.state.phase !== 2) {
       e.dead = true;
       w.effects.burst(e.x, e.y, 14, e.def.color, 180, 3, 0.5);
-      continue;
     }
-    cowards++;
   }
 
-  const t = Math.min(1, w.time / challengeStage('blackout').clearTime);
-  const cowardWant = Math.floor(lerp(R.cowardAliveStart, R.cowardAliveMax, t));
-  const bomberWant = Math.floor(lerp(R.bomberAliveStart, R.bomberAliveMax, t));
-
-  // 겁쟁이는 가장자리, 자폭적은 경기장 안 아무 데서나 후보를 뽑습니다
-  for (; cowards < cowardWant; cowards++) {
+  // **겁쟁이는 시간표대로만 나옵니다** (2026-09-20 사용자 지시). 죽은 수를 안 보므로
+  // 잡으면 잡은 만큼 화면이 조용해지고, 못 잡으면 못 잡은 만큼 쌓입니다.
+  //
+  // 판이 시작되는 순간에 첫 묶음이 나옵니다 (`+ 1`). 첫 5초가 텅 빈 채로 지나가면
+  // 사냥을 시작할 것이 없어서, 시작 스킬을 고르자마자 할 일이 있어야 합니다
+  const cowardWant = R.cowardSpawnCount * (Math.floor(w.time / R.cowardSpawnStep) + 1);
+  for (; w.challengeCowardsSpawned < cowardWant; w.challengeCowardsSpawned++) {
     const pos = blackoutSpawnPosition(w, 'coward', edgePosition);
     w.spawnEnemy('coward', pos.x, pos.y, { hpMul: R.cowardHpMul });
   }
+
+  // 자폭적은 그대로 상한을 채웁니다. 사냥감이 아니라 지뢰밭이라 밟은 만큼 다시 깔립니다
+  const t = Math.min(1, w.time / challengeStage('blackout').clearTime);
+  const bomberWant = Math.floor(lerp(R.bomberAliveStart, R.bomberAliveMax, t));
   for (; bombers < bomberWant; bombers++) {
     const pos = blackoutSpawnPosition(w, 'bomber', anyPosition);
     const bomber = w.spawnEnemy('bomber', pos.x, pos.y, {});
