@@ -12,7 +12,6 @@ import {
   challengeCowardEnragedDashMul,
   challengeCowardPatience,
   challengeCowardStalk,
-  challengeHiddenFromPlayer,
   challengeIgniteSpeedMul,
   type CowardStalk,
 } from '../../game/challenge';
@@ -270,8 +269,9 @@ function cowardWindup(e: Enemy, w: World): void {
  * **도전 2번 암전의 겁쟁이** (2026-09-19 사용자 명세).
  *
  * 각성 전에는 느리게 떠돌기만 하고 달려들지 않습니다. 잡으러 다닐 사냥감입니다.
- * 각성하면 나를 향해 걸어오다가, **어둠 속에 있는 채로** 충분히 가까워지면 돌진합니다.
- * 시야 안에 들어온 각성 겁쟁이는 돌진하지 않고 계속 걸어오므로 그때는 잡을 수 있습니다.
+ * 각성하면 나를 향해 걸어오다가 **충분히 가까워지면 곧바로 돌진합니다.** 보이든 안
+ * 보이든 상관없습니다 (2026-09-20 사용자 지시). 잡을 수 있는 창은 각성 전과 준비
+ * 동작(phase 1) 동안이고, 달리기 시작하면 무적입니다.
  * **돌진을 마치면 인내가 처음부터 다시 찹니다** (`game/challenge.ts` 의 blackout).
  * 스스로 사라지지 않으므로 줄이는 길은 잡는 것뿐입니다
  */
@@ -282,7 +282,11 @@ function cowardStalk(e: Enemy, w: World, dt: number, d: number, stalk: CowardSta
     return;
   }
   moveToward(e, w.player.x, w.player.y, stalk.speedMul);
-  if (d <= stalk.dashRange && challengeHiddenFromPlayer(w, e)) cowardWindup(e, w);
+  // **거리만 봅니다** (2026-09-20 사용자 지시). 예전에는 `challengeHiddenFromPlayer`
+  // 를 같이 걸어서 어둠 속(165 초과)에서만 달렸는데, 돌진 거리가 185 라 실제로
+  // 돌진하는 구간이 **165 ~ 185 의 20px 짜리 띠뿐**이었습니다. 사거리 안에서 각성한
+  // 개체는 그 조건이 영영 거짓이라 걸어오기만 했습니다
+  if (d <= stalk.dashRange) cowardWindup(e, w);
 }
 
 // ---------------------------------------------------------------------------

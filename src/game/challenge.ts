@@ -260,7 +260,7 @@ function edgePosition(w: World): { x: number; y: number } {
  * 상한을 채웁니다.
  *
  * - 겁쟁이적: 가장자리에서 나와 떠돌다가 인내가 끝나면 각성해 나를 향해 걸어오고,
- *   **어둠 속에서** 돌진합니다 (`enemies/behaviors/special.ts` 의 `cowardStalk`).
+ *   **사거리 + 20 안에 들면 곧바로** 돌진합니다 (`enemies/behaviors/special.ts` 의 `cowardStalk`).
  *   **돌진을 마치면 인내가 처음부터 다시 찹니다.** 스스로 사라지지 않습니다
  * - 자폭적: 어둠 속 아무 데나 나오고 **어둠 속에서는 안 움직입니다.** 시야에 들어오면
  *   평소처럼 쫓아옵니다 (`challengeBomberHeld`)
@@ -447,16 +447,20 @@ export function challengeCowardPatience(w: World): number | null {
 export interface CowardStalk {
   /** 걸어오는 속도. 겁쟁이 자신의 이동속도에 곱합니다 */
   speedMul: number;
-  /** 이 거리 안에 들어오면 돌진합니다. **어둠 속에 있을 때만입니다** */
+  /** 이 거리 안에 들어오면 돌진합니다. **보이든 안 보이든 거리만 봅니다** (2026-09-20) */
   dashRange: number;
 }
 
 /**
- * 겁쟁이적이 **각성 전에는 떠돌기만 하고, 각성하면 어둠에서 다가와 돌진하는가**
+ * 겁쟁이적이 **각성 전에는 떠돌기만 하고, 각성하면 다가와 돌진하는가**
  * (2026-09-19 사용자 명세).
  *
- * 평소 겁쟁이는 인식 거리(165) 안에 들어오면 달려드는데, 암전은 시야도 165 라
- * 보이는 순간이 곧 돌진이었습니다. 미리 가서 잡을 틈이 0px 였습니다
+ * 평소 겁쟁이는 인식 거리(165) 안에 들어오면 달려드는데, 암전은 각성하기 전에는
+ * 아예 달려들지 않습니다. **떠도는 동안이 잡으러 다닐 시간**입니다.
+ *
+ * **각성한 뒤에는 거리만 봅니다** (2026-09-20 사용자 지시). 한때 "어둠 속에 있는
+ * 채로"를 같이 걸었는데(1차 설계 원문), 돌진 거리가 시야 + 20 이라 실제 돌진 구간이
+ * 20px 짜리 띠뿐이었고 **사거리 안에서 각성한 개체는 걸어오기만 했습니다**
  */
 export function challengeCowardStalk(w: World): CowardStalk | null {
   if (w.challenge !== 'blackout') return null;
