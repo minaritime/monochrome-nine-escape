@@ -226,8 +226,8 @@ export const coward: EnemyBehavior = (e, w, dt) => {
       if (e.state.timer2 <= 0) {
         e.state.phase = 2;
         e.state.timer2 = P.dashTime;
-        // 돌진적과 같은 칸에 셉니다. 도전 2번이 "한 번 달렸으면 사라진다"를
-        // 판단할 때 이 값을 봅니다 (`game/challenge.ts` 의 blackout)
+        // 돌진적과 같은 칸에 셉니다. 도전 2번이 "한 번 달리고 나왔다"를 판단할 때
+        // 이 값을 보고, 그 자리에서 인내와 함께 0 으로 되돌립니다
         e.dashes++;
         w.effects.spray(e.x, e.y, e.state.angle + Math.PI, 0.5, 12, e.def.accent, 240);
       }
@@ -272,7 +272,8 @@ function cowardWindup(e: Enemy, w: World): void {
  * 각성 전에는 느리게 떠돌기만 하고 달려들지 않습니다. 잡으러 다닐 사냥감입니다.
  * 각성하면 나를 향해 걸어오다가, **어둠 속에 있는 채로** 충분히 가까워지면 돌진합니다.
  * 시야 안에 들어온 각성 겁쟁이는 돌진하지 않고 계속 걸어오므로 그때는 잡을 수 있습니다.
- * 돌진을 마치면 판이 지웁니다 (`game/challenge.ts` 의 blackout)
+ * **돌진을 마치면 인내가 처음부터 다시 찹니다** (`game/challenge.ts` 의 blackout).
+ * 스스로 사라지지 않으므로 줄이는 길은 잡는 것뿐입니다
  */
 function cowardStalk(e: Enemy, w: World, dt: number, d: number, stalk: CowardStalk): void {
   if (!cowardEnraged(e, w)) {
