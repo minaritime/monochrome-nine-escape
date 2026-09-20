@@ -255,8 +255,9 @@ function edgePosition(w: World): { x: number; y: number } {
  *
  * 겁쟁이적과 자폭적만 나옵니다.
  *
- * **겁쟁이는 죽어도 다시 안 채웁니다** (2026-09-20 사용자 지시). 5초마다 3마리씩
- * 시간표대로만 나오고 상한이 없습니다. 자폭적만 상한을 채웁니다.
+ * **겁쟁이는 죽어도 다시 안 채웁니다** (2026-09-20 사용자 지시). 5초마다 한 묶음씩
+ * 시간표대로만 나오고 상한이 없습니다 (3마리로 시작해 1분에 7마리). 자폭적만
+ * 상한을 채웁니다.
  *
  * - 겁쟁이적: 가장자리에서 나와 떠돌다가 인내가 끝나면 각성해 나를 향해 걸어오고,
  *   **어둠 속에서** 돌진합니다 (`enemies/behaviors/special.ts` 의 `cowardStalk`).
@@ -303,7 +304,7 @@ function blackout(w: World): void {
   //
   // 판이 시작되는 순간에 첫 묶음이 나옵니다 (`+ 1`). 첫 5초가 텅 빈 채로 지나가면
   // 사냥을 시작할 것이 없어서, 시작 스킬을 고르자마자 할 일이 있어야 합니다
-  const cowardWant = R.cowardSpawnCount * (Math.floor(w.time / R.cowardSpawnStep) + 1);
+  const cowardWant = blackoutCowardQuota(w.time);
   for (; w.challengeCowardsSpawned < cowardWant; w.challengeCowardsSpawned++) {
     const pos = blackoutSpawnPosition(w, 'coward', edgePosition);
     w.spawnEnemy('coward', pos.x, pos.y, { hpMul: R.cowardHpMul });
@@ -318,6 +319,30 @@ function blackout(w: World): void {
     // 잡아도 스스로 터져도 경험치가 없습니다. 보상은 겁쟁이에만 붙습니다
     bomber.xp *= R.bomberXpMul;
   }
+}
+
+/**
+ * **지금까지 나왔어야 하는 겁쟁이의 누적 수** (2026-09-20 사용자 지시).
+ *
+ * 묶음 크기가 판 초반에 커지므로 "몇 번째 묶음인가 x 묶음 크기"로는 못 구합니다.
+ * 지난 묶음을 처음부터 더합니다. 판이 시작되는 순간이 0번 묶음이라 첫 묶음은
+ * 곧바로 나옵니다. 120초 판이라 많아야 25번을 도는 셈이고, 프레임마다 다시 세도
+ * 값이 늘 같아서 **되감기나 시드 고정에 아무 영향이 없습니다**
+ */
+function blackoutCowardQuota(time: number): number {
+  const R = CHALLENGE_RULES.blackout;
+  const ticks = Math.floor(time / R.cowardSpawnStep);
+  let total = 0;
+  for (let k = 0; k <= ticks; k++) total += blackoutCowardBatch(k);
+  return total;
+}
+
+/** k 번째 묶음의 마릿수. 3마리에서 시작해 `cowardSpawnRampTime` 에 7마리가 됩니다 */
+function blackoutCowardBatch(k: number): number {
+  const R = CHALLENGE_RULES.blackout;
+  const rampTicks = R.cowardSpawnRampTime / R.cowardSpawnStep;
+  const t = Math.min(1, k / rampTicks);
+  return Math.round(lerp(R.cowardSpawnCount, R.cowardSpawnCountMax, t));
 }
 
 /** 스폰 자리 후보를 뽑아 보는 횟수 */

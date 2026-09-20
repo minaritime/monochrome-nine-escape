@@ -1,5 +1,5 @@
 import { ARENA_X, CANVAS, PANEL, STAT_DEFS, VIEW } from '../data/balance';
-import { challengeCowardsLeft } from '../game/challenge';
+import { challengeCowardsLeft, challengeStage } from '../game/challenge';
 import { getEnemyDef } from '../enemies/registry';
 import { formatStat } from '../game/stats';
 import { UTILITY_KEY_LABEL } from '../game/player';
@@ -104,9 +104,18 @@ const LEFT_DIFF_Y = 72;
 const LEFT_COUNT_Y = 90;
 
 function drawTopInfo(r: Renderer, w: World, mobile: boolean): void {
-  const minutes = Math.floor(w.time / 60);
-  const seconds = Math.floor(w.time % 60);
-  const timeText = `${minutes}:${String(seconds).padStart(2, '0')}`;
+  // **도전 판의 시계는 거꾸로 갑니다** (2026-09-20 사용자 지시).
+  //
+  // 도전은 정해진 시간을 버티면 그 자리에서 끝나는 판이라, 지나온 시간보다
+  // **남은 시간**이 알고 싶은 값입니다. 올라가는 숫자는 클리어 시간을 외우고 있어야
+  // 뜻이 생기는데, 스테이지마다 다릅니다.
+  //
+  // **올림으로 셉니다.** 시작하자마자 `2:00` 이 뜨고 `0:00` 이 뜨는 순간이 곧 끝입니다.
+  // 내림으로 세면 시작이 `1:59` 이고 `0:00` 이 1초 동안 떠 있습니다
+  const left = w.challenge ? Math.max(0, challengeStage(w.challenge).clearTime - w.time) : null;
+  const clock = left ?? w.time;
+  const round = left !== null ? Math.ceil(clock) : Math.floor(clock);
+  const timeText = `${Math.floor(round / 60)}:${String(round % 60).padStart(2, '0')}`;
 
   // **타이머가 멈춘 동안은 시계 자체가 그 사실을 말해야 합니다** (2026-09-10).
   // 숫자만 안 움직이면 멈춘 것인지 고장인지 알 수 없습니다. 색을 바꾸고 그 아래에
