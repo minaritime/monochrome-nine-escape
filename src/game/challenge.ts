@@ -51,7 +51,7 @@ export function startChallenge(w: World): void {
   // 프레임에 기존 레벨업 선택창이 그대로 뜹니다. 그 화면의 키 조작 · 리롤 ·
   // 건너뛰기 처리를 그대로 물려받는 것이 새로 만드는 것보다 훨씬 작습니다.
   // 후보를 치료 · 대시 둘로 바꾸는 일은 `generateSkillChoices` 가 합니다
-  if (challengeWantsStartUtility(w)) w.pendingSkillChoices++;
+  if (challengeWantsStartUtility(w) || challengeWantsStartAttack(w)) w.pendingSkillChoices++;
 
   // 2번 암전: 사거리 -50% (원문). 시야가 사거리를 따라가므로 이 한 줄이 곧
   // "얼마나 보이는가"까지 정합니다
@@ -71,6 +71,45 @@ export function challengeWantsStartUtility(w: World): boolean {
   // 2번 암전은 시작 유틸을 안 줍니다 (`CHALLENGE_RULES.blackout.startUtilityChoice`).
   // 스테이지마다 따로 정하는 값이라 여기서 한꺼번에 켜지 않습니다
   return false;
+}
+
+/**
+ * 지금 **시작 공격 스킬 선택창**을 띄워야 하는가 (2026-09-20 사용자 지시).
+ *
+ * 2번 암전의 규칙입니다. 유틸을 고르는 1번과 자리는 같고 후보만 다릅니다. 참이면
+ * `generateSkillChoices` 가 **공격 스킬 중에서만** 평소 장수만큼 뽑습니다.
+ * 한 번 고르면 꺼지고(`challengeStartPicked`) 그 뒤로는 평소 추첨으로 돌아갑니다
+ */
+export function challengeWantsStartAttack(w: World): boolean {
+  if (w.challengeStartPicked) return false;
+  return w.challenge === 'blackout' && CHALLENGE_RULES.blackout.startAttackChoice;
+}
+
+/**
+ * **지금 살아 있는 겁쟁이 수.** 규칙이 없는 판은 null 이라 HUD 가 줄을 안 그립니다
+ * (2026-09-20 사용자 지시).
+ *
+ * 암전의 겁쟁이는 죽은 만큼 곧바로 다시 채워지므로 이 수는 "앞으로 몇 마리 남았다"가
+ * 아니라 **"지금 어둠 속에 몇이 있다"** 입니다. 화면에 안 보이는 것을 세는 유일한 값이라
+ * 잡으러 나갈지 버틸지를 여기서 판단합니다
+ */
+export function challengeCowardsLeft(w: World): number | null {
+  if (w.challenge !== 'blackout') return null;
+  let alive = 0;
+  for (const e of w.enemies) {
+    if (!e.dead && e.defId === 'coward') alive++;
+  }
+  return alive;
+}
+
+/**
+ * 인내가 차가는 겁쟁이가 물들어가는 색. 규칙이 없는 판은 null 입니다 (2026-09-20).
+ *
+ * **그리기 쪽만 씁니다.** 행동은 아무것도 안 바뀌고, 각성까지 얼마나 남았는지를
+ * 몸 색으로 알릴 뿐입니다
+ */
+export function challengeCowardRageColor(w: World): string | null {
+  return w.challenge === 'blackout' ? CHALLENGE_RULES.blackout.cowardRageColor : null;
 }
 
 /**

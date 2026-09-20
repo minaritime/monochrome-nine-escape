@@ -1,7 +1,14 @@
 import { ARENA_X, CANVAS, CHALLENGE_RULES, DEATH_BURST, ELITE, ENEMY_BULLET, ENEMY_PARAMS, HARD_LASER, PLAYER } from '../data/balance';
-import { challengeVisionRadius } from '../game/challenge';
+import { challengeCowardRageColor, challengeVisionRadius } from '../game/challenge';
 import { TAU, dist } from '../core/math';
-import { bomberBlastRadius, cowardEnraged, rangedAimTime, sealerAimTime, sealerAttackRange } from '../enemies/behaviors/special';
+import {
+  bomberBlastRadius,
+  cowardEnraged,
+  cowardPatienceTime,
+  rangedAimTime,
+  sealerAimTime,
+  sealerAttackRange,
+} from '../enemies/behaviors/special';
 import { priestRadius } from '../enemies/behaviors/advanced';
 import { eliteMul } from '../enemies/elite';
 import { mummyReviveDelay } from '../enemies/update';
@@ -409,10 +416,47 @@ function drawEnemies(r: Renderer, w: World): void {
   }
 }
 
+/**
+ * **인내가 얼마나 찼는가** (0 ~ 1). 규칙이 없는 판이나 겁쟁이가 아닌 적은 0 입니다.
+ *
+ * 세는 값은 행동 쪽과 같은 것을 봅니다 (`e.state.timer3` 와 `cowardPatienceTime`).
+ * 여기서 따로 계산하면 인내 시간을 바꿀 때 몸 색과 실제 각성 시점이 어긋납니다
+ * (CLAUDE.md 9번의 "예고와 실제 발동은 같은 값을 본다")
+ */
+function cowardRage(e: Enemy, w: World): number {
+  if (e.defId !== 'coward' || challengeCowardRageColor(w) === null) return 0;
+  return clamp01(e.state.timer3 / cowardPatienceTime(w));
+}
+
+/**
+ * 겁쟁이의 몸과 테두리 색. 암전에서는 인내가 차는 만큼 고유색에서 각성색으로 물듭니다
+ * (2026-09-20 사용자 지시). 다른 적과 다른 판에서는 받은 색을 그대로 돌려줍니다
+ */
+function enemyColor(base: string, e: Enemy, w: World): string {
+  const rage = challengeCowardRageColor(w);
+  if (!rage) return base;
+  const t = cowardRage(e, w);
+  return t <= 0 ? base : mixHex(base, rage, t);
+}
+
+/** 16진 색 둘을 t 비율로 섞습니다. 그리기 전용이라 여기 둡니다 */
+function mixHex(a: string, b: string, t: number): string {
+  const pa = parseInt(a.slice(1), 16);
+  const pb = parseInt(b.slice(1), 16);
+  const mix = (shift: number): number => {
+    const va = (pa >> shift) & 255;
+    const vb = (pb >> shift) & 255;
+    return Math.round(va + (vb - va) * t);
+  };
+  const hex = ((mix(16) << 16) | (mix(8) << 8) | mix(0)).toString(16).padStart(6, '0');
+  return `#${hex}`;
+}
+
 function drawEnemy(r: Renderer, e: Enemy, w: World): void {
   const alpha = e.alpha;
   const flash = e.hitFlash > 0;
-  const color = flash ? '#ffffff' : e.def.color;
+  const color = flash ? '#ffffff' : enemyColor(e.def.color, e, w);
+  const accent = enemyColor(e.def.accent, e, w);
 
   // 절반 훑기 중인 포식자는 원이 아니라 **벽**입니다 (하드 1).
   // 판정과 같은 값을 써야 하므로 크기는 `e.sweep` 에서만 읽습니다
@@ -453,10 +497,10 @@ function drawEnemy(r: Renderer, e: Enemy, w: World): void {
   if (e.def.sides > 0) {
     const rot = e.def.faceMove ? e.facing : w.time * 0.4;
     r.poly(e.x, e.y, e.radius, e.def.sides, rot, color, alpha);
-    r.polyOutline(e.x, e.y, e.radius, e.def.sides, rot, showElite ? '#ff8a8a' : e.def.accent, 1.5, alpha * 0.9);
+    r.polyOutline(e.x, e.y, e.radius, e.def.sides, rot, showElite ? '#ff8a8a' : accent, 1.5, alpha * 0.9);
   } else {
     r.circle(e.x, e.y, e.radius, color, alpha);
-    r.ring(e.x, e.y, e.radius, showElite ? '#ff8a8a' : e.def.accent, 1.5, alpha * 0.85);
+    r.ring(e.x, e.y, e.radius, showElite ? '#ff8a8a' : accent, 1.5, alpha * 0.85);
   }
 
   drawEnemyExtras(r, e, w, alpha);

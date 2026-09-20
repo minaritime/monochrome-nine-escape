@@ -9,7 +9,11 @@ import {
 import type { SkillBranchId } from '../data/balance';
 import { branchDef, hasBranches } from '../skills/branches';
 import { ATTACK_SKILL_IDS, UTILITY_SKILL_IDS, getSkillDef, makeSlot } from '../skills/registry';
-import { challengeUtilityLocked, challengeWantsStartUtility } from '../game/challenge';
+import {
+  challengeUtilityLocked,
+  challengeWantsStartAttack,
+  challengeWantsStartUtility,
+} from '../game/challenge';
 import type { SkillId } from '../skills/types';
 import type { World } from '../game/world';
 
@@ -45,6 +49,21 @@ export function generateSkillChoices(w: World, count = Math.max(1, w.diff.skillC
   // 고른 뒤에는 이 갈래가 꺼지고(`challengeStartPicked`) 평소 추첨으로 돌아갑니다
   if (challengeWantsStartUtility(w)) {
     return UTILITY_SKILL_IDS.map((id) => ({ id, upgrade: false, level: 1, replacesUtility: false }));
+  }
+
+  // 2번 암전의 **시작 공격 스킬 선택** (2026-09-20 사용자 지시). 장수는 평소와 같고
+  // 후보만 공격 스킬로 좁혀 무작위로 뽑습니다. 아직 아무것도 안 가진 첫 화면이라
+  // 레벨업 후보도 교체도 섞일 일이 없어서, 평소 추첨을 타지 않고 여기서 끝냅니다.
+  //
+  // **유틸은 이 화면에서만 빠집니다.** 다음 레벨업부터는 평소대로 다시 나옵니다
+  if (challengeWantsStartAttack(w)) {
+    const pool = [...ATTACK_SKILL_IDS];
+    const out: SkillChoice[] = [];
+    while (out.length < count && pool.length > 0) {
+      const [id] = pool.splice(w.rng.int(0, pool.length), 1);
+      out.push({ id, upgrade: false, level: 1, replacesUtility: false });
+    }
+    return out;
   }
 
   const ownedAttacks = new Map<SkillId, number>();
@@ -123,6 +142,11 @@ export function applySkillChoice(w: World, choice: SkillChoice): void {
   const p = w.player;
   const def = getSkillDef(choice.id);
 
+  // **도전 스테이지의 시작 선택창을 여기서 닫습니다.** 고르기 전에 물어야 합니다.
+  // 유틸을 내는 1번과 공격 스킬을 내는 2번이 같이 지나가므로, 무엇을 골랐는지가
+  // 아니라 "시작 선택 중이었는가"로 판단합니다. 이 뒤로는 평소 추첨입니다
+  if (challengeWantsStartUtility(w) || challengeWantsStartAttack(w)) w.challengeStartPicked = true;
+
   if (choice.upgrade) {
     const slot = def.kind === 'utility' ? p.utility : p.attacks.find((s) => s?.id === choice.id) ?? null;
     if (slot) {
@@ -151,8 +175,6 @@ export function applySkillChoice(w: World, choice: SkillChoice): void {
     p.utility = makeSlot(choice.id, level);
     w.noteSkill(p.utility);
     w.skillsTaken++;
-    // 도전 스테이지의 시작 선택을 여기서 닫습니다. 이 뒤로는 유틸이 후보에 안 들어갑니다
-    w.challengeStartPicked = true;
     announce(w, level > 1 ? `${def.name} Lv.${level}` : `${def.name} 획득`);
     return;
   }

@@ -1,4 +1,6 @@
 import { ARENA_X, CANVAS, PANEL, STAT_DEFS, VIEW } from '../data/balance';
+import { challengeCowardsLeft } from '../game/challenge';
+import { getEnemyDef } from '../enemies/registry';
 import { formatStat } from '../game/stats';
 import { UTILITY_KEY_LABEL } from '../game/player';
 import { branchDef } from '../skills/branches';
@@ -11,6 +13,12 @@ import type { Renderer } from '../render/renderer';
 const PANEL_BG = '#0a0d13';
 const PANEL_LINE = '#1e2432';
 const LABEL = '#6f7c93';
+
+/**
+ * 남은 겁쟁이 수를 적는 색. **겁쟁이 고유색을 그대로 가져옵니다** (CLAUDE.md 5번).
+ * 여기에 색을 직접 쓰면 적 색을 바꿀 때 이 줄만 옛 색으로 남습니다
+ */
+const COWARD_COLOR = getEnemyDef('coward').color;
 
 /**
  * @param mobile 좌우 패널을 안 그리는 배치인가 (폰 가로).
@@ -104,6 +112,8 @@ function drawTopInfo(r: Renderer, w: World, mobile: boolean): void {
   // 숫자만 안 움직이면 멈춘 것인지 고장인지 알 수 없습니다. 색을 바꾸고 그 아래에
   // 무엇을 해야 풀리는지 적습니다. **판 중에 이 규칙을 알릴 자리가 여기뿐입니다**
   const waiting = w.awaitingClearBoss();
+  // 2번 암전의 남은 겁쟁이 수. 규칙이 없는 판은 null 입니다
+  const cowards = challengeCowardsLeft(w);
   r.text(timeText, CANVAS.w / 2, 40, {
     size: 30,
     align: 'center',
@@ -116,6 +126,19 @@ function drawTopInfo(r: Renderer, w: World, mobile: boolean): void {
       size: 14,
       align: 'center',
       color: '#ffd166',
+      weight: 800,
+    });
+  } else if (cowards !== null) {
+    // **시계 바로 아래에 남은 겁쟁이 수를 둡니다** (2026-09-20 사용자 지시).
+    //
+    // 어둠 속은 안 보이는데 이 판의 위험은 전부 "못 잡고 방치한 겁쟁이"에서 옵니다.
+    // 화면에 아무것도 안 보이는 것이 조용한 것인지 몰려오는 중인지 구분할 길이
+    // 이 숫자뿐입니다. **도전 판은 `적 강화` 줄이 안 뜨므로**(`timeMultiplier` 가 1)
+    // 이 자리가 비어 있고, 둘이 겹칠 일은 없습니다
+    r.text(`겁쟁이 ${cowards}`, CANVAS.w / 2, 60, {
+      size: 14,
+      align: 'center',
+      color: COWARD_COLOR,
       weight: 800,
     });
   } else {
