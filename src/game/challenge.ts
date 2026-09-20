@@ -6,8 +6,11 @@ import {
   type ChallengeStageDef,
   type ChallengeStageId,
   type EnemyId,
+  type LaserAxis,
+  type LaserBar,
   type StatKey,
 } from '../data/balance';
+import type { SkillId } from '../skills/types';
 import { dist, lerp } from '../core/math';
 import type { Enemy } from './types';
 import type { World } from './world';
@@ -68,6 +71,8 @@ export function startChallenge(w: World): void {
 export function challengeWantsStartUtility(w: World): boolean {
   if (w.challengeStartPicked) return false;
   if (w.challenge === 'shieldMarch') return CHALLENGE_RULES.shieldMarch.startUtilityChoice;
+  // 4번 레이저 판. 후보는 `challengeStartUtilityIds` 가 셋으로 좁힙니다
+  if (w.challenge === 'laserOnly') return CHALLENGE_RULES.laserOnly.startUtilityChoice;
   // 2번 암전은 시작 유틸을 안 줍니다 (`CHALLENGE_RULES.blackout.startUtilityChoice`).
   // 스테이지마다 따로 정하는 값이라 여기서 한꺼번에 켜지 않습니다
   return false;
@@ -113,6 +118,17 @@ export function challengeCowardRageColor(w: World): string | null {
 }
 
 /**
+ * **시작 선택창에 낼 유틸을 스테이지가 좁히는가** (2026-09-20 사용자 확정).
+ *
+ * null 이면 유틸 전부를 냅니다 (1번 방패 행진). 4번 레이저 판은 셋으로 좁힙니다.
+ * 밀 적이 없는데 자해까지 하는 넉백 폭발이 **고르면 순수 손해인 함정 카드**라
+ * 후보에서 뺀 것이 그 이유입니다
+ */
+export function challengeStartUtilityIds(w: World): readonly SkillId[] | null {
+  return w.challenge === 'laserOnly' ? CHALLENGE_RULES.laserOnly.startUtilityIds : null;
+}
+
+/**
  * 레벨업 선택지에서 유틸을 빼는가 (2026-09-16 사용자 지시).
  *
  * 시작에 한 번 고르고 끝까지 그것으로 버티는 구조라, 시작 선택이 끝난 뒤에는
@@ -123,7 +139,7 @@ export function challengeUtilityLocked(w: World): boolean {
 }
 
 /** 매 프레임. `World.update` 가 부릅니다 */
-export function updateChallenge(w: World): void {
+export function updateChallenge(w: World, dt: number): void {
   const id = w.challenge;
   if (!id) return;
 
@@ -133,6 +149,9 @@ export function updateChallenge(w: World): void {
       break;
     case 'blackout':
       blackout(w);
+      break;
+    case 'laserOnly':
+      laserOnly(w, dt);
       break;
     default:
       // 아직 규칙을 안 만든 스테이지. 목록 화면이 입장을 막고 있어서 여기 올 일이 없습니다
@@ -343,6 +362,155 @@ function blackoutCowardBatch(k: number): number {
   const rampTicks = R.cowardSpawnRampTime / R.cowardSpawnStep;
   const t = Math.min(1, k / rampTicks);
   return Math.round(lerp(R.cowardSpawnCount, R.cowardSpawnCountMax, t));
+}
+
+
+// ---------------------------------------------------------------------------
+// 4번 어디서 많이 본 게임인데 (2026-09-20)
+// ---------------------------------------------------------------------------
+
+/**
+ * **적이 없고 레이저만 박자에 맞춰 오는 판.**
+ *
+ * 안무는 `LASER_SECTIONS` 에 있고 여기는 그것을 시계에 맞춰 트는 자리입니다.
+ * 자리(어느 줄이 어디에 오는가)는 이 함수가 매판 새로 뽑습니다. **구조 고정 +
+ * 자리 무작위**가 사용자 결정입니다 (2026-09-20).
+ *
+ * **박자 시계는 시간 감속을 탑니다** (`challengeLaserTimeScale`). 감속 중에는
+ * 안무 자체가 느려져서, 쓴 만큼 이 판에서 만나는 박 수가 줄어듭니다. 반대로
+ * 버티는 시계(`w.time`)는 그대로 흐르므로 클리어는 60초에 옵니다
+ */
+function laserOnly(w: World, dt: number): void {
+  const R = CHALLENGE_RULES.laserOnly;
+  const st = w.challengeLaser;
+
+  // 테두리 펄스는 **실제 시간**으로 잦아듭니다. 감속 중에도 화면 연출은 그대로입니다
+  if (st.pulse > 0) st.pulse = Math.max(0, st.pulse - dt);
+
+  const total = laserBarCount();
+  if (st.beat >= total) return; // 안무가 끝났습니다. 남은 0.5초는 비어 있습니다
+
+  st.timer -= dt * challengeLaserTimeScale(w);
+  // while 인 이유: 프레임이 길면 한 프레임에 두 박이 밀려 있을 수 있습니다
+  while (st.timer <= 0 && st.beat < total) {
+    const at = laserBarAt(st.beat);
+    fireLaserBar(w, at.bar, Math.max(R.telegraphMin, at.beat));
+    st.pulse = R.pulseTime;
+    st.timer += at.beat;
+    st.beat++;
+  }
+}
+
+/** 안무의 총 박 수 */
+function laserBarCount(): number {
+  let n = 0;
+  for (const s of CHALLENGE_RULES.laserOnly.sections) n += s.bars.length;
+  return n;
+}
+
+/** i 번째 박이 무엇이고 그 구간의 박 길이가 얼마인가 */
+function laserBarAt(i: number): { bar: LaserBar; beat: number } {
+  let left = i;
+  for (const s of CHALLENGE_RULES.laserOnly.sections) {
+    if (left < s.bars.length) return { bar: s.bars[left], beat: s.beat };
+    left -= s.bars.length;
+  }
+  // 위 `laserBarCount` 로 걸러서 여기 올 일이 없습니다
+  const last = CHALLENGE_RULES.laserOnly.sections[CHALLENGE_RULES.laserOnly.sections.length - 1];
+  return { bar: { kind: 'rest' }, beat: last.beat };
+}
+
+/** 그 축의 길이. 'v'(세로선)는 x 를 따라가므로 경기장 가로폭입니다 */
+function laserAxisSize(axis: LaserAxis): number {
+  return axis === 'h' ? CANVAS.h : CANVAS.w;
+}
+
+/**
+ * 한 박을 쏩니다.
+ *
+ * **예고가 차오르는 방향과 화면 흔들림은 묶음이 하나로 씁니다.** 줄마다 따로 뽑으면
+ * 빗살이 산만해지고, 흔들림은 줄 수만큼 곱해져 화면을 읽을 수 없게 됩니다
+ */
+function fireLaserBar(w: World, bar: LaserBar, warn: number): void {
+  const R = CHALLENGE_RULES.laserOnly;
+  const st = w.challengeLaser;
+  const flip = w.rng.chance(0.5);
+  let lead = true;
+
+  const shoot = (axis: LaserAxis, pos: number): void => {
+    w.spawnLaser({ axis, pos, warn, flip, shake: lead ? R.shake : 0 });
+    lead = false;
+  };
+
+  /** 한 축을 고르게 나눠 n 줄. 위상만 무작위라 **틈은 반드시 남습니다** */
+  const comb = (axis: LaserAxis, count: number): void => {
+    const gap = laserAxisSize(axis) / count;
+    const phase = w.rng.range(0, gap);
+    for (let i = 0; i < count; i++) shoot(axis, phase + i * gap);
+  };
+
+  switch (bar.kind) {
+    case 'rest':
+      return;
+    case 'comb':
+      comb(bar.axis, bar.count);
+      return;
+    case 'grid':
+      comb('v', bar.v);
+      comb('h', bar.h);
+      return;
+    case 'march': {
+      const size = laserAxisSize(bar.axis);
+      if (bar.start) {
+        // 새 행진. 어느 끝에서 출발할지와 방향을 여기서 한 번 뽑습니다
+        st.dir = w.rng.chance(0.5) ? 1 : -1;
+        st.pos = st.dir > 0 ? R.edgeMargin : size - R.edgeMargin;
+      } else {
+        st.pos += st.dir * size * R.marchStepRatio;
+      }
+      shoot(bar.axis, st.pos);
+      return;
+    }
+    case 'close': {
+      const size = laserAxisSize(bar.axis);
+      if (bar.start) {
+        st.near = R.edgeMargin;
+        st.far = size - R.edgeMargin;
+      } else {
+        const step = size * R.closeStepRatio;
+        st.near += step;
+        st.far -= step;
+      }
+      shoot(bar.axis, st.near);
+      shoot(bar.axis, st.far);
+      // 직각 축 빗살을 겹쳐서 "두 줄 사이"가 안전지대가 되지 않게 합니다
+      if (bar.cross) comb(bar.axis === 'v' ? 'h' : 'v', bar.cross);
+      return;
+    }
+  }
+}
+
+/**
+ * **레이저와 박자가 지금 얼마나 느려져 있는가** (2026-09-20 사용자 지시).
+ *
+ * 1 이면 평소 속도입니다. 4번 레이저 판에서만 시간 감속(`enemyTimeScale`)을
+ * 그대로 따라갑니다. **하드 5 의 경기장 레이저는 지금까지대로 감속을 안 탑니다.**
+ * 같이 고치면 이미 검증한 하드 판의 난도가 딸려 움직입니다
+ */
+export function challengeLaserTimeScale(w: World): number {
+  if (w.challenge !== 'laserOnly') return 1;
+  return CHALLENGE_RULES.laserOnly.slowAffectsLaser ? w.enemyTimeScale : 1;
+}
+
+/**
+ * **지금 박이 방금 뛰었는가** (0 ~ 1, 그리기 전용).
+ *
+ * 사운드가 없어서 박자를 소리로 줄 수 없습니다. 쉬는 박에도 테두리가 뛰게 해서
+ * 리듬이 끊기지 않게 하는 값입니다 (`render/scene.ts` 의 `drawBeatPulse`)
+ */
+export function challengeBeatPulse(w: World): number {
+  if (w.challenge !== 'laserOnly') return 0;
+  return w.challengeLaser.pulse / CHALLENGE_RULES.laserOnly.pulseTime;
 }
 
 /** 스폰 자리 후보를 뽑아 보는 횟수 */

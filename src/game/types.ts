@@ -44,6 +44,13 @@ export interface ArenaLaser {
   /** 이미 쐈는가. 피해는 한 번뿐이라 이 값으로 막습니다 */
   fired: boolean;
   dead: boolean;
+  /**
+   * 이 줄이 터질 때 낼 화면 흔들림. 없으면 `HARD_LASER.shake` 입니다.
+   *
+   * **도전 4번이 쓰는 칸입니다.** 그 판은 한 박에 아홉 줄까지 나가서 줄마다 흔들면
+   * 화면이 판 내내 떨립니다. 묶음의 첫 줄에만 값을 주고 나머지는 0 을 줍니다
+   */
+  shake?: number;
 }
 
 /**

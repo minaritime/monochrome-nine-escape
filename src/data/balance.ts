@@ -2662,6 +2662,8 @@ export const HARD_LASER = {
   /** 기본 적 공격력(`ENEMY_BASE.damage`)의 배수. 시간·난이도 배율이 위에 곱해집니다 */
   damage: 2.5,
   color: '#ff4d6d',
+  /** 한 줄이 터질 때의 화면 흔들림. 도전 4번은 묶음당 한 번만 넣습니다 */
+  shake: 7,
 } as const;
 
 export const HARD_DIFFICULTY_STEPS: readonly DifficultyStep[] = [
@@ -2779,7 +2781,7 @@ export const CHALLENGE = {
    * 남기면 규칙을 바꿀 때마다 옛 기록과 새 기록이 같은 칸에 섞이고 되돌릴 수 없습니다.
    * 난이도 기록이 클리어 시간 통일 때 실제로 그렇게 섞였습니다
    */
-  rulesVersion: 9,
+  rulesVersion: 10,
 } as const;
 
 /**
@@ -2789,7 +2791,7 @@ export const CHALLENGE = {
  * `ready` 가 참이어도 여기 없으면 "준비 중"으로 섭니다. **둘은 다른 값입니다.**
  * `ready` 는 "1차 범위인가"이고 이것은 "지금 돌아가는가"입니다
  */
-export const CHALLENGE_IMPLEMENTED: readonly ChallengeStageId[] = ['shieldMarch', 'blackout'];
+export const CHALLENGE_IMPLEMENTED: readonly ChallengeStageId[] = ['shieldMarch', 'blackout', 'laserOnly'];
 
 /**
  * 스테이지별 규칙 수치.
@@ -2798,6 +2800,146 @@ export const CHALLENGE_IMPLEMENTED: readonly ChallengeStageId[] = ['shieldMarch'
  * 정하자"고 했으므로, 플레이 전까지 이 값들은 근거가 없는 자리표입니다.
  * 클리어 코인 등급도 같은 이유로 아직 없습니다
  */
+
+/** 'v' = 세로선(x 고정), 'h' = 가로선(y 고정). `ArenaLaser.axis` 와 같은 뜻입니다 */
+export type LaserAxis = 'h' | 'v';
+
+/**
+ * **4번 "어디서 많이 본 게임인데" 의 한 박**입니다 (2026-09-20).
+ *
+ * 한 박에 무엇이 나가는지를 적습니다. **자리는 여기 안 적습니다.** 구조는 고정이고
+ * 자리만 매판 무작위라는 것이 사용자 결정이라, 이 표는 "무엇이 오는가"만 정하고
+ * "어디에 오는가"는 판이 굴릴 때 정합니다 (`game/challenge.ts` 의 `fireLaserBar`).
+ *
+ * - `rest` **쉬는 박.** 1분 내내 쏘면 리듬이 아니라 소음입니다
+ * - `comb` **빗살.** 한 축 `count` 줄을 고르게. 가장 읽기 쉬운 "빈칸 고르기"
+ * - `grid` **격자.** 세로 `v` 줄과 가로 `h` 줄을 같은 박에. 한 축만 보면 안 되게 만듭니다
+ * - `march` **행진.** 한 줄이 매 박 같은 방향으로 한 걸음씩. `start` 인 박에서 방향과
+ *   출발 자리를 새로 뽑습니다. 방향을 한 번 읽으면 여러 박이 한꺼번에 풀립니다
+ * - `close` **조이기.** 같은 축 두 줄이 양 끝에서 안쪽으로. `cross` 는 같은 박에 겹쳐
+ *   쏘는 직각 축 빗살의 줄 수입니다
+ */
+export type LaserBar =
+  | { kind: 'rest' }
+  | { kind: 'comb'; axis: LaserAxis; count: number }
+  | { kind: 'grid'; v: number; h: number }
+  | { kind: 'march'; axis: LaserAxis; start?: boolean }
+  | { kind: 'close'; axis: LaserAxis; start?: boolean; cross?: number };
+
+export interface LaserSection {
+  /** 이 구간의 박 길이(초). **예고 시간도 이 값입니다** */
+  beat: number;
+  /** 박 하나씩 차례로 */
+  bars: readonly LaserBar[];
+}
+
+/**
+ * **4번의 60초 안무** (2026-09-20 사용자 확정, 콘텐츠 부문 초안).
+ *
+ * 원문의 "시간이 지날수록 발사 간격 감소"를 **박 길이 감소**로 옮겼습니다.
+ * 박 1.5초에서 0.85초까지 다섯 구간이고, 발사가 42박 · 쉼이 11박입니다 (총 53박).
+ * 누적 59.5초라 **마지막 0.5초는 비어 있습니다.** 클리어(60초)가 서는 프레임에
+ * 레이저가 같이 터지는 경계를 아예 안 만들려는 것입니다.
+ *
+ * ⚠ **안전지대는 칸의 한가운데가 아니라 줄에서 29px(폭 절반 17 + 플레이어 반지름 12)
+ * 넘게 떨어진 모든 자리입니다.** 그래서 최악의 이동도 0.2초면 닿고, **이 판의 난도
+ * 손잡이는 예고 시간이 아니라 줄 간격과 줄 수**입니다. 줄 간격 d 일 때 여유는
+ * d - 58 이고, 이 표는 끝까지 여유 80px 이상을 남깁니다.
+ *
+ * 조일 때는 **(1) 쉬는 박 제거 → (2) 박 길이 단축 → (3) 줄 수 증가** 순서로 봅니다.
+ * 앞의 둘은 리듬을 안 바꾸고 밀도만 올립니다
+ */
+export const LASER_SECTIONS: readonly LaserSection[] = [
+  // 1. 여는 박 (0 ~ 12.0초). 빗살 2박 + 쉼 2박을 두 번. 규칙을 가르치는 구간이라
+  //    가장 느리고 가장 성깁니다 (세로 간격 320 · 가로 180)
+  {
+    beat: 1.5,
+    bars: [
+      { kind: 'comb', axis: 'v', count: 4 },
+      { kind: 'comb', axis: 'h', count: 4 },
+      { kind: 'rest' },
+      { kind: 'rest' },
+      { kind: 'comb', axis: 'v', count: 4 },
+      { kind: 'comb', axis: 'h', count: 4 },
+      { kind: 'rest' },
+      { kind: 'rest' },
+    ],
+  },
+  // 2. 행진 (12.0 ~ 26.4초). 한 줄이 걸어옵니다. 방향을 읽으면 여러 박이 한꺼번에
+  //    풀리는 구간이라, 박자에 몸을 맞추는 법을 여기서 익힙니다
+  {
+    beat: 1.2,
+    bars: [
+      { kind: 'march', axis: 'v', start: true },
+      { kind: 'march', axis: 'v' },
+      { kind: 'march', axis: 'v' },
+      { kind: 'march', axis: 'v' },
+      { kind: 'march', axis: 'v' },
+      { kind: 'march', axis: 'v' },
+      { kind: 'rest' },
+      { kind: 'march', axis: 'h', start: true },
+      { kind: 'march', axis: 'h' },
+      { kind: 'march', axis: 'h' },
+      { kind: 'march', axis: 'h' },
+      { kind: 'rest' },
+    ],
+  },
+  // 3. 격자 (26.4 ~ 40.7초). 앞 8박은 엇박으로 축을 번갈아, 뒤 3박은 두 축을 같은
+  //    박에. 한 축만 보고 서 있으면 반대 축에 걸립니다
+  {
+    beat: 1.1,
+    bars: [
+      { kind: 'comb', axis: 'v', count: 3 },
+      { kind: 'comb', axis: 'h', count: 3 },
+      { kind: 'comb', axis: 'v', count: 3 },
+      { kind: 'comb', axis: 'h', count: 3 },
+      { kind: 'comb', axis: 'v', count: 3 },
+      { kind: 'comb', axis: 'h', count: 3 },
+      { kind: 'comb', axis: 'v', count: 3 },
+      { kind: 'comb', axis: 'h', count: 3 },
+      { kind: 'rest' },
+      { kind: 'grid', v: 4, h: 3 },
+      { kind: 'grid', v: 4, h: 3 },
+      { kind: 'grid', v: 4, h: 3 },
+      { kind: 'rest' },
+    ],
+  },
+  // 4. 조이기 (40.7 ~ 52.7초). 양 끝에서 두 줄이 들어오고 직각 축 빗살 2줄이 겹칩니다.
+  //    "안쪽에 남으면 안 된다"를 몸으로 배우는 구간입니다
+  {
+    beat: 1.0,
+    bars: [
+      { kind: 'close', axis: 'v', start: true, cross: 2 },
+      { kind: 'close', axis: 'v', cross: 2 },
+      { kind: 'close', axis: 'v', cross: 2 },
+      { kind: 'close', axis: 'v', cross: 2 },
+      { kind: 'close', axis: 'v', cross: 2 },
+      { kind: 'rest' },
+      { kind: 'close', axis: 'h', start: true, cross: 2 },
+      { kind: 'close', axis: 'h', cross: 2 },
+      { kind: 'close', axis: 'h', cross: 2 },
+      { kind: 'close', axis: 'h', cross: 2 },
+      { kind: 'close', axis: 'h', cross: 2 },
+      { kind: 'rest' },
+    ],
+  },
+  // 5. 마무리 (52.7 ~ 59.5초). 가장 빠르고 가장 조밀합니다. 그래도 여유는 가로
+  //    격자에서 122px 이라 읽고 움직이면 닿습니다
+  {
+    beat: 0.85,
+    bars: [
+      { kind: 'comb', axis: 'v', count: 6 },
+      { kind: 'comb', axis: 'h', count: 5 },
+      { kind: 'comb', axis: 'v', count: 6 },
+      { kind: 'grid', v: 5, h: 4 },
+      { kind: 'grid', v: 5, h: 4 },
+      { kind: 'comb', axis: 'h', count: 5 },
+      { kind: 'comb', axis: 'v', count: 6 },
+      { kind: 'rest' },
+    ],
+  },
+];
+
 export const CHALLENGE_RULES = {
   /** 1번 방패 행진 */
   shieldMarch: {
@@ -3092,6 +3234,81 @@ export const CHALLENGE_RULES = {
      * `registry.ts` 한 곳에 있고, 이것은 그 위에 스테이지가 얹는 **남은 시간 표시**입니다
      */
     cowardRageColor: '#ff2f2f',
+  },
+  /**
+   * 4번 어디서 많이 본 게임인데 (2026-09-20).
+   *
+   * **적이 하나도 안 나옵니다.** 경기장을 가로지르는 레이저만 박자에 맞춰 옵니다.
+   * 안무는 `LASER_SECTIONS` 에 있고, 여기는 그 안무를 자리로 옮길 때 쓰는 수치입니다.
+   *
+   * 레이저 장치 자체는 하드 5 의 것을 그대로 씁니다 (`HARD_LASER`, `World.spawnLaser`).
+   * **피해도 그대로 20 입니다** (기본 8 x 2.5, 도전은 시간 · 난이도 배율이 1).
+   * 최대 체력이 100 이라 **4대까지 버티고 5대째에 죽습니다** (2026-09-20 사용자 확정)
+   */
+  laserOnly: {
+    /** 줄을 놓을 때 경기장 테두리에서 띄우는 거리. 벽에 몰린 사람의 자리를 남깁니다 */
+    edgeMargin: 60,
+    /**
+     * 예고 시간의 하한(초). 평소에는 **그 구간의 박 길이를 그대로** 예고로 씁니다.
+     *
+     * 예고가 박보다 길면 묶음이 겹쳐 어느 줄이 이번 박인지 안 읽히고, 짧으면 박
+     * 사이에 화면이 비어 박자가 끊깁니다. 가장 짧은 박(0.85)이 이 하한보다 길어서
+     * 지금은 안 걸립니다
+     */
+    telegraphMin: 0.75,
+    /** 행진이 한 박에 옮겨가는 거리. 그 축 길이에 대한 비율입니다 */
+    marchStepRatio: 0.14,
+    /**
+     * 조이기가 한 박에 좁히는 거리. 그 축 길이에 대한 비율입니다.
+     *
+     * 0.08 이면 5박을 조인 뒤에도 가로축 기준 틈이 139px(여유 81) 남습니다.
+     * **끝까지 닫히지 않는 것이 중요합니다.** 닫히면 피할 자리가 없는 박이 됩니다
+     */
+    closeStepRatio: 0.08,
+    /**
+     * 한 묶음이 터질 때의 화면 흔들림. **묶음당 한 번만 넣습니다.**
+     *
+     * 하드 레이저는 줄마다 7 을 넣는데(`HARD_LASER.shake`), 이 판은 한 박에 최대
+     * 9줄이 나가서 그대로 두면 63 이 됩니다. 1분 내내 떨리면 안전지대를 못 읽습니다
+     */
+    shake: 4,
+    /**
+     * **박마다 경기장 테두리가 이 시간만큼 밝아집니다** (2026-09-20).
+     *
+     * 사운드가 없어서 박자를 소리로 줄 수 없습니다. 예고가 차오르는 것 자체가
+     * 메트로놈이지만 **쉬는 박에는 화면이 비어 박자가 끊깁니다.** 그 박에도 테두리는
+     * 뛰게 해서 리듬이 이어지게 합니다
+     */
+    pulseTime: 0.12,
+    pulseColor: '#ff4d6d',
+    /** 판이 시작될 때 유틸을 하나 고릅니다 (1차 설계 원문) */
+    startUtilityChoice: true,
+    /**
+     * **시작 선택창에 낼 유틸을 셋으로 좁힙니다** (2026-09-20 사용자 확정).
+     *
+     * 넉백 폭발을 뺍니다. 밀 적이 없는 판인데 쓸 때마다 최대 체력의 20% 를 스스로
+     * 깎아서(`SKILL_DEFS.knockback.selfDamageRatio`) **고르면 순수 손해인 함정 카드**
+     * 입니다. 함정은 선택지가 아닙니다.
+     *
+     * 남은 셋은 성격이 갈립니다. **대시 = 잦은 작은 만회(쿨 3초) · 시간 감속 =
+     * 한 묶음을 통째로 헐겁게(쿨 14초) · 긴급 의약품 = 맞은 것을 되돌림(쿨 20초)**
+     */
+    startUtilityIds: ['dash', 'timeslow', 'medkit'],
+    /**
+     * **시간 감속이 레이저와 박자에도 걸립니다** (2026-09-20 사용자 확정).
+     *
+     * 평소 시간 감속은 `enemyTimeScale` 만 건드려서 적에게만 듣고 레이저에는 안
+     * 걸립니다. 적이 없는 이 판에서는 그대로 두면 **죽은 카드**가 됩니다.
+     *
+     * ⚠ **이 스테이지에서만입니다** (사용자 지시). 하드 5 의 경기장 레이저는 지금처럼
+     * 감속을 안 탑니다. 같이 고치면 이미 검증한 하드 판의 난도가 딸려 움직입니다.
+     *
+     * 걸리는 것은 **예고 · 잔상 · 박자 시계 전부**입니다. 감속 중에는 안무 자체가
+     * 느려지므로, 쓴 만큼 판에서 만나는 박 수가 줄어듭니다
+     */
+    slowAffectsLaser: true,
+    /** 60초 안무 */
+    sections: LASER_SECTIONS,
   },
 } as const;
 
