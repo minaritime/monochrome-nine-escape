@@ -32,7 +32,6 @@ import {
   challengeBurnImmune,
   challengeInvulnerable,
   challengeHitKill,
-  challengeLaserTimeScale,
   shieldUnbreakable,
   updateChallenge,
 } from './challenge';
@@ -142,21 +141,6 @@ export interface WorldOptions {
  * 게임오버 화면이 그림 없이 이름만 띄우고, "사인 수집가" 업적에도 안 들어갑니다
  */
 const LASER_KILLER: KillerInfo = { id: null, elite: false, device: '경기장 레이저' };
-/** 도전 4번 전용. 판 전체가 레이저인 판이라 "경기장"을 빼고 부릅니다 (2026-09-20) */
-const STAGE_LASER_KILLER: KillerInfo = { id: null, elite: false, device: '레이저' };
-
-/** `World.spawnLaser` 에 넘기는 값. 안 넘긴 것은 하드 5 의 무작위 동작 그대로입니다 */
-export interface LaserOptions {
-  axis?: 'h' | 'v';
-  /** 가로면 y, 세로면 x. 경기장 안으로 잘립니다 */
-  pos?: number;
-  /** 예고 시간(초) */
-  warn?: number;
-  /** 예고가 차오르는 방향. 묶음 안에서는 통일해야 산만하지 않습니다 */
-  flip?: boolean;
-  /** 이 줄이 낼 화면 흔들림 */
-  shake?: number;
-}
 
 export class World {
   time = 0;
@@ -453,17 +437,6 @@ export class World {
    */
   challengeCowardsSpawned = 0;
 
-  /**
-   * 4번 레이저 판의 진행 상태 (2026-09-20).
-   *
-   * - `beat` 지금까지 친 박 수. 안무(`LASER_SECTIONS`)의 몇 번째 칸인지입니다
-   * - `timer` 다음 박까지 남은 시간(초). **시간 감속을 탑니다**
-   * - `pulse` 테두리가 밝은 채로 남은 시간. 그림에만 씁니다
-   * - `pos` · `dir` 행진 중인 줄의 자리와 방향
-   * - `near` · `far` 조이기 중인 두 줄의 자리
-   */
-  challengeLaser = { beat: 0, timer: 0, pulse: 0, pos: 0, dir: 1, near: 0, far: 0 };
-
   // -------------------------------------------------------------------------
   // 갱신
   // -------------------------------------------------------------------------
@@ -485,7 +458,7 @@ export class World {
 
     // 도전 스테이지 규칙. **평소 스폰 표는 꺼져 있고**(`startChallenge`) 무엇을
     // 낼지 이 안에서 정합니다. 버티는 시간을 채웠는지도 여기서 봅니다
-    if (this.challenge) updateChallenge(this, dt);
+    if (this.challenge) updateChallenge(this);
 
     // 업적: "첫 보스까지 안 움직이기" 는 조작 여부를 봐야 합니다.
     // 위치로 재면 넉백이나 장판 감속에 밀린 것도 움직인 것이 됩니다
@@ -536,12 +509,8 @@ export class World {
    * 것과 같은 자리입니다.
    */
   private updateLasers(dt: number): void {
-    // **도전 4번에서만 시간 감속이 레이저에도 걸립니다** (2026-09-20 사용자 지시).
-    // 다른 판은 1 이라 하드 5 의 레이저는 지금까지와 똑같이 돕니다
-    const ldt = dt * challengeLaserTimeScale(this);
-
     if (this.diff.arenaLaser) {
-      this.laserTimer -= ldt;
+      this.laserTimer -= dt;
       if (this.laserTimer <= 0) {
         this.laserTimer = this.rng.range(HARD_LASER.intervalMin, HARD_LASER.intervalMax);
         this.spawnLaser();
@@ -551,44 +520,39 @@ export class World {
     for (const l of this.lasers) {
       if (l.dead) continue;
       if (!l.fired) {
-        l.warn -= ldt;
+        l.warn -= dt;
         if (l.warn <= 0) this.fireLaser(l);
         continue;
       }
-      l.linger -= ldt;
+      l.linger -= dt;
       if (l.linger <= 0) l.dead = true;
     }
   }
 
-  /**
-   * 한 줄 예약합니다. 예고는 `line` 텔레그래프를 씁니다.
-   *
-   * **아무것도 안 넘기면 하드 5 의 동작 그대로입니다** (무작위 축 · 무작위 자리 ·
-   * 예고 1.2초). 도전 4번은 축 · 자리 · 예고 · 예고 차오르는 방향 · 흔들림을 전부
-   * 넘겨서 **박자에 맞춘 묶음**을 만듭니다 (`game/challenge.ts` 의 `fireLaserBar`)
-   */
-  spawnLaser(opts: LaserOptions = {}): ArenaLaser {
-    const axis: 'h' | 'v' = opts.axis ?? (this.rng.chance(0.5) ? 'h' : 'v');
+  /** 무작위 축과 자리로 한 줄 예약합니다. 예고는 `line` 텔레그래프를 씁니다 */
+  spawnLaser(): ArenaLaser {
+    const axis: 'h' | 'v' = this.rng.chance(0.5) ? 'h' : 'v';
     const half = HARD_LASER.width / 2;
-    const limit = axis === 'h' ? CANVAS.h : CANVAS.w;
     // 가장자리에 딱 붙으면 벽에 몰린 사람이 피할 자리가 없습니다. 폭만큼 안쪽으로 들입니다
-    const pos = clamp(opts.pos ?? this.rng.range(half, limit - half), half, limit - half);
+    const pos =
+      axis === 'h'
+        ? this.rng.range(half, CANVAS.h - half)
+        : this.rng.range(half, CANVAS.w - half);
 
     const l: ArenaLaser = {
       axis,
       pos,
-      warn: opts.warn ?? HARD_LASER.telegraph,
+      warn: HARD_LASER.telegraph,
       linger: HARD_LASER.linger,
       fired: false,
       dead: false,
-      shake: opts.shake,
     };
     this.lasers.push(l);
 
     // 통로가 한쪽 끝에서부터 차오르고 다 차는 순간 쏩니다.
     // **어느 끝에서 차오를지는 무작위입니다.** 늘 같은 쪽이면 "왼쪽부터 찬다"를
     // 외워서 다 차기 전에 반대쪽으로 걸어가는 것이 정답이 됩니다
-    const flip = opts.flip ?? this.rng.chance(0.5);
+    const flip = this.rng.chance(0.5);
     const a = axis === 'h' ? { x: 0, y: pos, x2: CANVAS.w, y2: pos } : { x: pos, y: 0, x2: pos, y2: CANVAS.h };
     this.addTelegraph({
       kind: 'line',
@@ -597,7 +561,7 @@ export class World {
       x2: flip ? a.x : a.x2,
       y2: flip ? a.y : a.y2,
       width: HARD_LASER.width,
-      life: l.warn,
+      life: HARD_LASER.telegraph,
       color: HARD_LASER.color,
     });
     return l;
@@ -611,15 +575,11 @@ export class World {
     const reach = HARD_LASER.width / 2 + p.radius;
     const gap = l.axis === 'h' ? Math.abs(p.y - l.pos) : Math.abs(p.x - l.pos);
 
-    // **흔들림은 줄이 정합니다.** 도전 4번은 한 박에 여러 줄이 같이 터져서
-    // 묶음의 첫 줄에만 값을 주고 나머지에 0 을 줍니다 (`ArenaLaser.shake`)
-    this.effects.addShake(l.shake ?? HARD_LASER.shake);
+    this.effects.addShake(7);
     if (gap <= reach) {
       // 시간·난이도 배율을 그대로 탑니다. 후반에도 무시할 만한 피해가 되면 안 됩니다
       const dmg = ENEMY_BASE.damage * HARD_LASER.damage * this.timeScale().dmg;
-      // 도전 4번은 판 전체가 레이저라 사인에 "경기장"이 붙으면 하드의 부속품처럼
-      // 읽힙니다. 그 판에서만 이름을 바꿉니다 (2026-09-20)
-      this.damagePlayer(dmg, false, this.challenge === 'laserOnly' ? STAGE_LASER_KILLER : LASER_KILLER);
+      this.damagePlayer(dmg, false, LASER_KILLER);
     }
   }
 

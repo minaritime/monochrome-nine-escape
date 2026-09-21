@@ -1,5 +1,5 @@
 import { ARENA_X, CANVAS, CHALLENGE_RULES, DEATH_BURST, ELITE, ENEMY_BULLET, ENEMY_PARAMS, HARD_LASER, PLAYER } from '../data/balance';
-import { challengeBeatPulse, challengeCowardRageColor, challengeVisionRadius } from '../game/challenge';
+import { challengeCowardRageColor, challengeVisionRadius } from '../game/challenge';
 import { TAU, dist } from '../core/math';
 import {
   bomberBlastRadius,
@@ -46,7 +46,6 @@ export function drawWorld(r: Renderer, w: World): void {
   r.begin(ARENA_X + w.effects.shakeX, w.effects.shakeY);
 
   drawArena(r);
-  drawBeatPulse(r, w);
   drawDarkness(r, w);
   if (w.sandbox) drawSandboxRuler(r);
   drawHazards(r, w);
@@ -212,19 +211,6 @@ function drawArena(r: Renderer): void {
   for (let x = step; x < CANVAS.w; x += step) r.line(x, 0, x, CANVAS.h, GRID, 1, 1);
   for (let y = step; y < CANVAS.h; y += step) r.line(0, y, CANVAS.w, y, GRID, 1, 1);
   r.rectOutline(1, 1, CANVAS.w - 2, CANVAS.h - 2, '#2c3446', 2);
-}
-
-/**
- * **박자를 눈으로 주는 장치** (2026-09-20, 도전 4번).
- *
- * 이 게임에는 사운드가 없습니다. 예고가 차오르는 것 자체가 메트로놈이지만 쉬는
- * 박에는 화면이 비어 박자가 끊기므로, 그 박에도 경기장 테두리가 한 번 뜁니다.
- * 글자는 안 띄웁니다. 판이 벌어지는 자리를 가립니다
- */
-function drawBeatPulse(r: Renderer, w: World): void {
-  const t = challengeBeatPulse(w);
-  if (t <= 0) return;
-  r.rectOutline(2, 2, CANVAS.w - 4, CANVAS.h - 4, CHALLENGE_RULES.laserOnly.pulseColor, 3, 0.55 * t);
 }
 
 function drawHazards(r: Renderer, w: World): void {

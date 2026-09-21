@@ -10,7 +10,6 @@ import type { SkillBranchId } from '../data/balance';
 import { branchDef, hasBranches } from '../skills/branches';
 import { ATTACK_SKILL_IDS, UTILITY_SKILL_IDS, getSkillDef, makeSlot } from '../skills/registry';
 import {
-  challengeStartUtilityIds,
   challengeUtilityLocked,
   challengeWantsStartAttack,
   challengeWantsStartUtility,
@@ -49,9 +48,7 @@ export function generateSkillChoices(w: World, count = Math.max(1, w.diff.skillC
   // 선택창은 **유틸 전부**를 냅니다. 난이도가 정하는 장수도 여기서는 안 봅니다.
   // 고른 뒤에는 이 갈래가 꺼지고(`challengeStartPicked`) 평소 추첨으로 돌아갑니다
   if (challengeWantsStartUtility(w)) {
-    // 스테이지가 후보를 좁혀 둔 판(4번)은 그 목록만 냅니다
-    const ids = challengeStartUtilityIds(w) ?? UTILITY_SKILL_IDS;
-    return ids.map((id) => ({ id, upgrade: false, level: 1, replacesUtility: false }));
+    return UTILITY_SKILL_IDS.map((id) => ({ id, upgrade: false, level: 1, replacesUtility: false }));
   }
 
   // 2번 암전의 **시작 공격 스킬 선택** (2026-09-20 사용자 지시). 장수는 평소와 같고
