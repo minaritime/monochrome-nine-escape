@@ -4,7 +4,7 @@ import { clampToArena, isOutside } from '../game/collision';
 import type { Enemy, Projectile } from '../game/types';
 import type { World } from '../game/world';
 import { canTarget, enemyById, isPick, nearestEnemy, tauntId } from './targeting';
-import { challengeVisionRadius } from '../game/challenge';
+import { challengeShotPassThrough, challengeVisionRadius } from '../game/challenge';
 
 const OUT_MARGIN = 60;
 const buf: Enemy[] = [];
@@ -190,7 +190,7 @@ function updateMine(w: World, p: Projectile, dt: number): void {
   }
   const near = w.grid.query(p.x, p.y, p.radius + 40, buf);
   for (const e of near) {
-    if (e.dead) continue;
+    if (e.dead || challengeShotPassThrough(w, e)) continue;
     if (dist(p.x, p.y, e.x, e.y) <= p.radius + e.radius) {
       p.dead = true;
       detonate(w, p);
@@ -376,6 +376,7 @@ function hitEnemies(w: World, p: Projectile): void {
   for (const e of near) {
     if (e.dead) continue;
     if (!e.targetable && p.kind !== 'orbit') continue; // 은신 중인 적은 통과합니다
+    if (challengeShotPassThrough(w, e)) continue; // 도전 5번 소환의 하수인도 통과합니다
     if (p.hits && p.hits.has(e.id)) continue;
     if (dist(p.x, p.y, e.x, e.y) > p.radius + e.radius) continue;
 

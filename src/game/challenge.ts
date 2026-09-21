@@ -572,8 +572,22 @@ const COWARD_DASH_PHASE = 2;
 export function challengeInvulnerable(w: World, e: Enemy): boolean {
   if (challengeHiddenFromPlayer(w, e)) return true;
   // 5번 소환: **하수인은 전부 무적입니다** (원문). 없애는 길은 주인을 잡는 것뿐입니다
-  if (w.challenge === 'summoner' && e.ownerId !== 0) return true;
+  if (challengeShotPassThrough(w, e)) return true;
   return w.challenge === 'blackout' && e.defId === 'coward' && e.state.phase === COWARD_DASH_PHASE;
+}
+
+/**
+ * **플레이어의 탄이 이 적을 그냥 통과하는가** (2026-09-21 사용자 지시).
+ *
+ * 5번 소환의 하수인입니다. 처음에는 무적만 걸어서 날아가던 탄이 하수인에 맞고
+ * 사라졌는데, 하수인 24마리가 소환사를 감싸는 벽이 되어 "터무니없이 어려워졌습니다".
+ * 무적(`challengeInvulnerable`)과 달리 **부딪히는 것 자체를 없앱니다.** 투사체 충돌
+ * (`projectile.ts` 의 `hitEnemies`)과 지뢰 기폭이 이것을 봅니다.
+ *
+ * 암전의 돌진 중인 겁쟁이는 여기 넣지 않습니다. 그쪽은 탄이 막히는 것이 규칙입니다
+ */
+export function challengeShotPassThrough(w: World, e: Enemy): boolean {
+  return w.challenge === 'summoner' && e.ownerId !== 0;
 }
 
 function spawnShield(w: World): void {
