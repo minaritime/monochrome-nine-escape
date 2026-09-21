@@ -56,6 +56,10 @@ export function startChallenge(w: World): void {
   // 2번 암전: 사거리 -50% (원문). 시야가 사거리를 따라가므로 이 한 줄이 곧
   // "얼마나 보이는가"까지 정합니다
   if (w.challenge === 'blackout') w.player.stats.range *= CHALLENGE_RULES.blackout.rangeMul;
+
+  // 5번 소환: 경험치가 없습니다 (원문 "경험치 아님"). 레벨은 소환사를 잡을 때만
+  // `challengeOnKill` 이 직접 올립니다. 그쪽은 `raw` 경로라 이 차단을 지나갑니다
+  if (w.challenge === 'summoner') w.xpBlocked = true;
 }
 
 /**
@@ -82,7 +86,9 @@ export function challengeWantsStartUtility(w: World): boolean {
  */
 export function challengeWantsStartAttack(w: World): boolean {
   if (w.challengeStartPicked) return false;
-  return w.challenge === 'blackout' && CHALLENGE_RULES.blackout.startAttackChoice;
+  if (w.challenge === 'blackout') return CHALLENGE_RULES.blackout.startAttackChoice;
+  if (w.challenge === 'summoner') return CHALLENGE_RULES.summoner.startAttackChoice;
+  return false;
 }
 
 /**
@@ -133,6 +139,9 @@ export function updateChallenge(w: World): void {
       break;
     case 'blackout':
       blackout(w);
+      break;
+    case 'summoner':
+      summonerStage(w);
       break;
     default:
       // 아직 규칙을 안 만든 스테이지. 목록 화면이 입장을 막고 있어서 여기 올 일이 없습니다
@@ -345,6 +354,54 @@ function blackoutCowardBatch(k: number): number {
   return Math.round(lerp(R.cowardSpawnCount, R.cowardSpawnCountMax, t));
 }
 
+/**
+ * 5번 소환은 예로부터 개같은 능력이지 (2026-09-21).
+ *
+ * 정예 소환사만 가장자리에서 나옵니다. 5초마다 한 묶음이고 묶음 크기가 30초마다
+ * 1씩 늡니다. **살아 있는 소환사가 `aliveMax` 에 닿으면 그 묶음의 남는 몫은 버립니다.**
+ *
+ * 소환사의 행동은 평소 그대로입니다 (다가가면 도망가고 5초마다 하수인을 부름,
+ * `enemies/behaviors/advanced.ts`). 정예라서 하수인도 정예로 나옵니다 (`summonElite`).
+ * 이 판이 바꾸는 것은 **하수인이 무적**이라는 것 하나입니다 (`challengeInvulnerable`)
+ */
+function summonerStage(w: World): void {
+  const R = CHALLENGE_RULES.summoner;
+  const tick = Math.floor(w.time / R.spawnStep);
+  if (tick <= w.challengeSpawnTick) return;
+  w.challengeSpawnTick = tick;
+
+  let alive = 0;
+  for (const e of w.enemies) {
+    if (!e.dead && e.defId === 'summoner' && e.ownerId === 0) alive++;
+  }
+
+  const batch = R.spawnCount + Math.floor(w.time / R.spawnCountStepTime);
+  const n = Math.min(batch, R.aliveMax - alive);
+  for (let i = 0; i < n; i++) {
+    const pos = edgePosition(w);
+    const e = w.spawnEnemy('summoner', pos.x, pos.y, { elite: true, hpMul: R.summonerHpMul });
+    // 경험치는 판 전체에서 막혀 있지만(`xpBlocked`), 개체에도 0 을 적어 둡니다.
+    // 막힌 이유가 개체만 보고도 드러나야 나중에 차단을 풀 때 새지 않습니다
+    e.xp = 0;
+  }
+}
+
+/**
+ * **적이 보상을 받고 죽은 직후** (`World.killEnemy`, 2026-09-21).
+ *
+ * 5번에서 소환사를 잡으면 경험치 막대가 `killsPerLevel` 분의 1씩 찹니다. 마지막 몫은
+ * 모자란 만큼을 정확히 채워서 나눗셈의 오차로 레벨이 한 번 덜 오르는 일이 없게 합니다.
+ * 하수인은 여기 안 옵니다 (보상 없는 갈래에서 먼저 돌아갑니다)
+ */
+export function challengeOnKill(w: World, e: Enemy): void {
+  if (w.challenge !== 'summoner' || e.defId !== 'summoner') return;
+  const R = CHALLENGE_RULES.summoner;
+  const p = w.player;
+  w.challengeSummonerKills++;
+  const last = w.challengeSummonerKills % R.killsPerLevel === 0;
+  w.gainXp(last ? p.xpToNext - p.xp : p.xpToNext / R.killsPerLevel, true);
+}
+
 /** 스폰 자리 후보를 뽑아 보는 횟수 */
 const SPAWN_POSITION_TRIES = 20;
 
@@ -505,6 +562,8 @@ const COWARD_DASH_PHASE = 2;
  * `World.damageEnemy` · `stunEnemy` · `slowEnemy` 와 조준(`skills/targeting.ts` 의
  * `isPick`)이 전부 이 함수 하나를 봅니다. 무적 조건이 늘면 여기에만 더합니다.
  *
+ * 5번 소환에서는 하수인 전부입니다.
+ *
  * 2번 암전에서는 둘입니다.
  * 1. 어둠 속 적 (결정 22)
  * 2. **돌진 중인 겁쟁이** (2026-09-19 사용자 지시). 시야에 들어와도 달리는 동안은
@@ -512,6 +571,8 @@ const COWARD_DASH_PHASE = 2;
  */
 export function challengeInvulnerable(w: World, e: Enemy): boolean {
   if (challengeHiddenFromPlayer(w, e)) return true;
+  // 5번 소환: **하수인은 전부 무적입니다** (원문). 없애는 길은 주인을 잡는 것뿐입니다
+  if (w.challenge === 'summoner' && e.ownerId !== 0) return true;
   return w.challenge === 'blackout' && e.defId === 'coward' && e.state.phase === COWARD_DASH_PHASE;
 }
 

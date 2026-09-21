@@ -2733,7 +2733,6 @@ export type ChallengeStageId =
   | 'shieldMarch'
   | 'blackout'
   | 'tiny'
-  | 'laserOnly'
   | 'summoner'
   | 'shrink'
   | 'bomber'
@@ -2789,7 +2788,7 @@ export const CHALLENGE = {
  * `ready` 가 참이어도 여기 없으면 "준비 중"으로 섭니다. **둘은 다른 값입니다.**
  * `ready` 는 "1차 범위인가"이고 이것은 "지금 돌아가는가"입니다
  */
-export const CHALLENGE_IMPLEMENTED: readonly ChallengeStageId[] = ['shieldMarch', 'blackout'];
+export const CHALLENGE_IMPLEMENTED: readonly ChallengeStageId[] = ['shieldMarch', 'blackout', 'summoner'];
 
 /**
  * 스테이지별 규칙 수치.
@@ -3093,9 +3092,59 @@ export const CHALLENGE_RULES = {
      */
     cowardRageColor: '#ff2f2f',
   },
+  /**
+   * 5번 소환은 예로부터 개같은 능력이지 (2026-09-21 구현).
+   *
+   * 정예 소환사만 나오고, 그 소환사가 부른 하수인은 전부 무적입니다. 하수인을 없애는
+   * 길은 주인을 잡는 것 하나뿐입니다 (주인이 죽으면 `World.despawnMinions` 가 한꺼번에 지움).
+   * 경험치는 없고 레벨은 소환사를 잡아서만 오릅니다
+   */
+  summoner: {
+    /** 원문의 "소환적 체력 +50%". 정예 배율(x1.5) 위에 곱합니다 */
+    summonerHpMul: 1.5,
+    /** 원문의 "5초당 1마리 등장" */
+    spawnStep: 5,
+    spawnCount: 1,
+    /** 원문의 "30초마다 등장 마릿수 증가". 30초마다 한 번에 나오는 수가 1씩 늡니다 */
+    spawnCountStepTime: 30,
+    /**
+     * **살아 있는 소환사의 상한** (2026-09-21 사용자 결정, 결정 9 의 "전용 상한").
+     *
+     * 하수인은 화면 적 상한에 안 세어지므로(`countedAlive`) 이 판에서 하수인 수를
+     * 묶는 것은 이 값뿐입니다. 소환사 한 마리가 하수인을 3마리까지 두므로
+     * (`ENEMY_PARAMS.summoner.maxMinions`) 무적 하수인은 많아야 24마리입니다.
+     *
+     * 상한에 닿으면 그 묶음의 남는 몫은 버립니다. **쌓아 두지 않습니다.** 쌓아 두면
+     * 한 마리를 잡는 순간 곧바로 다시 차서 잡아도 화면이 안 변합니다. 그래서 늘어나는
+     * 등장 수는 "잡은 뒤 다시 차는 속도"로만 작동합니다
+     */
+    aliveMax: 8,
+    /**
+     * **소환사 몇 마리마다 1레벨이 오르는가** (2026-09-21 사용자 결정).
+     *
+     * 원문은 "처치 시 레벨 증가"인데 한 마리마다 올리면 스킬 선택 레벨마다 창이 떠서
+     * 판이 자주 끊깁니다 (2차 결정 10 의 권고). 경험치 막대는 잡을 때마다 이만큼
+     * 나눠 차오르게 해서 다음 레벨까지 몇 마리 남았는지가 보입니다
+     */
+    killsPerLevel: 2,
+    /**
+     * **판이 시작될 때 공격 스킬을 하나 고릅니다** (2026-09-21 사용자 결정).
+     *
+     * 소환사는 체력이 많고(기본 x7.5 · 정예 x1.5 · 이 판 x1.5) 다가가면 도망갑니다.
+     * 평타만으로 시작하면 첫 레벨까지 너무 오래 걸립니다. 2번 암전과 같은 방식이고
+     * 그 뒤로는 평소 레벨업과 같습니다
+     */
+    startAttackChoice: true,
+  },
 } as const;
 
-/** 스테이지 표 (1차 설계 원문은 `docs/기획/콘텐츠.md`) */
+/**
+ * 스테이지 표 (1차 설계 원문은 `docs/기획/콘텐츠.md`).
+ *
+ * **목록 번호는 이 배열의 순서입니다.** 원문 4번 "어디서 많이 본 게임인데"는 1번과 컨셉이
+ * 겹쳐 폐기했고(2026-09-21) 자리를 비우지 않고 뒤를 당겼습니다. 그래서 원문 번호와
+ * 화면 번호가 5번부터 하나씩 어긋납니다
+ */
 export const CHALLENGE_STAGES: readonly ChallengeStageDef[] = [
   {
     id: 'shieldMarch',
@@ -3120,14 +3169,6 @@ export const CHALLENGE_STAGES: readonly ChallengeStageDef[] = [
     clearTime: 120,
     summary: '좁은 정사각 경기장. 체력 1 고정에 부활 없음',
     ready: false,
-    ownSpawn: true,
-  },
-  {
-    id: 'laserOnly',
-    name: '어디서 많이 본 게임인데',
-    clearTime: 60,
-    summary: '적이 없습니다. 경기장을 가로지르는 레이저만 피합니다',
-    ready: true,
     ownSpawn: true,
   },
   {

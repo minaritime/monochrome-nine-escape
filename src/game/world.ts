@@ -32,6 +32,7 @@ import {
   challengeBurnImmune,
   challengeInvulnerable,
   challengeHitKill,
+  challengeOnKill,
   shieldUnbreakable,
   updateChallenge,
 } from './challenge';
@@ -436,6 +437,15 @@ export class World {
    * 잡는 즉시 다시 채워져서, 잘 잡아도 화면이 똑같아집니다
    */
   challengeCowardsSpawned = 0;
+
+  /**
+   * 5번 소환에서 **마지막으로 소환사 묶음을 낸 시간 칸** (2026-09-21). 시작 전이라 -1 입니다.
+   * 칸이 바뀔 때만 한 묶음을 냅니다
+   */
+  challengeSpawnTick = -1;
+
+  /** 5번 소환에서 **지금까지 잡은 소환사 수.** `killsPerLevel` 마리마다 1레벨이 오릅니다 */
+  challengeSummonerKills = 0;
 
   // -------------------------------------------------------------------------
   // 갱신
@@ -1343,6 +1353,8 @@ export class World {
     if (e.elite || e.boss) this.effects.addShake(e.boss ? 20 : 4);
 
     this.gainXp(e.xp);
+    // 도전 스테이지가 처치에 붙이는 보상 (5번 소환의 레벨업)
+    if (this.challenge) challengeOnKill(this, e);
 
     if (e.boss) {
       this.stats.bossKills++;
