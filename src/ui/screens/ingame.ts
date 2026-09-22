@@ -18,8 +18,6 @@ import { bindKeys, card, clearOverlay, formatTime, h, overlayEl, screen } from '
 /** 스킬 선택 카드에 붙는 숫자키의 최대 개수 */
 const CHOICE_KEY_MAX = 9;
 const CHOICE_KEYS = Array.from({ length: CHOICE_KEY_MAX }, (_, i) => `Digit${i + 1}`);
-/** 이 장수를 넘으면 두 줄로 펼칩니다 (평소 선택창은 많아야 3장 + 리롤 + 건너뛰기) */
-const SINGLE_COLUMN_MAX = 4;
 
 /**
  * 스킬 선택 화면.
@@ -55,6 +53,11 @@ export function showSkillChoice(w: World, onDone: () => void): () => void {
       // 유틸 교체도 레벨을 그대로 이어받으므로 몇 레벨이 되는지 같이 적습니다
       const family = def.family ? ` (${SKILL_FAMILY_LABEL[def.family]})` : '';
       const level = c.upgrade || c.replacesUtility ? ` Lv.${c.level}` : '';
+      // **시작 선택창은 이름만 적습니다** (2026-09-22 사용자 지시). 카드가 두세 줄로
+      // 펼쳐져 폭이 좁은데 수치까지 넣으면 글자가 버튼 안에서 세로로 접혔습니다
+      if (isFullList) {
+        return card({ key: i < CHOICE_KEY_MAX ? String(i + 1) : undefined, title: def.name, onClick: () => pick(c) });
+      }
       return card({
         // 숫자키는 9번까지입니다. 그 뒤 카드는 누르거나 클릭해서 고릅니다
         key: i < CHOICE_KEY_MAX ? String(i + 1) : undefined,
@@ -89,8 +92,8 @@ export function showSkillChoice(w: World, onDone: () => void): () => void {
         `레벨 ${w.player.level}`,
         '',
         [h('div', { class: 'rowlist' }, rows)],
-        // 카드가 많으면(시작 선택창) 두 줄로 펼칩니다. 한 줄이면 화면을 넘어 굴려야 합니다
-        `narrow skill-choice${choices.length > SINGLE_COLUMN_MAX ? ' skill-choice-all' : ''}`,
+        // 시작 선택창은 후보가 많아 여러 줄로 펼칩니다. 한 줄이면 화면을 넘어 굴려야 합니다
+        `narrow skill-choice${isFullList ? ' skill-choice-all' : ''}`,
       ),
     );
 
