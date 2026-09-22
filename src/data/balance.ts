@@ -3159,10 +3159,11 @@ export const CHALLENGE_RULES = {
     /**
      * **도화선이 다 탄 자폭병은 이만큼 뒤에 터집니다** (2026-09-22 사용자 지시). 그동안
      * 자리에 예고 원이 뜹니다. 무적이라 잡을 수 없는 자폭병이 곧바로 터지니 압박이
-     * 너무 셌습니다. 일반 자폭병의 시체 폭발(`ENEMY_PARAMS.bomber.corpseDelay`)과 같은 값입니다.
-     * 정예의 절반 배율은 안 겁니다. 이 판의 하수인은 전부 정예라 걸면 1초가 됩니다
+     * 너무 셌습니다. 처음에는 일반 자폭병의 시체 폭발(`ENEMY_PARAMS.bomber.corpseDelay`)과
+     * 같은 2초였는데 너무 느슨해서 1초로 줄였습니다 (같은 날 사용자 지시).
+     * 정예의 절반 배율은 따로 안 겁니다
      */
-    selfDestructDelay: 2,
+    selfDestructDelay: 1,
   },
 } as const;
 
