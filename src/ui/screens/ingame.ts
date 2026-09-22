@@ -15,10 +15,6 @@ import type { World } from '../../game/world';
 import { challengeWantsStartAttack, challengeWantsStartUtility } from '../../game/challenge';
 import { bindKeys, card, clearOverlay, formatTime, h, overlayEl, screen } from './dom';
 
-/** 스킬 선택 카드에 붙는 숫자키의 최대 개수 */
-const CHOICE_KEY_MAX = 9;
-const CHOICE_KEYS = Array.from({ length: CHOICE_KEY_MAX }, (_, i) => `Digit${i + 1}`);
-
 /**
  * 스킬 선택 화면.
  * 공격 3칸이 차면 새 공격은 나오지 않으므로 버릴 칸을 고를 일이 없습니다.
@@ -54,13 +50,11 @@ export function showSkillChoice(w: World, onDone: () => void): () => void {
       const family = def.family ? ` (${SKILL_FAMILY_LABEL[def.family]})` : '';
       const level = c.upgrade || c.replacesUtility ? ` Lv.${c.level}` : '';
       // **시작 선택창은 이름만 적습니다** (2026-09-22 사용자 지시). 카드가 두세 줄로
-      // 펼쳐져 폭이 좁은데 수치까지 넣으면 글자가 버튼 안에서 세로로 접혔습니다
-      if (isFullList) {
-        return card({ key: i < CHOICE_KEY_MAX ? String(i + 1) : undefined, title: def.name, onClick: () => pick(c) });
-      }
+      // 펼쳐져 폭이 좁은데 수치까지 넣으면 글자가 버튼 안에서 세로로 접혔습니다.
+      // 번호와 숫자키도 없습니다 (같은 날 사용자 지시). 클릭으로만 고릅니다
+      if (isFullList) return card({ title: def.name, onClick: () => pick(c) });
       return card({
-        // 숫자키는 9번까지입니다. 그 뒤 카드는 누르거나 클릭해서 고릅니다
-        key: i < CHOICE_KEY_MAX ? String(i + 1) : undefined,
+        key: String(i + 1),
         title: `${def.name}${family}${level}${c.replacesUtility ? '  [교체]' : ''}`,
         // 이미 고른 갈래를 반영해서 보여줍니다. 안 그러면 7레벨 카드가 갈래 전 수치를 씁니다
         price: def.levelText(c.level, branchMods(w.player.attacks.find((s) => s?.id === c.id) ?? null)),
@@ -99,7 +93,7 @@ export function showSkillChoice(w: World, onDone: () => void): () => void {
 
     unbind();
     unbind = bindKeys((code) => {
-      const idx = CHOICE_KEYS.indexOf(code);
+      const idx = isFullList ? -1 : ['Digit1', 'Digit2', 'Digit3'].indexOf(code);
       if (idx >= 0 && choices[idx]) {
         pick(choices[idx]);
         return;
