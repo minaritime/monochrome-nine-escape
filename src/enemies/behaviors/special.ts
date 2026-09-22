@@ -13,6 +13,7 @@ import {
   challengeCowardPatience,
   challengeCowardStalk,
   challengeIgniteSpeedMul,
+  challengeSelfDestructDelay,
   type CowardStalk,
 } from '../../game/challenge';
 import { avoidWalls, moveAway, moveToward, stopMoving, wander } from './movement';
@@ -316,7 +317,10 @@ export const bomber: EnemyBehavior = (e, w, dt) => {
     if (w.rng.chance(0.5)) w.effects.burst(e.x, e.y, 1, '#ff9a3c', 40, 2, 0.25);
     if (e.state.timer <= 0) {
       e.state.phase = PHASE_SELF_DESTRUCT;
-      bomberBlastPlayer(e, w);
+      // 도전 5번은 도화선이 다 타면 곧바로 터지지 않고 예고 원을 남긴 뒤 터집니다
+      const delay = challengeSelfDestructDelay(w);
+      if (delay > 0) bomberDelayedBlast(e, w, delay);
+      else bomberBlastPlayer(e, w);
       w.killEnemy(e);
     }
     return;
@@ -362,6 +366,27 @@ export function bomberBlastRadius(e: Enemy, w: World): number {
 function bomberBlastPlayer(e: Enemy, w: World): void {
   const P = ENEMY_PARAMS.bomber;
   w.explode(e.x, e.y, bomberBlastRadius(e, w), e.damage * P.blastDamageMul, false, '#ff9a3c', killerOf(e));
+}
+
+/**
+ * **도화선이 다 탄 자리에 예고 원을 남기고 늦게 터집니다** (도전 5번, 2026-09-22 사용자 지시).
+ *
+ * 이 판의 자폭병은 무적이라 잡을 수 없고 끝까지 따라와 도화선을 다 태웁니다. 평소처럼
+ * 곧바로 터지면 피할 틈이 없어서, 시체 폭발처럼 자리를 보여주고 기다려 줍니다.
+ * **플레이어만 맞습니다.** 자폭은 원래 플레이어만 맞는 폭발이라 그 성격은 그대로 둡니다
+ */
+function bomberDelayedBlast(e: Enemy, w: World, delay: number): void {
+  const radius = bomberBlastRadius(e, w);
+  w.addTelegraph({ kind: 'incoming', x: e.x, y: e.y, radius, life: delay, color: '#ff9a3c' });
+  w.addPendingBlast({
+    x: e.x,
+    y: e.y,
+    radius,
+    damage: e.damage * ENEMY_PARAMS.bomber.blastDamageMul,
+    delay,
+    color: '#ff9a3c',
+    source: killerOf(e),
+  });
 }
 
 /**

@@ -488,6 +488,11 @@ export function challengeIgniteSpeedMul(w: World): number | null {
   return null;
 }
 
+/** 자폭병의 도화선이 다 탄 뒤 터지기까지의 유예. 0 이면 평소처럼 곧바로 터집니다 */
+export function challengeSelfDestructDelay(w: World): number {
+  return w.challenge === 'summoner' ? CHALLENGE_RULES.summoner.selfDestructDelay : 0;
+}
+
 /** 소환사가 스폰할 때 고르는 하수인 종류 후보. 규칙이 없으면 null 이라 평소 풀을 씁니다 */
 export function challengeMinionPool(w: World): readonly EnemyId[] | null {
   return w.challenge === 'summoner' ? CHALLENGE_RULES.summoner.minionPool : null;
