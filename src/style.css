@@ -466,6 +466,16 @@ body {
   width: min(720px, 92vw);
 }
 
+/* 도전 스테이지의 시작 선택창은 후보를 전부 보여주므로 두 줄로 펼칩니다 */
+.screen.skill-choice-all {
+  width: min(1000px, 92vw);
+}
+
+.skill-choice-all .rowlist {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
 .screen h1 {
   margin: 0 0 4px;
   font-size: var(--ui-title);
@@ -1637,6 +1647,11 @@ body.mobile .card {
 
 body.mobile .card .desc {
   font-size: 12px;
+}
+
+/* 폰은 폭이 좁아 한 줄로 두고 굴립니다 */
+body.mobile .skill-choice-all .rowlist {
+  grid-template-columns: 1fr;
 }
 
 /*

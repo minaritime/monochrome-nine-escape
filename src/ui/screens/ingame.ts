@@ -12,7 +12,14 @@ import { enemyIcon } from './enemyIcon';
 import { applyBranchChoice, applySkillChoice, generateSkillChoices, type SkillChoice } from '../../progression/skillChoice';
 import type { SkillSlot } from '../../game/types';
 import type { World } from '../../game/world';
+import { challengeWantsStartAttack, challengeWantsStartUtility } from '../../game/challenge';
 import { bindKeys, card, clearOverlay, formatTime, h, overlayEl, screen } from './dom';
+
+/** 스킬 선택 카드에 붙는 숫자키의 최대 개수 */
+const CHOICE_KEY_MAX = 9;
+const CHOICE_KEYS = Array.from({ length: CHOICE_KEY_MAX }, (_, i) => `Digit${i + 1}`);
+/** 이 장수를 넘으면 두 줄로 펼칩니다 (평소 선택창은 많아야 3장 + 리롤 + 건너뛰기) */
+const SINGLE_COLUMN_MAX = 4;
 
 /**
  * 스킬 선택 화면.
@@ -20,6 +27,9 @@ import { bindKeys, card, clearOverlay, formatTime, h, overlayEl, screen } from '
  * 유틸은 고르는 순간 쓰던 것과 교체되고, **레벨은 그대로 이어집니다.**
  */
 export function showSkillChoice(w: World, onDone: () => void): () => void {
+  // 도전 스테이지의 시작 선택창은 후보를 전부 보여줍니다 (`generateSkillChoices`).
+  // 다시 뽑아도 같은 목록이라 리롤은 숨깁니다. 고르기 전에 물어야 합니다
+  const isFullList = challengeWantsStartUtility(w) || challengeWantsStartAttack(w);
   let choices = generateSkillChoices(w);
   let unbind: () => void = () => {};
 
@@ -46,7 +56,8 @@ export function showSkillChoice(w: World, onDone: () => void): () => void {
       const family = def.family ? ` (${SKILL_FAMILY_LABEL[def.family]})` : '';
       const level = c.upgrade || c.replacesUtility ? ` Lv.${c.level}` : '';
       return card({
-        key: String(i + 1),
+        // 숫자키는 9번까지입니다. 그 뒤 카드는 누르거나 클릭해서 고릅니다
+        key: i < CHOICE_KEY_MAX ? String(i + 1) : undefined,
         title: `${def.name}${family}${level}${c.replacesUtility ? '  [교체]' : ''}`,
         // 이미 고른 갈래를 반영해서 보여줍니다. 안 그러면 7레벨 카드가 갈래 전 수치를 씁니다
         price: def.levelText(c.level, branchMods(w.player.attacks.find((s) => s?.id === c.id) ?? null)),
@@ -54,7 +65,7 @@ export function showSkillChoice(w: World, onDone: () => void): () => void {
       });
     });
 
-    if (w.player.rerolls > 0) {
+    if (w.player.rerolls > 0 && !isFullList) {
       rows.push(card({ key: 'R', title: '다시 뽑기', price: `남은 ${w.player.rerolls}회`, onClick: reroll }));
     }
 
@@ -74,12 +85,18 @@ export function showSkillChoice(w: World, onDone: () => void): () => void {
     // ⚠ `skill-choice` 는 `scripts/boot.ts` 가 화면을 가려내는 표식입니다.
     //    예전에는 부제 문구로 갈랐는데, 문구를 지우자 갈래 창과 구분이 안 됐습니다
     overlayEl().append(
-      screen(`레벨 ${w.player.level}`, '', [h('div', { class: 'rowlist' }, rows)], 'narrow skill-choice'),
+      screen(
+        `레벨 ${w.player.level}`,
+        '',
+        [h('div', { class: 'rowlist' }, rows)],
+        // 카드가 많으면(시작 선택창) 두 줄로 펼칩니다. 한 줄이면 화면을 넘어 굴려야 합니다
+        `narrow skill-choice${choices.length > SINGLE_COLUMN_MAX ? ' skill-choice-all' : ''}`,
+      ),
     );
 
     unbind();
     unbind = bindKeys((code) => {
-      const idx = ['Digit1', 'Digit2', 'Digit3'].indexOf(code);
+      const idx = CHOICE_KEYS.indexOf(code);
       if (idx >= 0 && choices[idx]) {
         pick(choices[idx]);
         return;
@@ -90,7 +107,7 @@ export function showSkillChoice(w: World, onDone: () => void): () => void {
   };
 
   const reroll = () => {
-    if (w.player.rerolls <= 0) return;
+    if (w.player.rerolls <= 0 || isFullList) return;
     w.player.rerolls--;
     choices = generateSkillChoices(w);
     renderChoices();

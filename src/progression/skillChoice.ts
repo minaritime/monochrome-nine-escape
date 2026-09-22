@@ -51,19 +51,16 @@ export function generateSkillChoices(w: World, count = Math.max(1, w.diff.skillC
     return UTILITY_SKILL_IDS.map((id) => ({ id, upgrade: false, level: 1, replacesUtility: false }));
   }
 
-  // 2번 암전의 **시작 공격 스킬 선택** (2026-09-20 사용자 지시). 장수는 평소와 같고
-  // 후보만 공격 스킬로 좁혀 무작위로 뽑습니다. 아직 아무것도 안 가진 첫 화면이라
-  // 레벨업 후보도 교체도 섞일 일이 없어서, 평소 추첨을 타지 않고 여기서 끝냅니다.
+  // 도전 스테이지의 **시작 공격 스킬 선택** (2026-09-20 사용자 지시). 아직 아무것도
+  // 안 가진 첫 화면이라 레벨업 후보도 교체도 섞일 일이 없어서 평소 추첨을 타지 않습니다.
+  //
+  // **공격 스킬 전부를 냅니다** (2026-09-22 사용자 지시). 처음에는 평소 장수만큼
+  // 무작위로 뽑았는데, 다시 도전하면 다른 후보가 나오니 무작위가 제약이 되지 못하고
+  // 원하는 스킬이 나올 때까지 재시작하는 수고만 늘었습니다. 시작 유틸(1번)과 같은 방식입니다.
   //
   // **유틸은 이 화면에서만 빠집니다.** 다음 레벨업부터는 평소대로 다시 나옵니다
   if (challengeWantsStartAttack(w)) {
-    const pool = [...ATTACK_SKILL_IDS];
-    const out: SkillChoice[] = [];
-    while (out.length < count && pool.length > 0) {
-      const [id] = pool.splice(w.rng.int(0, pool.length), 1);
-      out.push({ id, upgrade: false, level: 1, replacesUtility: false });
-    }
-    return out;
+    return ATTACK_SKILL_IDS.map((id) => ({ id, upgrade: false, level: 1, replacesUtility: false }));
   }
 
   const ownedAttacks = new Map<SkillId, number>();
