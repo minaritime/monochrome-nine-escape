@@ -32,6 +32,8 @@ import {
   challengeBurnImmune,
   challengeInvulnerable,
   challengeHitKill,
+  challengeMinionGrazed,
+  challengeMinionPool,
   challengeOnKill,
   shieldUnbreakable,
   updateChallenge,
@@ -929,7 +931,11 @@ export class World {
       statusImmune: false,
       ownerId: opts.ownerId ?? 0,
       // 소환적은 스폰하는 순간 부를 하수인 종류를 뽑아서 판이 끝날 때까지 그것만 부릅니다
-      summonKind: id === 'summoner' ? this.rng.pick(ENEMY_PARAMS.summoner.minionPool as EnemyId[]) : null,
+      // (도전 5번은 풀이 다릅니다: 탱커 대신 자폭병)
+      summonKind:
+        id === 'summoner'
+          ? this.rng.pick((challengeMinionPool(this) ?? ENEMY_PARAMS.summoner.minionPool) as EnemyId[])
+          : null,
       downed: 0,
       revived: false,
       hpDrainRatio: 0,
@@ -1225,7 +1231,11 @@ export class World {
     // 없애고 통째로 무적으로** 하자고 했습니다 (2026-09-17). 예외를 하나 두면
     // "그럼 이건?"이 끝없이 따라옵니다. 지금은 자폭적의 시체 폭발도 어둠 속
     // 적에게는 안 들어갑니다. 돌진 중인 겁쟁이도 같은 칸에서 막습니다 (2026-09-19)
-    if (challengeInvulnerable(this, e)) return 0;
+    if (challengeInvulnerable(this, e)) {
+      // 도전 5번의 자폭병 하수인은 피해 없이 점화만 됩니다 (범위 공격이 스친 경우)
+      challengeMinionGrazed(this, e);
+      return 0;
+    }
 
     // 정예 방패적은 방패가 남아 있는 동안 덜 아프고, 깨지고 나면 더 아픕니다.
     // 방패를 깨는 것이 곧 이득이 되도록 만드는 부분입니다

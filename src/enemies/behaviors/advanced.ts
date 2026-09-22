@@ -4,7 +4,7 @@ import { eliteHas, eliteMul, eliteValue } from '../elite';
 // 도전 스테이지가 돌진적의 규칙을 갈아끼웁니다 (벽 근처 예외 · 돌진 속도).
 // **`challenge.ts` 는 `balance.ts` 만 들여옵니다.** 거기서 `spawner.ts` 를 들여오면
 // advanced → challenge → spawner → registry → advanced 로 순환이 생깁니다
-import { chargerDashSpeedMul, chargerIgnoresWall } from '../../game/challenge';
+import { challengeMinionRule, chargerDashSpeedMul, chargerIgnoresWall } from '../../game/challenge';
 import type { Enemy } from '../../game/types';
 import type { World } from '../../game/world';
 import type { EnemyBehavior } from '../types';
@@ -202,16 +202,27 @@ export const summoner: EnemyBehavior = (e, w, dt) => {
   if (e.state.timer3 > 0) return;
   e.state.timer3 = P.summonInterval;
 
-  if (minionCount(e, w) >= P.maxMinions) return;
-
   // 종류는 스폰할 때 이미 정해져 있습니다. 매번 다른 것이 나오면 대비할 수가 없습니다
   const kind = e.summonKind ?? P.minionPool[0];
+  // 도전 5번은 5번까지 부르고, 바보적은 한 번에 둘로 쪼개져 나옵니다.
+  // 상한은 부른 횟수로 세므로 몸의 수는 쪼개지는 배수만큼 됩니다
+  const rule = challengeMinionRule(w, kind);
+  const split = rule?.split ?? 1;
+  if (minionCount(e, w) >= (rule?.max ?? P.maxMinions) * split) return;
+
   const a = w.rng.angle();
-  w.spawnEnemy(kind, e.x + Math.cos(a) * 30, e.y + Math.sin(a) * 30, {
-    ownerId: e.id,
-    // 정예 소환적의 유일한 차이입니다. 그 외 행동은 일반과 똑같습니다
-    elite: eliteHas(e, w, 'summonElite'),
-  });
+  const cx = e.x + Math.cos(a) * 30;
+  const cy = e.y + Math.sin(a) * 30;
+  for (let i = 0; i < split; i++) {
+    // 쪼개지면 부른 자리에서 옆으로 나란히 벌어져 나옵니다. 하나일 때는 제자리입니다
+    const side = split === 1 ? 0 : (i / (split - 1) - 0.5) * 2 * (rule?.gap ?? 0);
+    const m = w.spawnEnemy(kind, cx - Math.sin(a) * side, cy + Math.cos(a) * side, {
+      ownerId: e.id,
+      // 정예 소환적의 유일한 차이입니다. 그 외 행동은 일반과 똑같습니다
+      elite: eliteHas(e, w, 'summonElite'),
+    });
+    if (split > 1) w.effects.burst(m.x, m.y, 6, m.def.color, 120, 2, 0.3);
+  }
   w.effects.burst(e.x, e.y, 14, e.def.accent, 170, 3, 0.5);
 };
 

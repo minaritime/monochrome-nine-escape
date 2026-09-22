@@ -483,7 +483,42 @@ export function challengeStatBlocked(w: World, key: StatKey): boolean {
 
 /** 점화된 자폭적의 이동속도 배율. 규칙이 없으면 null 이라 평소 값을 씁니다 */
 export function challengeIgniteSpeedMul(w: World): number | null {
-  return w.challenge === 'blackout' ? CHALLENGE_RULES.blackout.igniteSpeedMul : null;
+  if (w.challenge === 'blackout') return CHALLENGE_RULES.blackout.igniteSpeedMul;
+  if (w.challenge === 'summoner') return CHALLENGE_RULES.summoner.igniteSpeedMul;
+  return null;
+}
+
+/** 소환사가 스폰할 때 고르는 하수인 종류 후보. 규칙이 없으면 null 이라 평소 풀을 씁니다 */
+export function challengeMinionPool(w: World): readonly EnemyId[] | null {
+  return w.challenge === 'summoner' ? CHALLENGE_RULES.summoner.minionPool : null;
+}
+
+/**
+ * 소환사가 하수인을 몇 번까지 부르는가, 한 번에 몇 마리로 나오는가 (2026-09-22 사용자 지시).
+ *
+ * 5번 소환의 바보적은 나오자마자 둘로 쪼개집니다. 상한은 **부르는 횟수**로 세므로
+ * 5번 불러 10마리가 됩니다. 규칙이 없으면 null 이라 평소 값(한 마리씩)을 씁니다
+ */
+export function challengeMinionRule(
+  w: World,
+  kind: EnemyId,
+): { max: number; split: number; gap: number } | null {
+  if (w.challenge !== 'summoner') return null;
+  const R = CHALLENGE_RULES.summoner;
+  return { max: R.maxMinions, split: kind === 'fool' ? R.foolSplit : 1, gap: R.foolSplitGap };
+}
+
+/**
+ * **플레이어의 공격이 무적 하수인을 스쳤습니다** (2026-09-22 사용자 지시).
+ *
+ * 5번의 자폭병 하수인은 피해를 안 받지만 **스치면 점화됩니다.** 탄은 하수인을
+ * 통과하므로(`challengeShotPassThrough`) 충돌 판정이 이것을 따로 부르고, 범위 공격은
+ * `World.damageEnemy` 의 무적 갈래가 부릅니다. 이 판에서 적이 적을 때리는 길은
+ * 없어서(하수인은 소멸할 때 시체 폭발이 없음) 여기 오는 것은 전부 플레이어의 공격입니다
+ */
+export function challengeMinionGrazed(w: World, e: Enemy): void {
+  if (!challengeShotPassThrough(w, e) || e.defId !== 'bomber') return;
+  e.def.onDamaged?.(e, w, 0);
 }
 
 /**

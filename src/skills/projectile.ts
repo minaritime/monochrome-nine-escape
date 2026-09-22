@@ -4,7 +4,7 @@ import { clampToArena, isOutside } from '../game/collision';
 import type { Enemy, Projectile } from '../game/types';
 import type { World } from '../game/world';
 import { canTarget, enemyById, isPick, nearestEnemy, tauntId } from './targeting';
-import { challengeShotPassThrough, challengeVisionRadius } from '../game/challenge';
+import { challengeMinionGrazed, challengeShotPassThrough, challengeVisionRadius } from '../game/challenge';
 
 const OUT_MARGIN = 60;
 const buf: Enemy[] = [];
@@ -190,8 +190,13 @@ function updateMine(w: World, p: Projectile, dt: number): void {
   }
   const near = w.grid.query(p.x, p.y, p.radius + 40, buf);
   for (const e of near) {
-    if (e.dead || challengeShotPassThrough(w, e)) continue;
+    if (e.dead) continue;
     if (dist(p.x, p.y, e.x, e.y) <= p.radius + e.radius) {
+      // 도전 5번의 하수인은 지뢰를 안 밟습니다. 자폭병은 스치면 점화됩니다
+      if (challengeShotPassThrough(w, e)) {
+        challengeMinionGrazed(w, e);
+        continue;
+      }
       p.dead = true;
       detonate(w, p);
       return;
@@ -264,8 +269,15 @@ function updateRicochet(w: World, p: Projectile, dt: number): void {
   const taunt = tauntId(w, p.x, p.y, Infinity);
   const near = w.grid.query(p.x, p.y, p.radius + 46, buf);
   for (const e of near) {
+    if (e.dead) continue;
+    // 도전 5번의 하수인은 통과합니다 (`isPick` 이 무적이라 어차피 거르지만, 그 전에
+    // 스친 것을 알려야 자폭병이 점화됩니다)
+    if (challengeShotPassThrough(w, e)) {
+      if (dist(p.x, p.y, e.x, e.y) <= p.radius + e.radius) challengeMinionGrazed(w, e);
+      continue;
+    }
     // 방금 때린 적은 건너뜁니다. 안 그러면 붙어 있는 동안 몇 프레임에 걸쳐 다 소진됩니다
-    if (e.dead || !isPick(w, e, taunt) || e.id === p.targetId) continue;
+    if (!isPick(w, e, taunt) || e.id === p.targetId) continue;
     if (dist(p.x, p.y, e.x, e.y) > p.radius + e.radius) continue;
 
     w.damageEnemy(e, p.damage, { crit: p.crit, fromX: p.x, fromY: p.y, ignoreShield: p.ignoreShield });
@@ -293,7 +305,9 @@ function updateRicochet(w: World, p: Projectile, dt: number): void {
     let next: Enemy | null = null;
     let bestD = Infinity;
     for (const o of w.enemies) {
-      if (!canTarget(o) || o.id === e.id) continue;
+      // **조준 후보 규칙(`isPick`)을 거칩니다** (2026-09-22). `canTarget` 만 보던 때는
+      // 도전 5번의 무적 하수인 쪽으로 틀어서, 맞지도 않는 적을 향해 날아갔습니다
+      if (!isPick(w, o, taunt) || o.id === e.id) continue;
       const d = dist(p.x, p.y, o.x, o.y);
       if (d < bestD) {
         bestD = d;
@@ -376,9 +390,13 @@ function hitEnemies(w: World, p: Projectile): void {
   for (const e of near) {
     if (e.dead) continue;
     if (!e.targetable && p.kind !== 'orbit') continue; // 은신 중인 적은 통과합니다
-    if (challengeShotPassThrough(w, e)) continue; // 도전 5번 소환의 하수인도 통과합니다
     if (p.hits && p.hits.has(e.id)) continue;
     if (dist(p.x, p.y, e.x, e.y) > p.radius + e.radius) continue;
+    // 도전 5번 소환의 하수인은 통과합니다. 자폭병은 스치면 점화됩니다
+    if (challengeShotPassThrough(w, e)) {
+      challengeMinionGrazed(w, e);
+      continue;
+    }
 
     // 최대 체력 비례 추가 피해는 **맞은 적** 기준입니다 (`Projectile.hpBonus` 주석 참고)
     let amount = p.hpBonus > 0 ? p.damage + e.maxHp * p.hpBonus : p.damage;
