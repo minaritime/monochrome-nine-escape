@@ -397,9 +397,21 @@ export function challengeOnKill(w: World, e: Enemy): void {
   if (w.challenge !== 'summoner' || e.defId !== 'summoner') return;
   const R = CHALLENGE_RULES.summoner;
   const p = w.player;
+  const need = R.killsPerLevel + Math.floor((p.level - 1) / R.killsPerLevelStep);
   w.challengeSummonerKills++;
-  const last = w.challengeSummonerKills % R.killsPerLevel === 0;
-  w.gainXp(last ? p.xpToNext - p.xp : p.xpToNext / R.killsPerLevel, true);
+  const last = w.challengeSummonerKills >= need;
+  if (last) w.challengeSummonerKills = 0;
+  w.gainXp(last ? p.xpToNext - p.xp : p.xpToNext / need, true);
+}
+
+/**
+ * **소환사가 등장하면서 미리 부르는 하수인 횟수** (2026-09-23). 5번이 아니면 0 입니다.
+ * 판이 흐를수록 늘어서, 강해진 뒤 새 소환사를 곧바로 잡아도 화면이 비지 않게 합니다
+ */
+export function challengePremadeMinions(w: World): number {
+  if (w.challenge !== 'summoner') return 0;
+  const R = CHALLENGE_RULES.summoner;
+  return Math.min(R.premadeMinionMax, Math.floor(w.time / R.premadeMinionStep));
 }
 
 /** 스폰 자리 후보를 뽑아 보는 횟수 */

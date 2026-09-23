@@ -446,7 +446,10 @@ export class World {
    */
   challengeSpawnTick = -1;
 
-  /** 5번 소환에서 **지금까지 잡은 소환사 수.** `killsPerLevel` 마리마다 1레벨이 오릅니다 */
+  /**
+   * 5번 소환에서 **이번 레벨에 잡은 소환사 수.** 레벨이 오르면 0 으로 돌아갑니다.
+   * 필요한 수는 레벨에 따라 늡니다 (`killsPerLevel` · `killsPerLevelStep`)
+   */
   challengeSummonerKills = 0;
 
   // -------------------------------------------------------------------------
