@@ -380,6 +380,8 @@ function summonerStage(w: World): void {
   for (let i = 0; i < n; i++) {
     const pos = edgePosition(w);
     const e = w.spawnEnemy('summoner', pos.x, pos.y, { elite: true, hpMul: R.summonerHpMul });
+    // 늦게 나올수록 보호막을 더 두르고 나옵니다 (체력이 아니라 횟수)
+    e.barrier = Math.min(R.barrierMax, Math.floor(w.time / R.barrierStep));
     // 경험치는 판 전체에서 막혀 있지만(`xpBlocked`), 개체에도 0 을 적어 둡니다.
     // 막힌 이유가 개체만 보고도 드러나야 나중에 차단을 풀 때 새지 않습니다
     e.xp = 0;
@@ -402,16 +404,6 @@ export function challengeOnKill(w: World, e: Enemy): void {
   const last = w.challengeSummonerKills >= need;
   if (last) w.challengeSummonerKills = 0;
   w.gainXp(last ? p.xpToNext - p.xp : p.xpToNext / need, true);
-}
-
-/**
- * **소환사가 등장하면서 미리 부르는 하수인 횟수** (2026-09-23). 5번이 아니면 0 입니다.
- * 판이 흐를수록 늘어서, 강해진 뒤 새 소환사를 곧바로 잡아도 화면이 비지 않게 합니다
- */
-export function challengePremadeMinions(w: World): number {
-  if (w.challenge !== 'summoner') return 0;
-  const R = CHALLENGE_RULES.summoner;
-  return Math.min(R.premadeMinionMax, Math.floor(w.time / R.premadeMinionStep));
 }
 
 /** 스폰 자리 후보를 뽑아 보는 횟수 */

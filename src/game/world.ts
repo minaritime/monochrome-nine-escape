@@ -11,6 +11,7 @@ import {
   DEATH_BURST,
   ELITE,
   ELITE_TRAITS,
+  CHALLENGE_RULES,
   ENEMY_BASE,
   HARD_LASER,
   ENEMY_PARAMS,
@@ -942,6 +943,7 @@ export class World {
       downed: 0,
       revived: false,
       hpDrainRatio: 0,
+      barrier: 0,
       regenTime: 0,
       speedDecay: 0,
       speedFloor: 0,
@@ -1011,6 +1013,7 @@ export class World {
       downed: 0,
       revived: false,
       hpDrainRatio: 0,
+      barrier: 0,
       regenTime: 0,
       speedDecay: 0,
       speedFloor: 0,
@@ -1237,6 +1240,19 @@ export class World {
     if (challengeInvulnerable(this, e)) {
       // 도전 5번의 자폭병 하수인은 피해 없이 점화만 됩니다 (범위 공격이 스친 경우)
       challengeMinionGrazed(this, e);
+      return 0;
+    }
+
+    // **보호막은 횟수입니다** (도전 5번의 소환사, 2026-09-23). 피해량과 상관없이 한 번에
+    // 한 겹이 벗겨지고, 그 뒤 잠시 무적이라 연속 타격이 겹을 한꺼번에 벗기지 못합니다.
+    // 화상은 막히기만 하고 겹을 벗기지 않습니다
+    if (e.barrier > 0) {
+      if (opts.kind !== 'burn') {
+        e.barrier--;
+        e.invuln = CHALLENGE_RULES.summoner.barrierGuardTime;
+        e.hitFlash = ENEMY_BASE.hitFlash;
+        this.effects.burst(e.x, e.y, 12, CHALLENGE_RULES.summoner.barrierColor, 170, 2, 0.35);
+      }
       return 0;
     }
 

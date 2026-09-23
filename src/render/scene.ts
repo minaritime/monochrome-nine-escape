@@ -703,9 +703,15 @@ function drawEnemyExtras(r: Renderer, e: Enemy, w: World, alpha: number): void {
       r.arc(e.x, e.y, e.radius + 5, e.facing - half, e.facing + half, '#dbe6f7', 1.5 + 3 * ratio, (0.35 + 0.55 * ratio) * alpha);
       break;
     }
-    case 'summoner':
+    case 'summoner': {
       r.ring(e.x, e.y, e.radius + 4 + Math.sin(w.time * 3) * 2, e.def.color, 1.5, 0.5 * alpha);
+      // 보호막은 남은 겹 수만큼 고리를 겹쳐 그립니다. 몇 대를 더 때려야 하는지가 곧바로 보입니다
+      const color = CHALLENGE_RULES.summoner.barrierColor;
+      for (let i = 0; i < e.barrier; i++) {
+        r.ring(e.x, e.y, e.radius + 10 + i * 5, color, 2.5, 0.85 * alpha);
+      }
       break;
+    }
     case 'priest': {
       // 능력이 닿는 반경을 늘 띄웁니다. 이 안의 적이 회복되므로,
       // 안 보여주면 왜 안 죽는지 알 수가 없습니다 (장판적 미리보기와 같은 규칙)

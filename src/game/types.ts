@@ -294,6 +294,11 @@ export interface Enemy {
   /** 매초 빠져나가는 최대 체력의 비율. 0 이면 없습니다 (미라 부활 후) */
   hpDrainRatio: number;
   /**
+   * 남은 보호막 겹 수 (도전 5번의 소환사, 2026-09-23). 0 이면 없습니다.
+   * 체력이 아니라 횟수라 한 번 맞을 때마다 한 겹씩 벗겨집니다 (`World.damageEnemy`)
+   */
+  barrier: number;
+  /**
    * 사제가 걸어준 재생이 남은 시간. 0 이면 재생 중이 아닙니다.
    *
    * 회복량은 `ENEMY_PARAMS.priest.regenRatio` 한 곳에서 읽습니다. 출처가 사제

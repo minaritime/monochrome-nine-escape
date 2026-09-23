@@ -4,7 +4,7 @@ import { eliteHas, eliteMul, eliteValue } from '../elite';
 // 도전 스테이지가 돌진적의 규칙을 갈아끼웁니다 (벽 근처 예외 · 돌진 속도).
 // **`challenge.ts` 는 `balance.ts` 만 들여옵니다.** 거기서 `spawner.ts` 를 들여오면
 // advanced → challenge → spawner → registry → advanced 로 순환이 생깁니다
-import { challengeMinionRule, challengePremadeMinions, chargerDashSpeedMul, chargerIgnoresWall } from '../../game/challenge';
+import { challengeMinionRule, chargerDashSpeedMul, chargerIgnoresWall } from '../../game/challenge';
 import type { Enemy } from '../../game/types';
 import type { World } from '../../game/world';
 import type { EnemyBehavior } from '../types';
@@ -195,26 +195,13 @@ export const summoner: EnemyBehavior = (e, w, dt) => {
   }
   avoidWalls(e, CANVAS.w, CANVAS.h, 60);
 
-  // 도전 5번의 늦게 나온 소환사는 등장하자마자 하수인 몇 번 몫을 데리고 나옵니다.
-  // 평소 판은 0 이라 아무것도 안 합니다
-  if (!e.state.flag) {
-    e.state.flag = true;
-    const premade = challengePremadeMinions(w);
-    for (let i = 0; i < premade; i++) summonMinions(e, w);
-  }
-
   // 소환 간격은 timer3 입니다. timer 를 쓰면 wander 와 같은 칸을 두고 다투는데,
   // wander 가 1.5초마다 timer 를 다시 채워버려서 **멀리 있는 소환적은 영영 소환하지 않았습니다.**
   // 플레이어가 도주 사거리 안에 들어왔을 때만 소환하던 셈입니다
   e.state.timer3 -= dt;
   if (e.state.timer3 > 0) return;
   e.state.timer3 = P.summonInterval;
-  summonMinions(e, w);
-};
 
-/** 하수인을 한 번 부릅니다. 상한에 닿아 있으면 아무것도 안 합니다 */
-function summonMinions(e: Enemy, w: World): void {
-  const P = ENEMY_PARAMS.summoner;
   // 종류는 스폰할 때 이미 정해져 있습니다. 매번 다른 것이 나오면 대비할 수가 없습니다
   const kind = e.summonKind ?? P.minionPool[0];
   // 도전 5번은 5번까지 부르고, 바보적은 한 번에 둘로 쪼개져 나옵니다.
@@ -237,7 +224,7 @@ function summonMinions(e: Enemy, w: World): void {
     if (split > 1) w.effects.burst(m.x, m.y, 6, m.def.color, 120, 2, 0.3);
   }
   w.effects.burst(e.x, e.y, 14, e.def.accent, 170, 3, 0.5);
-}
+};
 
 /** 이 소환적이 지금 유지하고 있는 하수인 수 */
 function minionCount(e: Enemy, w: World): number {
