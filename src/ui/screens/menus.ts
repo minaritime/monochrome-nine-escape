@@ -21,17 +21,24 @@ export function showMainMenu(save: SaveData, actions: MainActions): () => void {
 
   // 카드에는 제목만 답니다. 부제는 전부 제목을 풀어 쓴 것뿐이라 읽을 이유가 없었습니다.
   // 업적의 진행도만 남습니다. 그것은 설명이 아니라 지금 값이라서입니다
-  const items = h('div', { class: 'rowlist' }, [
-    card({ key: '1', title: '게임 시작', onClick: actions.start }),
-    card({ key: '2', title: '상점', onClick: actions.shop }),
+  //
+  // 도전모드는 난이도 1 을 깨야 자리가 생기고, 생기면 **2번**에 섭니다 (2026-09-28 사용자 지시).
+  // 그래서 번호는 고정값이 아니라 보이는 순서대로 매깁니다. 카드 배지와 숫자키가 같은 목록을
+  // 보므로 둘이 어긋날 수 없습니다
+  const entries: { title: string; desc?: string; onClick: () => void }[] = [
+    { title: '게임 시작', onClick: actions.start },
+    ...(challengeOpen(save) ? [{ title: '도전모드', onClick: actions.challenge }] : []),
+    { title: '상점', onClick: actions.shop },
     // 적과 스킬 두 탭이라 "적 도감"이 아니라 "도감"입니다 (2026-09-13)
-    card({ key: '3', title: '도감', onClick: actions.bestiary }),
-    card({ key: '4', title: '기록', onClick: actions.records }),
-    card({ key: '5', title: '업적', desc: `${achieveProgress(save).done} / ${achieveProgress(save).total} 달성`, onClick: actions.achievements }),
-  ]);
-  // 도전모드는 난이도 1 을 깨야 자리가 생깁니다 (2026-09-28 정식 개방)
-  const hasChallenge = challengeOpen(save);
-  if (hasChallenge) items.append(card({ key: '6', title: '도전모드', onClick: actions.challenge }));
+    { title: '도감', onClick: actions.bestiary },
+    { title: '기록', onClick: actions.records },
+    { title: '업적', desc: `${achieveProgress(save).done} / ${achieveProgress(save).total} 달성`, onClick: actions.achievements },
+  ];
+  const items = h(
+    'div',
+    { class: 'rowlist' },
+    entries.map((e, i) => card({ key: String(i + 1), ...e })),
+  );
 
   // 조작 안내는 좌측 상단 버튼 안으로 접었습니다. 톱니바퀴와 같은 무게의 "게임 바깥" 항목이라
   // 카드 목록에도 넣지 않고, 늘 펼쳐두지도 않습니다
@@ -53,13 +60,10 @@ export function showMainMenu(save: SaveData, actions: MainActions): () => void {
   overlayEl().append(el);
 
   return bindKeys((code) => {
-    if (code === 'Digit1' || code === 'Enter' || code === 'Space') actions.start();
-    if (code === 'Digit2') actions.shop();
-    if (code === 'Digit3') actions.bestiary();
-    if (code === 'Digit4') actions.records();
-    if (code === 'Digit5') actions.achievements();
-    if (code === 'Digit6' && hasChallenge) actions.challenge();
-    // 설정은 톱니라 번호 배지가 없습니다. 6 을 도전모드에 내주고 0 으로 옮겼습니다
+    if (code === 'Enter' || code === 'Space') actions.start();
+    const n = code.startsWith('Digit') ? Number(code.slice(5)) : 0;
+    if (n >= 1 && n <= entries.length) entries[n - 1].onClick();
+    // 설정은 톱니라 번호 배지가 없습니다. 숫자는 카드가 쓰므로 0 에 둡니다
     if (code === 'Digit0') actions.settings();
   });
 }

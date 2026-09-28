@@ -309,7 +309,7 @@ async function main(): Promise<void> {
   check('Esc 로 메인에 돌아온다', overlayText().includes('게임 시작'));
 
   console.log('2) 상점과 도감');
-  press('Digit2');
+  clickCard('상점');
   // 탭 이름을 그대로 봅니다. 이름이 바뀌면 여기가 걸려서 화면과 시험이 같이 움직입니다
   check('상점이 열렸다', overlayText().includes('스탯 강화'));
   for (const tabName of ['스탯 고정', '공격 스킬', '유틸 스킬']) {
@@ -339,10 +339,10 @@ async function main(): Promise<void> {
   const coinsAfter = JSON.parse(store.get('dodge-game-save') ?? '{}').coins as number;
   check('업적 코인이 저장에 남는다', coinsAfter > 0 && coinsBefore > 0, `${coinsBefore} → ${coinsAfter}`);
   press('Escape');
-  press('Digit2');
+  clickCard('상점');
   check('도움말은 두 번째 방문부터 안 뜬다', overlay.querySelector('.shop-intro') === null);
   press('Escape');
-  press('Digit3');
+  clickCard('도감');
   check('도감이 열렸다', overlayText().includes('적 도감'));
   // 스킬 도감 (2026-09-13). 좌우 화살표로 탭을 넘깁니다. 클리어한 판이 없으니 전부 잠겨 있습니다
   press('ArrowRight');
@@ -351,10 +351,10 @@ async function main(): Promise<void> {
   press('ArrowLeft');
   check('적 탭으로 돌아온다', overlayText().includes('적 도감'));
   press('Escape');
-  press('Digit4');
+  clickCard('기록');
   check('기록이 열렸다', overlayText().includes('최고 생존 시간'));
   press('Escape');
-  press('Digit5');
+  clickCard('업적');
   check('업적이 열렸다', overlayText().includes('업적'));
   // 히든은 달성 전까지 이름까지 가려야 합니다
   check('히든 업적은 가려져 있다', overlayText().includes('숨겨진 업적'));
@@ -599,8 +599,19 @@ async function main(): Promise<void> {
     press('Escape');
     check('설정에서 메인으로 돌아온다', overlayText().includes('게임 시작'));
 
+    // 도전모드가 열리면 2번에 섭니다. 번호는 보이는 순서대로라 숫자키 2 가 도전모드를 엽니다
+    {
+      const t = overlayText();
+      const at = t.indexOf('도전모드');
+      check('도전모드 카드가 게임 시작과 상점 사이에 선다', at > t.indexOf('게임 시작') && at < t.indexOf('상점'));
+      press('Digit2');
+      check('숫자키 2 가 도전모드를 연다', overlayText().includes('방패 행진'));
+      press('Escape');
+      check('도전모드에서 메인으로 돌아온다', overlayText().includes('게임 시작'));
+    }
+
     // 개발자 모드에서는 히든 업적도 가리지 않습니다
-    press('Digit5');
+    clickCard('업적');
     check('개발자 모드에서는 히든이 안 가려진다', !overlayText().includes('???'), overlayText().trim().slice(0, 60));
     check('히든 업적 이름이 보인다', overlayText().includes('사인 수집가'));
     press('Escape');
@@ -620,7 +631,7 @@ async function main(): Promise<void> {
     press('Escape');
 
     // 켜면 상점에 하드 자리가 생깁니다. 잠겨 있을 때 없던 탭입니다 (위 2번)
-    press('Digit2');
+    clickCard('상점');
     check('하드모드를 켜면 상점에 심연 탭이 생긴다', overlayText().includes('심연'));
     press('Escape');
 
@@ -637,7 +648,7 @@ async function main(): Promise<void> {
     check('도감 전체 보기가 켜진다', overlayText().includes('도감을 전부 엽니다'));
     press('Escape');
 
-    press('Digit3');
+    clickCard('도감');
     check('도감이 전부 열린다', !overlayText().includes('아직 만나지 못했습니다'), overlayText().trim().slice(0, 60));
     check('수치 칸까지 열린다', !overlayText().includes('이동 패턴이 열립니다'));
     press('ArrowRight');
@@ -650,7 +661,7 @@ async function main(): Promise<void> {
     check('도감 전체 보기를 끌 수 있다', overlayText().includes('원래대로'));
     press('Escape');
 
-    press('Digit3');
+    clickCard('도감');
     check('끄면 도감이 원래대로 돌아온다', overlayText().includes('아직 만나지 못했습니다'));
     press('Escape');
 
