@@ -378,7 +378,9 @@ function goChallenge(): void {
  * 안 붙습니다 (도전모드 공통 규칙)
  */
 function startChallengeStage(id: ChallengeStageId): void {
-  if (!save.devMode) return;
+  // 목록과 같은 판정을 봅니다. 정식 개방 때 여기만 개발자 잠금이 남아 있어서
+  // 카드를 눌러도 아무 일이 없었습니다 (2026-09-28)
+  if (!challengeOpen(save)) return;
   const stripped: SaveData = {
     ...save,
     perm: {},

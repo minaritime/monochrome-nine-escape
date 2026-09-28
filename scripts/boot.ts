@@ -820,6 +820,26 @@ async function main(): Promise<void> {
     press('Escape');
     check('설정에서 메인으로', overlayText().includes('게임 시작'));
 
+    // **개발자 모드가 아니어도 스테이지에 들어가져야 합니다.** 정식 개방 때 목록만 열고
+    // 시작 함수의 개발자 잠금을 그대로 둬서, 카드를 눌러도 아무 일이 없었습니다 (2026-09-28)
+    clickCard('도전모드');
+    check('개발자 모드가 아니어도 도전 목록이 열린다', overlayText().includes('방패 행진'));
+    clickCard('방패 행진');
+    frames(2);
+    check('개발자 모드가 아니어도 스테이지에 들어간다', !overlayText().includes('첫 클리어에만'), overlayText().trim().slice(0, 60));
+    check('시작 스킬 선택창이 뜬다', overlayText().includes('대시'));
+    clickCard('대시');
+    frames(2);
+    check('고르면 판이 시작된다', overlayText().trim() === '', overlayText().trim().slice(0, 60));
+    // 일시정지 → 나가기 → 메인 (위 8번 첫머리와 같은 길)
+    press('Escape');
+    frames(2);
+    press('KeyQ');
+    frames(2);
+    press('Escape');
+    frames(2);
+    check('도전 판에서 메인으로 나온다', overlayText().includes('게임 시작'), overlayText().trim().slice(0, 60));
+
     // **이제 판을 시작하지 않고 메인에서 바로 켭니다.** 이것이 이 통로의 존재 이유입니다
     press('F1');
     frames(2);
