@@ -24,7 +24,7 @@ import { showAchievements } from './ui/screens/achievements';
 import { showSettings } from './ui/screens/settings';
 import { showBranchChoice, showGameOver, showPause, showSkillChoice } from './ui/screens/ingame';
 import { showDebugGate } from './ui/screens/debugGate';
-import { showChallengeList } from './ui/screens/challenge';
+import { challengeOpen, showChallengeList } from './ui/screens/challenge';
 import type { SkillId } from './skills/types';
 import { checkAchievements, commitAchieveStats, resetAchievements, unlockDirect } from './meta/achievements';
 import { clearToasts, pushToasts, updateToasts } from './ui/toast';
@@ -314,6 +314,7 @@ function goMain(): void {
       bestiary: goBestiary,
       records: goRecords,
       achievements: goAchievements,
+      challenge: goChallenge,
       settings: goSettings,
       patchNotes: goPatchNotes,
     }),
@@ -359,8 +360,8 @@ function goBestiary(): void {
  * `startSandbox` 와 같은 이유로 여기서도 한 번 더 막습니다
  */
 function goChallenge(): void {
-  if (!save.devMode) return;
-  open('challenge', () => showChallengeList(save, goSettings, startChallengeStage));
+  if (!challengeOpen(save)) return;
+  open('challenge', () => showChallengeList(save, goMain, startChallengeStage));
 }
 
 /**
@@ -480,7 +481,6 @@ function goSettings(notice = ''): void {
         goSettings(`난이도를 ${DIFFICULTY.max} 까지 전부 엽니다 (일반 · 하드)`);
       },
       enterDebugMap: startSandbox,
-      enterChallenge: goChallenge,
       resetAll: () => {
         save = resetSave();
         // 저장이 비면 하드모드도 꺼집니다. 색만 붉게 남으면 화면이 거짓말을 합니다

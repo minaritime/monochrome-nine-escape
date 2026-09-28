@@ -1,4 +1,5 @@
 import {
+  CHALLENGE,
   CHALLENGE_IMPLEMENTED,
   CHALLENGE_STAGES,
   type ChallengeStageDef,
@@ -10,10 +11,11 @@ import { bindKeys, card, clearOverlay, formatTime, h, overlayEl, screen } from '
 /**
  * 도전모드 스테이지 목록 (2026-09-16).
  *
- * **아직 개발자 모드에서만 열립니다** (설정 화면의 개발자 구역). 정식 개방 조건은
- * 난이도 1 클리어입니다 (`docs/기획/콘텐츠.md`).
+ * **메인 메뉴에서 들어옵니다** (2026-09-28 정식 개방). 난이도 1 을 클리어하면 열립니다
+ * (`challengeOpen`). 그 전에는 메인 메뉴에 카드 자리조차 없습니다.
  *
- * 지금은 규칙을 만든 스테이지가 하나도 없어서 전부 못 누르는 정보 카드입니다.
+ * **플레이어에게는 규칙까지 만든 스테이지만 보입니다.** 아직 안 만든 칸("준비 중" ·
+ * "보류")은 개발자 모드에서만 정보 카드로 섭니다.
  * **`disabled` 가 아니라 `info` 를 씁니다.** `disabled` 는 상점의 "못 사는 항목"
  * 흐림이라, 읽으라고 만든 화면 전체가 희미해집니다 (도감이 실제로 그랬습니다).
  */
@@ -24,10 +26,10 @@ export function showChallengeList(
 ): () => void {
   clearOverlay();
 
-  const rows = CHALLENGE_STAGES.map((stage, i) => stageCard(save, stage, i + 1, onStart));
+  const stages = save.devMode ? CHALLENGE_STAGES : CHALLENGE_STAGES.filter((s) => CHALLENGE_IMPLEMENTED.includes(s.id));
+  const rows = stages.map((stage, i) => stageCard(save, stage, i + 1, onStart));
 
   const note = h('div', { class: 'hint' }, [
-    '개발자 모드 전용입니다. 정식 개방은 난이도 1 클리어입니다',
     h('div', {}, ['상점 강화와 난이도 배율이 안 걸리고, 판 중에는 코인이 안 떨어집니다']),
     h('div', {}, ['클리어 코인은 첫 클리어에만 나옵니다 (반복 0)']),
   ]);
@@ -38,6 +40,11 @@ export function showChallengeList(
   return bindKeys((code) => {
     if (code === 'Escape' || code === 'Backspace') onBack();
   });
+}
+
+/** 메인 메뉴에 도전모드가 열렸는가. **판정은 여기 한 곳입니다** */
+export function challengeOpen(save: SaveData): boolean {
+  return save.devMode || save.maxDifficulty > CHALLENGE.openAfterClear;
 }
 
 /**

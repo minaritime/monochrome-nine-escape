@@ -2,6 +2,7 @@ import { getSkillDef } from '../../skills/registry';
 import { achieveProgress } from '../../meta/achievements';
 import { LATEST_PATCH } from '../../data/patchnotes';
 import type { SaveData } from '../../meta/save';
+import { challengeOpen } from './challenge';
 import { bindKeys, card, clearOverlay, formatTime, gearButton, h, helpButton, overlayEl, patchButton, screen } from './dom';
 
 export interface MainActions {
@@ -10,6 +11,7 @@ export interface MainActions {
   bestiary: () => void;
   records: () => void;
   achievements: () => void;
+  challenge: () => void;
   settings: () => void;
   patchNotes: () => void;
 }
@@ -27,6 +29,9 @@ export function showMainMenu(save: SaveData, actions: MainActions): () => void {
     card({ key: '4', title: '기록', onClick: actions.records }),
     card({ key: '5', title: '업적', desc: `${achieveProgress(save).done} / ${achieveProgress(save).total} 달성`, onClick: actions.achievements }),
   ]);
+  // 도전모드는 난이도 1 을 깨야 자리가 생깁니다 (2026-09-28 정식 개방)
+  const hasChallenge = challengeOpen(save);
+  if (hasChallenge) items.append(card({ key: '6', title: '도전모드', onClick: actions.challenge }));
 
   // 조작 안내는 좌측 상단 버튼 안으로 접었습니다. 톱니바퀴와 같은 무게의 "게임 바깥" 항목이라
   // 카드 목록에도 넣지 않고, 늘 펼쳐두지도 않습니다
@@ -53,7 +58,9 @@ export function showMainMenu(save: SaveData, actions: MainActions): () => void {
     if (code === 'Digit3') actions.bestiary();
     if (code === 'Digit4') actions.records();
     if (code === 'Digit5') actions.achievements();
-    if (code === 'Digit6') actions.settings();
+    if (code === 'Digit6' && hasChallenge) actions.challenge();
+    // 설정은 톱니라 번호 배지가 없습니다. 6 을 도전모드에 내주고 0 으로 옮겼습니다
+    if (code === 'Digit0') actions.settings();
   });
 }
 

@@ -363,7 +363,7 @@ async function main(): Promise<void> {
 
   // 설정의 초기화는 한 번에 실행되면 안 됩니다 (되돌릴 방법이 없습니다).
   // 겨누기 동작 자체는 개발자 항목으로 6-2 번에서 봅니다
-  press('Digit6');
+  press('Digit0');
   check('설정이 열렸다', overlayText().includes('모든 데이터 초기화'));
   // 개발자 모드를 켜기 전에는 그 항목들이 아예 없어야 합니다
   check('도감 전체 보기는 잠겨 있으면 안 보인다', !overlayText().includes('도감 전체 보기'));
@@ -587,7 +587,7 @@ async function main(): Promise<void> {
 
   if (over) {
     console.log('6-2) 개발자 모드가 켜진 뒤의 설정');
-    press('Digit6');
+    press('Digit0');
     check('업적 초기화가 보인다', overlayText().includes('업적 초기화'));
     check('개발자 모드 끄기가 보인다', overlayText().includes('개발자 모드 끄기'));
     // 설정은 마우스로 씁니다 (숫자 단축키 없음)
@@ -611,7 +611,7 @@ async function main(): Promise<void> {
     //
     // **정상 해금으로 열린 것과 구분되어야 합니다.** 구분이 없으면 개발자 모드를
     // 켜 둔 것을 잊고 "왜 열려 있지"가 됩니다
-    press('Digit6');
+    press('Digit0');
     check('개발자 모드에서는 하드모드가 보인다', overlayText().includes('하드모드'));
     check('정상 해금과 구분된다', overlayText().includes('하드모드 (개발자)'));
 
@@ -626,7 +626,7 @@ async function main(): Promise<void> {
 
     // 다시 꺼 둡니다. 아래 7번은 하드모드와 무관한 자리라, 켜 둔 채로 넘기면
     // 그 점검이 무엇을 재고 있는지 흐려집니다
-    press('Digit6');
+    press('Digit0');
     clickCard('하드모드 (개발자)');
     check('다시 끌 수 있다', overlayText().includes('[ 끔 ]'));
 
@@ -645,7 +645,7 @@ async function main(): Promise<void> {
     press('ArrowLeft');
     press('Escape');
 
-    press('Digit6');
+    press('Digit0');
     clickCard('도감 전체 보기 (개발자)');
     check('도감 전체 보기를 끌 수 있다', overlayText().includes('원래대로'));
     press('Escape');
@@ -656,7 +656,7 @@ async function main(): Promise<void> {
 
     // **난이도 전체 해금.** `?unlock` 과 같은 일을 설정 화면에서 합니다.
     // 주소를 고치러 나가지 않아도 되게 낸 자리라 판정도 같아야 합니다 (개발자 전용)
-    press('Digit6');
+    press('Digit0');
     check('개발자 모드에서는 난이도 전체 해금이 보인다', overlayText().includes('난이도 전체 해금 (개발자)'));
     // 앞선 점검이 난이도 0 을 깨고 왔을 수 있어서 "누르기 전 값"을 특정하지 않습니다.
     // 여기서 확실한 것은 **아직 끝까지는 안 열렸다** 하나뿐입니다
@@ -701,7 +701,7 @@ async function main(): Promise<void> {
         return hit !== null;
       };
 
-      press('Digit6');
+      press('Digit0');
       check('개발자 모드에서는 디버그 맵이 보인다', overlayText().includes('디버그 맵 (개발자)'));
       clickCard('디버그 맵 (개발자)');
       frames(3);
@@ -741,7 +741,7 @@ async function main(): Promise<void> {
       check('디버그 맵은 기록을 안 남긴다', records() === recordsBefore);
     }
 
-    press('Digit6');
+    press('Digit0');
     press('Escape');
 
     // **정상 해금 여부는 여기서 못 잽니다.** `main.ts` 는 저장을 메모리에 들고
@@ -801,7 +801,7 @@ async function main(): Promise<void> {
     check('메인으로 나왔다', overlayText().includes('게임 시작'), overlayText().trim().slice(0, 40));
 
     // 5번에서 판 중에 켜 두었으므로 그대로면 잠금 화면이 안 뜹니다. 먼저 끕니다
-    press('Digit6');
+    press('Digit0');
     clickCard('개발자 모드 끄기');
     clickCard('개발자 모드 끄기');
     check('개발자 모드를 껐다', overlayText().includes('껐습니다'));
@@ -817,7 +817,7 @@ async function main(): Promise<void> {
     frames(2);
     check('메인에서 개발자 모드가 켜졌다', overlayText().includes('게임 시작'), overlayText().trim().slice(0, 40));
 
-    press('Digit6');
+    press('Digit0');
     check('설정에 개발자 항목이 나타난다', overlayText().includes('도감 전체 보기 (개발자)'));
     check('하드모드도 나타난다', overlayText().includes('하드모드 (개발자)'));
 
@@ -839,7 +839,7 @@ async function main(): Promise<void> {
     press('Escape');
 
     // 다시 일반으로 돌려 둡니다
-    press('Digit6');
+    press('Digit0');
     clickCard('하드모드 (개발자)');
     press('Escape');
     press('Digit1');
